@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# secrets — QoreID credentials must never be committed
+.env
