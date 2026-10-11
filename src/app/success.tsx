@@ -170,6 +170,15 @@ function ResultCard({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Pop everything above the first page in one go: the flow's modal, /pin and the result card.
+ * (dismissAll stopped at the flow's modal, so closing a receipt reopened the review screen.)
+ */
+function closeAll() {
+  if (router.canDismiss()) router.dismissTo("/");
+  else router.replace("/");
+}
+
+/**
  * The payoff after every money flow (Swap.png, Send boards, Virtual Card.png): a card over the
  * dimmed PIN screen. It opens on "Processing", then settles into success — or stays pending
  * with its live steps. Presented ON TOP of /pin (push, not replace), so nothing flashes.
@@ -198,10 +207,6 @@ export default function Success() {
       toast(`${result.beneficiary.name} saved to beneficiaries`, "success");
     }
   };
-  const closeAll = () => {
-    if (router.canDismiss()) router.dismissAll();
-    else router.replace("/");
-  };
   const done = () => {
     keepBeneficiary();
     clear();
@@ -219,8 +224,7 @@ export default function Success() {
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       clear();
-      if (router.canDismiss()) router.dismissAll();
-      else router.replace("/");
+      closeAll();
       return true;
     });
     return () => sub.remove();
@@ -244,11 +248,16 @@ export default function Success() {
   const pending = !!tx && tx.status === "pending" && !cashpoint;
   const amount = tx && !cashpoint ? headlineAmount(tx) : null;
 
+  // A finished transaction never leads back into its flow: close the whole flow (PIN, review,
+  // the modal stack) first, then open the receipt on top of wherever the flow started — so
+  // closing the receipt lands there, not on the payment screen. (Replacing /success with the
+  // receipt left /pin and the flow underneath.)
   const openReceipt = () => {
     if (!tx) return;
     keepBeneficiary();
     clear();
-    router.replace({ pathname: "/transaction/[id]", params: { id: tx.id } });
+    closeAll();
+    setTimeout(() => router.push({ pathname: "/transaction/[id]", params: { id: tx.id } }), 60);
   };
 
   if (!settled) {
@@ -270,7 +279,7 @@ export default function Success() {
   return (
     <ResultCard>
       {(cashpoint || extra) && <PrivacyGuard />}
-      <ScrollView bounces={false} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
+      <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} bounces={false} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         <View style={{ alignItems: "center", gap: spacing.sm }} accessibilityLiveRegion="polite">
           <ResultIcon tx={tx} pending={pending} />
           <Animated.View entering={reduce ? undefined : FadeInDown.delay(80).duration(320)} style={{ alignItems: "center", gap: spacing.xs, marginTop: spacing.xs }}>

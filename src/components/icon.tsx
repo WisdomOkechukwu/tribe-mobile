@@ -80,6 +80,7 @@ const ICONS = {
   chevronDown: { ios: "chevron.down", android: "expand_more" },
   back: { ios: "chevron.left", android: "arrow_back" },
   clock: { ios: "clock.fill", android: "schedule" },
+  pause: { ios: "pause.fill", android: "pause" },
   history: { ios: "clock.arrow.circlepath", android: "history" },
   snowflake: { ios: "snowflake", android: "ac_unit" },
   wifi: { ios: "wifi", android: "wifi" },

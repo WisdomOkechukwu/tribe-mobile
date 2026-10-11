@@ -5,6 +5,8 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Appearance, View } from "react-native";
+import { BrandSplash } from "@/components/brand-splash";
+import { headerTitle } from "@/components/header-title";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { LockGate } from "@/components/lock-gate";
 import { OverlayHost } from "@/components/overlay-host";
@@ -53,11 +55,9 @@ export default function RootLayout() {
     Appearance.setColorScheme(appearance === "system" ? "unspecified" : appearance);
   }, [appearance]);
 
-  const ready = fontsLoaded && hydrated;
-  useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
-  if (!ready) return null;
+  const [splashDone, setSplashDone] = useState(false);
+  // the native splash stays up until fonts + stores are in; BrandSplash then takes over and hides it
+  if (!fontsLoaded || !hydrated) return null;
 
   const base = scheme === "dark" ? DarkTheme : DefaultTheme;
   const navTheme = {
@@ -73,6 +73,7 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerBackButtonDisplayMode: "minimal",
+            headerTitle,
             headerShadowVisible: false,
             headerTitleStyle: { fontFamily: fonts.semibold, color: colors.text },
             headerLargeTitleStyle: { fontFamily: fonts.display },
@@ -125,6 +126,7 @@ export default function RootLayout() {
         <OverlayHost />
         <LoadingHost />
         <ToastHost />
+        {!splashDone && <BrandSplash onDone={() => setSplashDone(true)} />}
       </ThemeProvider>
       </View>
     </GestureHandlerRootView>

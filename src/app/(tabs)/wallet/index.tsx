@@ -50,7 +50,7 @@ export default function Wallet() {
         value={kind}
         onChange={setKind}
         options={[
-          { value: "fiat", label: "Cash" },
+          { value: "fiat", label: "Fiat" },
           { value: "crypto", label: "Crypto" },
         ]}
       />

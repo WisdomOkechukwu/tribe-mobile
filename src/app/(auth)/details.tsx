@@ -6,11 +6,10 @@ import { CoinIcon } from "@/components/coin-icon";
 import { Dropdown } from "@/components/dropdown";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
-import { StepCount } from "@/components/step-count";
 import { Text } from "@/components/text";
 import { countryByIso, SIGNUP_COUNTRIES } from "@/data/countries";
 import { DEMO } from "@/data/seed";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { AuthShell } from "@/screens/auth/shell";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSignupStore } from "@/stores/use-signup-store";
 import { spacing, useColors } from "@/theme";
@@ -50,10 +49,11 @@ export default function Details() {
     });
 
   return (
-    <OnboardingShell
-      title="Personal details"
+    <AuthShell
+      band="compact"
+      step={{ at: 2, of: 3 }}
+      headline={["Tell us", "about you."]}
       subtitle="Use your name exactly as it appears on your ID."
-      right={<StepCount step={2} of={3} />}
       footer={
         <Button
           title="Continue"
@@ -120,6 +120,6 @@ export default function Details() {
           onPress={() => overlay.select({ title: "Where did you hear about Tribe?", value: heard, options: HEARD.map((v) => ({ value: v, label: v })), onSelect: setHeard })}
         />
       </View>
-    </OnboardingShell>
+    </AuthShell>
   );
 }

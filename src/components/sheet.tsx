@@ -32,7 +32,7 @@ export function Sheet({ title, subtitle, children, footer, scroll = true, onClos
         </PressableScale>
       </View>
       {scroll ? (
-        <ScrollView contentInsetAdjustmentBehavior="never" automaticallyAdjustsScrollIndicatorInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingTop: spacing.sm, gap: spacing.lg, paddingBottom: spacing.xl }}>
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentInsetAdjustmentBehavior="never" automaticallyAdjustsScrollIndicatorInsets={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingTop: spacing.sm, gap: spacing.lg, paddingBottom: spacing.xl }}>
           {children}
         </ScrollView>
       ) : (
@@ -49,7 +49,7 @@ export function ChipRow<T extends string | number>({ options, value, onChange, r
   const ref = useRef<ScrollView>(null);
   const placed = useRef(false);
   return (
-    <ScrollView
+    <ScrollView showsVerticalScrollIndicator={false}
       ref={ref}
       horizontal
       contentInsetAdjustmentBehavior="never"

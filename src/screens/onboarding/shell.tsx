@@ -92,7 +92,7 @@ export function OnboardingShell({
         {right}
       </View>
       {scroll ? (
-        <ScrollView keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{ padding: spacing.mdl, paddingTop: spacing.lg, gap: spacing.xl, flexGrow: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{ padding: spacing.mdl, paddingTop: spacing.lg, gap: spacing.xl, flexGrow: 1 }}>
           {body}
         </ScrollView>
       ) : (

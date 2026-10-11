@@ -107,7 +107,7 @@ function BottomSheet({ title, subtitle, children }: { title?: string; subtitle?:
 function SelectList({ o, close }: { o: Extract<Overlay, { kind: "select" }>; close: (after?: () => void) => void }) {
   const c = useColors();
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm }} bounces={false}>
+    <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm }} bounces={false}>
       <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
         {o.options.map((opt, i) => {
           const on = opt.value === o.value;

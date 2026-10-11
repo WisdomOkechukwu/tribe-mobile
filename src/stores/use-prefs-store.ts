@@ -16,6 +16,7 @@ type PrefsState = {
   setAppearance: (a: Appearance) => void;
   toggleHideBalances: () => void;
   dismissPromo: (id: string) => void;
+  restorePromo: (id: string) => void;
   setNotification: (key: NotificationKey, on: boolean) => void;
 };
 
@@ -31,6 +32,7 @@ export const usePrefsStore = create<PrefsState>()(
       setAppearance: (appearance) => set({ appearance }),
       toggleHideBalances: () => set((s) => ({ hideBalances: !s.hideBalances })),
       dismissPromo: (id) => set((s) => ({ dismissedPromos: [...new Set([...s.dismissedPromos, id])] })),
+      restorePromo: (id) => set((s) => ({ dismissedPromos: s.dismissedPromos.filter((d) => d !== id) })),
       setNotification: (key, on) => set((s) => ({ notifications: { ...s.notifications, [key]: on } })),
     }),
     {

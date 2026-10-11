@@ -5,7 +5,7 @@ import Svg, { Circle } from "react-native-svg";
 import type { Transaction } from "@/data/seed";
 import { fonts, palette, spacing } from "@/theme";
 import { fullDate } from "@/utils/format";
-import { headline, receiptRows } from "@/utils/tx";
+import { headline, receiptRows, txTitle } from "@/utils/tx";
 import { Text } from "./text";
 
 const INK = "#14101A";
@@ -43,11 +43,11 @@ export const ReceiptTicket = forwardRef<View, { tx: Transaction; width: number }
       <View style={{ backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: "hidden" }}>
         <View style={{ height: 6, backgroundColor: palette.purple[500] }} />
         <View style={{ position: "absolute", top: 120, left: width * 0.15, opacity: 0.05 }} pointerEvents="none">
-          <Image source={require("@/assets/brand/tribe-mark.png")} style={{ width: width * 0.7, height: width * 0.51 }} contentFit="contain" />
+          <Image source={require("@/assets/brand/tribe-logo.png")} style={{ width: width * 0.6, height: width * 0.6 }} contentFit="contain" />
         </View>
         <View style={{ padding: spacing.mdl, paddingBottom: spacing.sm }}>
           <View style={{ alignItems: "center", gap: 6 }}>
-            <Text style={{ fontFamily: fonts.medium, fontSize: 12, color: MUTED }}>{tx.title}</Text>
+            <Text style={{ fontFamily: fonts.medium, fontSize: 12, color: MUTED }}>{txTitle(tx)}</Text>
             <Text style={{ fontFamily: fonts.display, fontSize: 28, color: INK, fontVariant: ["tabular-nums"] }} numberOfLines={1} adjustsFontSizeToFit>
               {headline(tx)}
             </Text>
@@ -67,10 +67,8 @@ export const ReceiptTicket = forwardRef<View, { tx: Transaction; width: number }
           </View>
           <Dashes />
           <View style={{ alignItems: "center", gap: 4, paddingBottom: spacing.sm }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Image source={require("@/assets/brand/tribe-mark.png")} style={{ width: 22, height: 16 }} contentFit="contain" />
-              <Text style={{ fontFamily: fonts.display, fontSize: 14, letterSpacing: 2, color: INK }}>TRIBE</Text>
-            </View>
+            {/* TribeLogo.png carries the wordmark itself */}
+            <Image source={require("@/assets/brand/tribe-logo.png")} style={{ width: 40, height: 40 }} contentFit="contain" accessibilityLabel="Tribe" />
             <Text style={{ fontFamily: fonts.regular, fontSize: 10, color: MUTED }}>Generated {fullDate(new Date().toISOString())} · tribe.africa</Text>
           </View>
         </View>

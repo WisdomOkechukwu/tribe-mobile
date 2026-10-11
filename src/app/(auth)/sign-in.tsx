@@ -7,7 +7,7 @@ import { Icon } from "@/components/icon";
 import { PasswordField } from "@/components/password-field";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { AuthShell, SwitchLink } from "@/screens/auth/shell";
 import { useSessionStore } from "@/stores/use-session-store";
 import { withLoader } from "@/stores/use-ui-store";
 import { spacing, useColors } from "@/theme";
@@ -16,6 +16,7 @@ import { isEmail } from "@/utils/hash";
 /**
  * Sign in (Sign in.png, devnote 1): after a log-out it's just email and password — no
  * biometrics here. Face ID / the lock PIN live on the lock screen, for returning-from-idle.
+ * Tribe's brand band + sheet (AuthShell) instead of the mockup's plain white page.
  */
 export default function SignIn() {
   const c = useColors();
@@ -35,26 +36,18 @@ export default function SignIn() {
     // "ok" flips the route guard: setup or Home takes over
   };
 
-  const subtitle = reason === "lock" ? "For your security, sign in with your password." : reason === "password-reset" ? "Sign in with your new password." : "Please enter your details to sign in.";
+  const subtitle = reason === "lock" ? "For your security, sign in with your password." : reason === "password-reset" ? "Sign in with your new password." : "Pick up right where you left off. Sign in with your email and password.";
 
   return (
-    <OnboardingShell
-      title="Welcome back"
+    <AuthShell
+      kicker="Welcome back"
+      headline={["Good to see", "you again."]}
       subtitle={subtitle}
       back={router.canGoBack()}
       footer={
         <>
           <Button title="Sign in" disabled={!valid} onPress={submit} />
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
-            <Text variant="body" tone="muted">
-              Don&apos;t have an account?
-            </Text>
-            <PressableScale onPress={() => router.push("/create-account")} hitSlop={10} accessibilityRole="link">
-              <Text variant="bodyStrong" tone="brand">
-                Sign up
-              </Text>
-            </PressableScale>
-          </View>
+          <SwitchLink prompt="New to Tribe?" action="Create an account" onPress={() => router.push("/create-account")} />
         </>
       }
     >
@@ -92,7 +85,7 @@ export default function SignIn() {
           </Text>
         </PressableScale>
       </View>
-    </OnboardingShell>
+    </AuthShell>
   );
 }
 

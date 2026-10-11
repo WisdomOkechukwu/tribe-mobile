@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { NumberPad, PinCells } from "@/components/pin-pad";
 import { PressableScale } from "@/components/pressable-scale";
-import { StepCount } from "@/components/step-count";
 import { Text } from "@/components/text";
 import { DEMO } from "@/data/seed";
 import { EMAIL_CODE_LENGTH } from "@/data/security";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { AuthShell } from "@/screens/auth/shell";
 import { useSignupStore } from "@/stores/use-signup-store";
 import { toast } from "@/stores/use-ui-store";
 import { spacing } from "@/theme";
@@ -59,11 +58,12 @@ export default function VerifyEmail() {
   }, [code, mode, email]);
 
   return (
-    <OnboardingShell
-      icon="envelope"
-      title="We've sent you a code"
+    <AuthShell
+      band="compact"
+      step={mode === "signup" ? { at: 1, of: 3 } : undefined}
+      kicker={mode === "reset" ? "Reset password" : undefined}
+      headline={["Check your", "inbox."]}
       subtitle={`Enter the ${EMAIL_CODE_LENGTH}-digit code we sent to ${maskEmail(email)}.`}
-      right={mode === "signup" ? <StepCount step={1} of={3} /> : undefined}
       scroll={false}
     >
       <PinCells length={EMAIL_CODE_LENGTH} value={code} masked={false} error={state === "error"} success={state === "ok"} />
@@ -99,6 +99,6 @@ export default function VerifyEmail() {
       <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: spacing.md }}>
         <NumberPad onKey={(d) => setCode((v) => (v.length < EMAIL_CODE_LENGTH && state === "idle" ? v + d : v))} onDelete={() => setCode((v) => v.slice(0, -1))} />
       </View>
-    </OnboardingShell>
+    </AuthShell>
   );
 }

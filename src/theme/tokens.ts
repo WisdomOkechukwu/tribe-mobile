@@ -40,6 +40,8 @@ export const type = {
   overline: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14, letterSpacing: 1.2, textTransform: "uppercase" },
   amount: { fontFamily: fonts.display, fontSize: 17, lineHeight: 22, fontVariant: ["tabular-nums"] },
   mono: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 24, letterSpacing: 2, fontVariant: ["tabular-nums"] },
+  /** loud caps for brand moments only (intro, auth band) — the app's take on the landing page's display caps */
+  poster: { fontFamily: fonts.display, fontSize: 38, lineHeight: 40, letterSpacing: -1, textTransform: "uppercase" },
   // legacy aliases
   hero: balance,
   display: largeTitle,

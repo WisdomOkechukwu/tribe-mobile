@@ -1,12 +1,9 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { View } from "react-native";
 import { Button } from "@/components/button";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
-import { PressableScale } from "@/components/pressable-scale";
-import { Text } from "@/components/text";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { AuthShell, SwitchLink } from "@/screens/auth/shell";
 import { useSessionStore } from "@/stores/use-session-store";
 import { withLoader } from "@/stores/use-ui-store";
 import { useColors } from "@/theme";
@@ -27,23 +24,14 @@ export default function Forgot() {
   };
 
   return (
-    <OnboardingShell
-      icon="keyLine"
-      title="Reset your password"
-      subtitle="Enter the email on your Tribe account and we'll send you a code."
+    <AuthShell
+      kicker="Reset password"
+      headline={["Forgot your", "password?"]}
+      subtitle="Enter the email on your Tribe account and we'll send you a code to reset it."
       footer={
         <>
           <Button title="Send code" disabled={!isEmail(email)} onPress={request} />
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
-            <Text variant="body" tone="muted">
-              Remember it?
-            </Text>
-            <PressableScale onPress={() => router.back()} hitSlop={10} accessibilityRole="link">
-              <Text variant="bodyStrong" tone="brand">
-                Sign in
-              </Text>
-            </PressableScale>
-          </View>
+          <SwitchLink prompt="Remember it?" action="Sign in" onPress={() => router.back()} />
         </>
       }
     >
@@ -63,6 +51,6 @@ export default function Forgot() {
         hint={error ?? undefined}
         hintTone="danger"
       />
-    </OnboardingShell>
+    </AuthShell>
   );
 }

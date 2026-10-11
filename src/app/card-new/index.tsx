@@ -66,7 +66,7 @@ export default function CardThemeStep() {
         </>
       }
     >
-      <ScrollView
+      <ScrollView showsVerticalScrollIndicator={false}
         ref={scroller}
         horizontal
         snapToInterval={CARD_W + GAP}

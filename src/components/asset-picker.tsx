@@ -56,7 +56,7 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
   };
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.md }}>
+    <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.md }}>
       <Field value={q} onChangeText={setQ} placeholder="Search by asset" autoCapitalize="none" leading={<Icon name="search" size={16} color={c.textMuted} />} returnKeyType="search" />
 
       {showTip && o.tip && (

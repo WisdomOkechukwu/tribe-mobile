@@ -45,8 +45,12 @@ function Piece({ at, w, active, delay = 0, amp = 5, rotate = 0, children }: { at
   );
 }
 
-/** Soft round stage the pieces sit on. */
-function Stage({ w, h, tint, ring }: { w: number; h: number; tint: string; ring?: string }) {
+type ArtProps = { width: number; active: boolean; /** on a full-bleed brand colour (intro bands) */ onColour?: boolean };
+
+/** Soft round stage the pieces sit on. On a brand colour it turns into a translucent white disc. */
+function Stage({ w, h, tint: soft, ring: line, onColour }: { w: number; h: number; tint: string; ring?: string; onColour?: boolean }) {
+  const tint = onColour ? "rgba(255,255,255,0.14)" : soft;
+  const ring = onColour ? "rgba(255,255,255,0.4)" : line;
   const d = w * 0.82;
   return (
     <>
@@ -79,7 +83,7 @@ function Chip({ icon, tint, label }: { icon: IconName; tint: string; label: stri
 }
 
 /** 1 · Crypto that spends like cash: coins drift into a Tribe card; a payment lands. */
-export function CryptoSpendArt({ width: w, active }: { width: number; active: boolean }) {
+export function CryptoSpendArt({ width: w, active, onColour }: ArtProps) {
   const c = useColors();
   const h = w * 0.92;
   const coin = (code: string, s: number) => (
@@ -89,7 +93,7 @@ export function CryptoSpendArt({ width: w, active }: { width: number; active: bo
   );
   return (
     <View style={{ width: w, height: h }} accessible accessibilityLabel="Bitcoin, Ether, Tether and Solana coins flowing into a Tribe card">
-      <Stage w={w} h={h} tint={c.brandSoft} ring={c.borderStrong} />
+      <Stage w={w} h={h} tint={c.brandSoft} ring={c.borderStrong} onColour={onColour} />
       <Piece at={{ x: 0.2, y: 0.36 }} w={w} active={active} delay={60} amp={3} rotate={-9}>
         <VirtualCardFace card={{ theme: "midnight", network: "mastercard", holder: "Ada Okafor", number: "5399", last4: "4821", expiry: "09/29", cvv: "", frozen: false }} width={w * 0.62} />
       </Piece>
@@ -133,13 +137,13 @@ function AccountCard({ code, name, amount, detail, width }: { code: string; name
 }
 
 /** 2 · Dollar, pound and euro accounts in your name, fanned over the Naira. */
-export function GlobalAccountsArt({ width: w, active }: { width: number; active: boolean }) {
+export function GlobalAccountsArt({ width: w, active, onColour }: ArtProps) {
   const c = useColors();
   const h = w * 0.92;
   const cw = w * 0.52;
   return (
     <View style={{ width: w, height: h }} accessible accessibilityLabel="US dollar, British pound and euro accounts fanned over a Naira coin">
-      <Stage w={w} h={h} tint={c.brandSoft} ring={c.borderStrong} />
+      <Stage w={w} h={h} tint={c.brandSoft} ring={c.borderStrong} onColour={onColour} />
       <Piece at={{ x: 0.05, y: 0.1 }} w={w} active={active} delay={80} amp={3} rotate={-11}>
         <AccountCard code="EUR" name="Euro account" amount="€96.75" detail="IBAN •• 7702 · SEPA" width={cw} />
       </Piece>
@@ -171,17 +175,17 @@ export function GlobalAccountsArt({ width: w, active }: { width: number; active:
 }
 
 /** 3 · Bills, gift cards and Cashpoints orbiting the Tribe mark. */
-export function EverydayArt({ width: w, active }: { width: number; active: boolean }) {
+export function EverydayArt({ width: w, active, onColour }: ArtProps) {
   const c = useColors();
   const h = w * 0.92;
   const hub = w * 0.34;
   const thumb = w * 0.15;
   return (
     <View style={{ width: w, height: h }} accessible accessibilityLabel="The Tribe mark surrounded by a Cashpoint ticket, MTN, PHED and DStv bills and a gift card">
-      <Stage w={w} h={h} tint={c.accentSoft} ring={c.borderStrong} />
+      <Stage w={w} h={h} tint={c.accentSoft} ring={c.borderStrong} onColour={onColour} />
       <Piece at={{ x: 0.5 - 0.17, y: 0.46 - 0.17 }} w={w} active={active} delay={60} amp={2}>
         <View style={{ width: hub, height: hub, borderRadius: hub / 2, backgroundColor: c.surface, alignItems: "center", justifyContent: "center", boxShadow: shadows.pop }}>
-          <Image source={require("@/assets/brand/tribe-mark.png")} style={{ width: hub * 0.62, height: hub * 0.45 }} contentFit="contain" />
+          <Image source={require("@/assets/brand/tribe-logo.png")} style={{ width: hub * 0.66, height: hub * 0.66 }} contentFit="contain" />
         </View>
       </Piece>
       <Piece at={{ x: 0.6, y: 0.06 }} w={w} active={active} delay={180} rotate={8}>

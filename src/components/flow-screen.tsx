@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, useColors } from "@/theme";
+import { headerTitle } from "./header-title";
 import { Icon } from "./icon";
 import { KeyboardFrame } from "./keyboard-frame";
 import { PressableScale } from "./pressable-scale";
@@ -46,14 +47,14 @@ export function FlowScreen({
           headerShown: true,
           headerTitle: step
             ? () => (
-                <View style={{ alignItems: "center" }}>
+                <View style={{ alignItems: "center", transform: [{ translateY: Platform.OS === "ios" ? -1.5 : 0 }] }}>
                   <Text variant="bodyStrong">{title}</Text>
                   <Text variant="caption" tone="muted" style={{ marginTop: -2 }}>
                     {step}
                   </Text>
                 </View>
               )
-            : undefined,
+            : headerTitle,
           headerLeft:
             cancel === "close"
               ? () => (
@@ -82,7 +83,7 @@ export function FlowScreen({
       />
       <KeyboardFrame backgroundColor={c.bg}>
         {scroll ? (
-          <ScrollView
+          <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}
             contentInsetAdjustmentBehavior="never"
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"

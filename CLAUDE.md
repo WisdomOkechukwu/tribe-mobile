@@ -46,8 +46,9 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
   - Layout and lists: `list` (ListSection, ListRow, RowIcon, SectionLink), `flow-screen`, `screen`, `field`, `dropdown`, `keyboard-frame`
   - Navigation: `glass-tab-bar`, `tab-icons`, `app-tabs`, `stack-options`
   - Money: `balance-hero`, `asset-row`, `transaction-row` (`groupByDay`), `pair-icon`, `transfer-legs` (From → To pair), `result-badge`, `pending-timeline`, `amount-entry`
-  - Brand: `cashpoint-mark` (₦ on a tilted ticket), `cashpoint-ticket`, `card-face` (7 finishes, `useCardPalette`), `brand-tiles`, `coin-icon` (circular flags/coins), `illustrations` (intro art built from real assets), `tribe-loader` (+ `LoadingHost`, `withLoader()`)
-  - Auth: `lock-gate` (app lock overlay), `password-field`, `password-rules`, `step-count`
+  - Brand: `cashpoint-mark` (₦ on a tilted ticket), `cashpoint-ticket`, `card-face` (7 finishes, `useCardPalette`), `brand-tiles`, `coin-icon` (circular flags/coins), `illustrations` (intro art built from real assets; `onColour` for the intro bands), `tribe-loader` (logo disc breathing out rings over a wave of slanted bars; + `LoadingHost`, `withLoader()`), `brand-splash` (cold-start breathe-out)
+  - **The logo is `assets/brand/tribe-logo.png`** (copied from `../TribeLogo.png`; it carries the TRIBE wordmark, so never set "TRIBE" text next to it). On purple-900 or orange put it on a white disc (`MarkDisc` in `screens/auth/shell.tsx`).
+  - Auth: `lock-gate` (app lock overlay), `password-field`, `password-rules`. Signed-out screens use `AuthShell` (`src/screens/auth/shell.tsx`): purple-900 band (corner stripes, logo disc, `poster` caps headline with an orange last line, step segments) and a light sheet rising over it; the band scrolls with the form. Post-signup setup keeps `OnboardingShell`.
   - Pickers & money: `asset-picker` (`openAssetPicker`: search, popular, tabs, "Tap to create"), `quote-timer`, `receipt-ticket` (shareable receipt image)
   - `privacy-guard` (screenshot/recording protection; web no-op)
 - `src/stores/` (Zustand, persisted as `tribe:*`): `session` (auth, PINs, lock, world landing), `prefs`, `wallet`, `cards`, `vault`, `inbox`, `recurring`, `support`, `beneficiaries`, `referrals`. Not persisted: `flow`, `swap-draft`, `send-draft`, `signup`, `overlay`, `ui` (toast + loader). `reset.ts` resets all demo data.
@@ -63,9 +64,10 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **Grouping:** group with `ListSection` (hairlines, inset separators), not a card per row. Cards are only for real cards: promos, the virtual card, the tag card, the Cashpoint hub.
 - **Icons are circular**: icon chips, flags, coins, biller and card badges. Neutral line icons in grey circles on Me/settings; colour only for status.
 - **No system UI**: no `Alert`, `ActionSheetIOS` or native pickers. Use `overlay.select / sheet / confirm / notice`.
+- **No scroll bars**: every `ScrollView` / `FlatList` / `SectionList` sets `showsVerticalScrollIndicator={false}` and `showsHorizontalScrollIndicator={false}`.
 - **Money colour**: outgoing (−) amounts are red, incoming green.
 - **Sensitive screens** (Cashpoint, card details, receipts with tokens/codes, Token Vault, success with a code) mount `<PrivacyGuard />`.
-- **Type:** Bricolage for money and titles only; Poppins for everything else. Use the `Text` variants; never set fontSize in screens.
+- **Type:** Bricolage for money and titles only; Poppins for everything else. Use the `Text` variants; never set fontSize in screens. `poster` (uppercase Bricolage 800) is for brand moments only: the intro and the auth band.
 - **Stripes:** at most one stripes motif per screen.
 - **Feedback:** copy actions confirm with `toast()`, not inline "Copied" chips.
 - **Tab bar:**
@@ -85,6 +87,8 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **Biometrics are real:** `authenticate()` must succeed before turning Face ID on or approving with it. On web it's simulated in dev only.
 
 ## Rules that came from real bugs
+- **Splash parity:** `BrandSplash` must start exactly where the native splash ends: same image (`tribe-logo.png`), same width (`SPLASH_MARK_WIDTH` = `imageWidth` in app.json), same light `#F5F3F7` background in both schemes. It hides the native splash on its own `onLayout`. Native splash changes need a rebuild (`npx expo run:ios`).
+- **Finishing a flow resets it:** `/success` leaves through `closeAll()`, which is `router.dismissTo("/")`. `dismissAll()` stopped at the flow's modal, so closing a receipt reopened the review screen. "View details" closes everything first, *then* pushes the receipt, so closing the receipt lands on Home.
 - **Every money flow is review → `/pin` → `/success`.** Screens call `useFlowStore.begin(action, origin)` and push `/pin`. `pin.tsx` executes the action and **pushes** `/success` on top (replacing it flashed the review screen). `/success` is a `transparentModal` result card over the dimmed PIN screen: Processing → success/pending, View details, **Make another transaction** (re-opens `origin`), Done. PIN-less actions (Cashpoint redeem) call `complete(result)`. Don't move money anywhere else.
 - **Swap/send quotes come from `utils/rates.ts`** (30-second windows), so review, PIN and execution agree within a window. Don't compute rates from `asset.usd` directly in new money code.
 - **`expo-media-library`'s new API doesn't exist on web** (its `Asset` class extends `undefined` and kills static rendering). Keep it behind `utils/save-image.ts` with the `.web.ts` twin.
@@ -121,6 +125,6 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
    - `xcrun simctl io booted screenshot out.png`
    - Check every screen in light and dark (`xcrun simctl ui booted appearance dark`).
    - Don't drive the simulator while someone else is using it.
-3. The web build (`npx expo start --web --port 8084 --clear`) plus headless Chrome at 393×852 is a non-intrusive second check. The landing page's phone screenshots come from this build (`npm run capture:app` in `../`, 8 shots incl. `send` via `dev?…&demo=send` and `card` via `&theme=lime`), so re-run that after visible UI changes.
+3. The web build (`npx expo start --web --port 8084 --clear`) plus headless Chrome at 393×852 is a non-intrusive second check. The landing page's phone screenshots come from this build (`npm run capture:app` in `../`, 7 shots incl. `send` via `dev?…&demo=send`), so re-run that after visible UI changes.
    - **Restart with `--clear` after edits before trusting screenshots.** Lazy web route chunks were served stale and hid real errors.
    - For native checks, boot a *separate* simulator by UDID and install Expo Go from `~/.expo/ios-simulator-app-cache`.

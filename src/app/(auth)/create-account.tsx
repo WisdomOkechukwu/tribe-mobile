@@ -6,11 +6,9 @@ import { CoinIcon } from "@/components/coin-icon";
 import { Dropdown } from "@/components/dropdown";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
-import { PressableScale } from "@/components/pressable-scale";
-import { StepCount } from "@/components/step-count";
 import { Text } from "@/components/text";
 import { countryByIso, SIGNUP_COUNTRIES } from "@/data/countries";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { AuthShell, SwitchLink } from "@/screens/auth/shell";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
@@ -46,23 +44,14 @@ export default function CreateAccount() {
   };
 
   return (
-    <OnboardingShell
-      title="Get started"
-      subtitle="Let's set up your Tribe account. It takes about two minutes."
-      right={<StepCount step={1} of={3} />}
+    <AuthShell
+      step={{ at: 1, of: 3 }}
+      headline={["Join the", "tribe."]}
+      subtitle="Crypto, global accounts, bills and cards in one app. Setting up takes about two minutes."
       footer={
         <>
           <Button title="Continue" disabled={!isEmail(email)} onPress={next} />
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
-            <Text variant="body" tone="muted">
-              Have an account?
-            </Text>
-            <PressableScale onPress={() => router.replace("/sign-in")} hitSlop={10} accessibilityRole="link">
-              <Text variant="bodyStrong" tone="brand">
-                Sign in
-              </Text>
-            </PressableScale>
-          </View>
+          <SwitchLink prompt="Already on Tribe?" action="Sign in" onPress={() => router.replace("/sign-in")} />
         </>
       }
     >
@@ -93,6 +82,6 @@ export default function CreateAccount() {
       <Text variant="caption" tone="subtle" align="center" style={{ marginTop: "auto" }}>
         By continuing you agree to Tribe&apos;s Terms and Privacy Policy.
       </Text>
-    </OnboardingShell>
+    </AuthShell>
   );
 }

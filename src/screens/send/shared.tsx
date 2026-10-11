@@ -50,7 +50,7 @@ function BeneficiaryList({ items, close, onPick }: { items: Beneficiary[]; close
   const term = q.trim().toLowerCase();
   const list = items.filter((b) => !term || b.name.toLowerCase().includes(term) || b.handle.toLowerCase().includes(term));
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.md }}>
+    <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.md }}>
       <Field value={q} onChangeText={setQ} placeholder="Search beneficiaries" autoCapitalize="none" leading={<Icon name="search" size={16} color={c.textMuted} />} />
       <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
         {list.length === 0 && (

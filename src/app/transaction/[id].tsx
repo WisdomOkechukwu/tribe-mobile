@@ -23,7 +23,7 @@ import { ISSUE_REASON, useSupportStore } from "@/stores/use-support-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
 import { downloadReceipt, shareReceipt } from "@/utils/share-receipt";
-import { headline, receiptRows } from "@/utils/tx";
+import { headline, receiptRows, txTitle } from "@/utils/tx";
 
 function Hero({ tx }: { tx: Transaction }) {
   if (tx.type === "swap" && tx.toAsset) return <PairIcon from={tx.asset} to={tx.toAsset} size={72} />;
@@ -37,7 +37,8 @@ function Hero({ tx }: { tx: Transaction }) {
   }
   if (tx.type === "cashpoint") return <CashpointMark size={60} />;
   if (tx.type === "card") return <CardLeading tx={tx} size={72} />;
-  if (tx.type === "referral") return <PairIcon from={tx.asset} front={(s) => <ReferralMark size={s} />} size={72} />;
+  // earnings underneath (from), the balance they landed in in front (to)
+  if (tx.type === "referral") return <PairIcon from="Referral earnings" to={tx.asset} back={(s) => <ReferralMark size={s} />} size={72} />;
   return <CoinIcon code={tx.asset} size={60} />;
 }
 
@@ -59,7 +60,7 @@ function ReceiptSheet({ tx, first }: { tx: Transaction; first: "share" | "downlo
   const save = <Button key="save" title="Save image" icon="download" variant={first === "download" ? "primary" : "secondary"} style={{ flex: 1 }} onPress={() => downloadReceipt(ref, tx)} />;
   return (
     <View style={{ paddingHorizontal: spacing.mdl, gap: spacing.md }}>
-      <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ alignItems: "center" }} showsVerticalScrollIndicator={false}>
+      <ScrollView showsHorizontalScrollIndicator={false} style={{ maxHeight: 460 }} contentContainerStyle={{ alignItems: "center" }} showsVerticalScrollIndicator={false}>
         <ReceiptTicket ref={ref} tx={tx} width={w} />
       </ScrollView>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>{first === "share" ? [save, share] : [share, save]}</View>
@@ -106,7 +107,7 @@ export default function Receipt() {
       <View style={{ alignItems: "center", gap: spacing.sm }}>
         <Hero tx={tx} />
         <Text variant="subhead" tone="muted" style={{ marginTop: spacing.sm }}>
-          {tx.title}
+          {txTitle(tx)}
         </Text>
         <Text variant="largeTitle" tone={tx.status === "failed" || tx.status === "cancelled" ? "muted" : tx.direction === "in" || isSwap ? "success" : "text"} adjustsFontSizeToFit numberOfLines={1}>
           {headline(tx)}

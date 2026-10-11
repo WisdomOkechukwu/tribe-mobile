@@ -114,10 +114,8 @@ function Pattern({ theme, w, h }: { theme: CardTheme; w: number; h: number }) {
 
 function Wordmark({ color, size = 15 }: { color: string; size?: number }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <Image source={require("@/assets/brand/tribe-mark.png")} tintColor={color} contentFit="contain" style={{ width: size * 1.5, height: size * 1.15 }} />
-      <Text style={{ fontFamily: "BricolageGrotesque_800ExtraBold", fontSize: size, letterSpacing: 2.5, color }}>TRIBE</Text>
-    </View>
+    // TribeLogo.png carries the wordmark itself, tinted to the card's ink
+    <Image source={require("@/assets/brand/tribe-logo.png")} tintColor={color} contentFit="contain" style={{ width: size * 2.6, height: size * 2.6 }} accessibilityLabel="Tribe" />
   );
 }
 

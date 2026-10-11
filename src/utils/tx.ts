@@ -28,6 +28,21 @@ export const TYPE_LABEL: Record<TxType, string> = {
   referral: "Referral payout",
 };
 
+/**
+ * What a transaction is called in lists and receipts. Swaps read "USD to USDT" (the amounts
+ * beside them say how much) instead of the stored "Swapped USD → USDT", which truncated.
+ */
+export function txTitle(tx: Transaction) {
+  if (tx.type === "swap" && tx.toAsset) return `${tx.asset} to ${tx.toAsset}`;
+  return tx.title;
+}
+
+/** The line under the title: swaps show the rate they actually got ("1 USDT = ₦1,532.30"). */
+export function txSubtitle(tx: Transaction) {
+  if (tx.type === "swap" && tx.toAsset && tx.toAmount && tx.amount) return rateLine(tx.asset, tx.toAsset, tx.amount, tx.toAmount);
+  return tx.subtitle;
+}
+
 /** What kind of card movement a card transaction is. */
 export function cardOp(tx: Transaction) {
   if (tx.meta?.cardOp) return tx.meta.cardOp;

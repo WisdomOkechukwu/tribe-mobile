@@ -23,7 +23,7 @@ export function Screen({
   const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: background ?? c.bg }}>
-      <ScrollView
+      <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.brand} colors={[c.brand]} /> : undefined}

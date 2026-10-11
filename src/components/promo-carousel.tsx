@@ -23,7 +23,7 @@ export function PromoCarousel({ promos, gutter = spacing.md }: { promos: Promo[]
 
   return (
     <Animated.View layout={LinearTransition} exiting={FadeOut} style={{ gap: spacing.sm }}>
-      <ScrollView
+      <ScrollView showsVerticalScrollIndicator={false}
         horizontal
         pagingEnabled={false}
         snapToInterval={cardW + spacing.sm}

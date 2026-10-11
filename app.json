@@ -39,13 +39,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180,
-          "dark": {
-            "backgroundColor": "#2C0548",
-            "image": "./assets/images/splash-icon.png"
-          }
+          "backgroundColor": "#F5F3F7",
+          "image": "./assets/brand/tribe-logo.png",
+          "imageWidth": 140
         }
       ],
       "expo-font",

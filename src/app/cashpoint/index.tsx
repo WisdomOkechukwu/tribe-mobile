@@ -37,7 +37,7 @@ function ActiveCodes({ items, close }: { items: Transaction[]; close: (after?: (
   const cancel = useWalletStore((s) => s.cancelCashpoint);
   if (!items.length) return <EmptyState icon="cashpoint" title="No active codes" body="Codes you generate wait here until someone redeems them." />;
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.lg }} bounces={false}>
+    <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.lg }} bounces={false}>
       {items.map((t) => (
         <View key={t.id} style={{ gap: spacing.sm }}>
           <CashpointTicket amount={formatAsset(t.amount, "NGN")} code={t.meta?.code} note={`Made ${relativeDate(t.date)} · waiting to be redeemed`} />

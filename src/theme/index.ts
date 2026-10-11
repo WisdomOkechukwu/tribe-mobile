@@ -1,6 +1,7 @@
 import { useColorScheme } from "react-native";
 import { schemes, type ThemeColors } from "./colors";
 
+export { schemes } from "./colors";
 export { palette } from "./palette";
 export { fonts, motion, radius, shadows, spacing, type } from "./tokens";
 export type { TypeVariant } from "./tokens";

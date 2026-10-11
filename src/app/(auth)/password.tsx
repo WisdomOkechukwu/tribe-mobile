@@ -4,9 +4,8 @@ import { View } from "react-native";
 import { Button } from "@/components/button";
 import { PasswordField } from "@/components/password-field";
 import { PasswordRules } from "@/components/password-rules";
-import { StepCount } from "@/components/step-count";
 import { passwordOk } from "@/data/security";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { AuthShell } from "@/screens/auth/shell";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
 import { withLoader } from "@/stores/use-ui-store";
@@ -41,11 +40,12 @@ export default function Password() {
   };
 
   return (
-    <OnboardingShell
-      icon={reset ? "keyLine" : undefined}
-      title={reset ? "Create a new password" : "Create a password"}
+    <AuthShell
+      band="compact"
+      step={reset ? undefined : { at: 3, of: 3 }}
+      kicker={reset ? "Reset password" : undefined}
+      headline={reset ? ["Set a new", "password."] : ["Set a strong", "password."]}
       subtitle={reset ? "Pick one you haven't used on Tribe before." : "Protect your account with a password only you know."}
-      right={reset ? undefined : <StepCount step={3} of={3} />}
       footer={<Button title={reset ? "Change password" : "Create account"} disabled={!pw || !confirm || mismatch} onPress={submit} />}
     >
       <View style={{ gap: 14 }}>
@@ -61,6 +61,6 @@ export default function Password() {
           hintTone="danger"
         />
       </View>
-    </OnboardingShell>
+    </AuthShell>
   );
 }

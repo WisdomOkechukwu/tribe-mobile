@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { fonts, useColors } from "@/theme";
+import { headerTitle } from "./header-title";
 
 /**
  * Screen options for each tab's stack: an OPAQUE header (screen background), so content never
@@ -21,6 +22,7 @@ export function useTabStackOptions() {
     headerLargeTitleStyle: { fontFamily: fonts.display, color: c.text },
     headerTintColor: c.brandText,
     headerBackButtonDisplayMode: "minimal",
+    headerTitle,
     contentStyle: { backgroundColor: c.bg },
   } as const;
 }
@@ -34,6 +36,7 @@ export function useFlowStackOptions() {
     headerTitleStyle: { fontFamily: fonts.semibold, color: c.text },
     headerTintColor: c.brandText,
     headerBackButtonDisplayMode: "minimal",
+    headerTitle,
     contentStyle: { backgroundColor: c.bg },
   } as const;
 }

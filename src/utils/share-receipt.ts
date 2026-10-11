@@ -6,13 +6,13 @@ import type { Transaction } from "@/data/seed";
 import { toast } from "@/stores/use-ui-store";
 import { fullDate } from "./format";
 import { saveImage } from "./save-image";
-import { headline } from "./tx";
+import { headline, txTitle } from "./tx";
 
 async function capture(ref: RefObject<View | null>) {
   return captureRef(ref, { format: "png", quality: 1, result: Platform.OS === "web" ? "data-uri" : "tmpfile" });
 }
 
-const textReceipt = (tx: Transaction) => `${tx.title}\n${headline(tx)}${tx.meta?.face ? ` · ${tx.meta.face}` : ""}\n${fullDate(tx.date)}\nRef ${tx.reference}\n— Tribe`;
+const textReceipt = (tx: Transaction) => `${txTitle(tx)}\n${headline(tx)}${tx.meta?.face ? ` · ${tx.meta.face}` : ""}\n${fullDate(tx.date)}\nRef ${tx.reference}\n— Tribe`;
 
 
 /** Share the receipt as an image (falls back to text if capture isn't possible). */

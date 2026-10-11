@@ -6,6 +6,7 @@ import type { Transaction } from "@/data/seed";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
+import { txSubtitle, txTitle } from "@/utils/tx";
 import { BillerThumb, GiftMark } from "./brand-tiles";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { CardBadge } from "./card-face";
@@ -16,6 +17,8 @@ import { PairIcon } from "./pair-icon";
 import { Text } from "./text";
 
 const SIZE = 40;
+/** One leading slot for every row (fits a PairIcon), so every title starts at the same x. */
+const LEAD = 56;
 
 function Leading({ tx }: { tx: Transaction }) {
   const c = useColors();
@@ -31,11 +34,13 @@ function Leading({ tx }: { tx: Transaction }) {
   }
   if (tx.type === "cashpoint") return <CashpointMark size={SIZE} />;
   if (tx.type === "card") return <CardLeading tx={tx} size={SIZE} />;
+  // referral payouts: earnings underneath (from), the balance they landed in in front (to)
   if (tx.type === "referral")
     return (
       <PairIcon
-        from={tx.asset}
-        front={(s) => (
+        from="Referral earnings"
+        to={tx.asset}
+        back={(s) => (
           <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}>
             <Icon name="people" size={s * 0.45} color="#fff" />
           </View>
@@ -92,7 +97,6 @@ export function TransactionRow({ tx, interactive = true }: { tx: Transaction; in
   const incoming = tx.direction === "in";
   const isSwap = tx.type === "swap" && tx.toAsset;
   const failed = tx.status === "failed" || tx.status === "cancelled";
-  const pair = isSwap || tx.type === "referral" || (tx.type === "send" && !!tx.toAsset) || ((tx.type === "bill" || tx.type === "giftcard") && !!(tx.meta?.billerId || tx.meta?.giftBrand)) || (tx.type === "card" && !!tx.meta?.face);
   const status = { completed: ["Success", c.success, c.successSoft], pending: ["Pending", c.pending, c.warningSoft], failed: ["Failed", c.danger, c.dangerSoft], cancelled: ["Cancelled", c.textMuted, c.surfaceAlt] }[tx.status];
 
   return (
@@ -103,19 +107,19 @@ export function TransactionRow({ tx, interactive = true }: { tx: Transaction; in
         router.push({ pathname: "/transaction/[id]", params: { id: tx.id } });
       }}
       accessibilityRole={interactive ? "button" : undefined}
-      accessibilityLabel={`${tx.title}, ${formatAsset(tx.amount, tx.asset)}, ${tx.status}`}
+      accessibilityLabel={`${txTitle(tx)}, ${formatAsset(tx.amount, tx.asset)}, ${tx.status}`}
     >
       {({ pressed }) => (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingVertical: spacing.smd, paddingHorizontal: spacing.md, minHeight: 64, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
-          <View style={{ width: pair ? 56 : SIZE }}>
+          <View style={{ width: LEAD, alignItems: "center" }}>
             <Leading tx={tx} />
           </View>
           <View style={{ flex: 1, gap: 1 }}>
             <Text variant="bodyStrong" numberOfLines={1}>
-              {tx.title}
+              {txTitle(tx)}
             </Text>
             <Text variant="caption" tone="muted" numberOfLines={1}>
-              {`${time(tx.date)} · ${tx.subtitle}`}
+              {`${time(tx.date)} · ${txSubtitle(tx)}`}
             </Text>
           </View>
           <View style={{ alignItems: "flex-end", gap: 1 }}>
@@ -185,7 +189,7 @@ export function TransactionGroup({ items }: { items: Transaction[] }) {
     <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
       {items.map((tx, i) => (
         <View key={tx.id}>
-          {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: spacing.md + SIZE + spacing.smd + 8 }} />}
+          {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: spacing.md + LEAD + spacing.smd }} />}
           <TransactionRow tx={tx} />
         </View>
       ))}
