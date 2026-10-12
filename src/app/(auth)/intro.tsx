@@ -42,6 +42,10 @@ const SLIDES = [
 ] as const;
 
 const BODY = "rgba(255,255,255,0.86)";
+// Built on the JS side: a .map() callback inside a worklet gets hoisted by the React Compiler
+// into a plain function, and calling it on the UI runtime aborts Expo Go ("Tried to
+// synchronously call a Remote Function").
+const SLIDE_BGS: string[] = SLIDES.map((sl) => sl.bg);
 const ADVANCE_MS = 3500;
 
 /**
@@ -68,13 +72,8 @@ export default function Intro() {
   const onScroll = useAnimatedScrollHandler((e) => {
     x.set(e.contentOffset.x);
   });
-  const band = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      x.get(),
-      SLIDES.map((_, i) => i * width),
-      SLIDES.map((sl) => sl.bg),
-    ),
-  }));
+  const stops = SLIDES.map((_, i) => i * width); // JS side, see SLIDE_BGS
+  const band = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(x.get(), stops, SLIDE_BGS) }));
 
   const go = (i: number) => {
     setIndex(i);

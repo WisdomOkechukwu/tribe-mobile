@@ -99,6 +99,7 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **Modal flows use `<FlowScreen>`** (`cancel="x"` puts a working ✕ in the header; native form-sheet ✕ buttons sat in the drag area and didn't respond). Content sets `contentInsetAdjustmentBehavior="never"` and wraps in `KeyboardFrame`, which measures the frame's on-screen Y because RN's KAV under-pads inside sheets.
 - **Code cells** (`PinCells`) size themselves to the window width; 11-digit BVN and 12-digit Cashpoint must fit a 375pt phone.
 - **Reanimated shared values** are written with `.set()` inside event handlers (React Compiler lint). Animate transforms and opacity only.
+- **No callbacks inside worklets** (`useAnimatedStyle`, scroll handlers, animation callbacks): no `.map((x) => …)`, `.filter`, inline arrows. The React Compiler hoists capture-free arrows into plain `_tempN` functions; calling one on the UI runtime aborts Expo Go with `[Worklets] Tried to synchronously call a Remote Function`. Build arrays on the JS side and only read them in the worklet (see `SLIDE_BGS` in `(auth)/intro.tsx`). Hop back to JS with `scheduleOnRN`.
 - `Appearance.setColorScheme` doesn't exist on web; keep the guard in the root layout.
 - Static `boxShadow` strings and `borderCurve: "continuous"` are fine. Don't use Tailwind or NativeWind here.
 
