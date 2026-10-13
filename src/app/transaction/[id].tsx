@@ -8,14 +8,14 @@ import { CashpointMark } from "@/components/cashpoint-mark";
 import { CoinIcon } from "@/components/coin-icon";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
-import { ListRow, ListSection } from "@/components/list";
+import { ListRow, ListSection, SectionLink } from "@/components/list";
 import { PairIcon } from "@/components/pair-icon";
 import { PendingTimeline } from "@/components/pending-timeline";
 import { PressableScale } from "@/components/pressable-scale";
 import { PrivacyGuard } from "@/components/privacy-guard";
 import { ReceiptTicket } from "@/components/receipt-ticket";
 import { Text } from "@/components/text";
-import { CardLeading, showFace } from "@/components/transaction-row";
+import { CardLeading, showFace, TransactionGroup } from "@/components/transaction-row";
 import { billerById, giftBrandById } from "@/data/catalog";
 import type { Transaction } from "@/data/seed";
 import { overlay } from "@/stores/use-overlay-store";
@@ -23,7 +23,8 @@ import { ISSUE_REASON, useSupportStore } from "@/stores/use-support-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
 import { downloadReceipt, shareReceipt } from "@/utils/share-receipt";
-import { headline, receiptRows, txTitle } from "@/utils/tx";
+import { formatAsset } from "@/utils/format";
+import { headline, receiptRows, senderOf, txTitle } from "@/utils/tx";
 
 function Hero({ tx }: { tx: Transaction }) {
   if (tx.type === "swap" && tx.toAsset) return <PairIcon from={tx.asset} to={tx.toAsset} size={72} />;
@@ -64,6 +65,47 @@ function ReceiptSheet({ tx, first }: { tx: Transaction; first: "share" | "downlo
         <ReceiptTicket ref={ref} tx={tx} width={w} />
       </ScrollView>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>{first === "share" ? [save, share] : [share, save]}</View>
+    </View>
+  );
+}
+
+/** Money in: every other payment from the same sender, totalled, with a way into the full list. */
+function MoreFromSender({ tx }: { tx: Transaction }) {
+  const c = useColors();
+  const sender = senderOf(tx);
+  const all = useWalletStore((s) => s.transactions);
+  if (!sender) return null;
+  const fromThem = all.filter((t) => senderOf(t)?.key === sender.key);
+  const others = fromThem.filter((t) => t.id !== tx.id);
+  if (!others.length) return null;
+  // totals per currency ("$1,350 · ₦35,000"), every payment from them including this one
+  const totals = new Map<Transaction["asset"], number>();
+  for (const t of fromThem) totals.set(t.asset, (totals.get(t.asset) ?? 0) + t.amount);
+  const seeAll = () => {
+    router.back();
+    router.push({ pathname: "/activity", params: { from: sender.key, fromName: sender.name } }, { withAnchor: true });
+  };
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: spacing.xs }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
+          <Text variant="headline" numberOfLines={1}>
+            More from {sender.name}
+          </Text>
+          <Text variant="caption" tone="muted">
+            {[...totals].map(([code, sum]) => formatAsset(sum, code)).join(" · ")} across {fromThem.length} payments
+          </Text>
+        </View>
+        {others.length > 3 && <SectionLink label="See all" onPress={seeAll} />}
+      </View>
+      <TransactionGroup items={others.slice(0, 3)} />
+      {others.length <= 3 && (
+        <PressableScale onPress={seeAll} accessibilityRole="button" style={{ alignSelf: "center", paddingVertical: spacing.xs }}>
+          <Text variant="subhead" style={{ color: c.brandText }}>
+            View all in History
+          </Text>
+        </PressableScale>
+      )}
     </View>
   );
 }
@@ -141,12 +183,13 @@ export default function Receipt() {
           />
         ))}
       </ListSection>
+      <MoreFromSender tx={tx} />
       {ticket ? (
         <ListSection title="Support">
           <ListRow icon="chatLine" title={`Issue reported · ${ticket.id}`} subtitle={`${ISSUE_REASON[ticket.reason].label} · we'll reply in your inbox`} trailing={<Pill label="Open" tone="warning" />} />
         </ListSection>
       ) : (
-        <PressableScale onPress={() => router.push({ pathname: "/report/[id]", params: { id: tx.id } })} accessibilityRole="button" style={{ flexDirection: "row", alignSelf: "center", alignItems: "center", gap: 6, paddingVertical: spacing.sm }}>
+        <PressableScale onPress={() => router.push({ pathname: "/report/[id]", params: { id: tx.id } })} accessibilityRole="button" style={{ flexDirection: "row", alignSelf: "center", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm }}>
           <Icon name="info" size={15} color={c.textMuted} />
           <Text variant="bodyStrong" tone="muted">
             Report an issue

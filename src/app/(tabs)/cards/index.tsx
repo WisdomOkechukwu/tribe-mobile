@@ -1,51 +1,156 @@
 import { router, Stack } from "expo-router";
 import { Platform, Pressable, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
 import { EmptyState, SectionHeader } from "@/components/bits";
 import { Button } from "@/components/button";
 import { CARD_THEMES, NetworkMark, useCardPalette, VirtualCardFace } from "@/components/card-face";
-import { Icon, type IconName } from "@/components/icon";
+import { Icon } from "@/components/icon";
 import { ListRow, ListSection, RowIcon } from "@/components/list";
 import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { TransactionList } from "@/components/transaction-row";
-import type { VirtualCard } from "@/data/seed";
+import type { CardTheme, VirtualCard } from "@/data/seed";
+import { giftBrandById } from "@/data/catalog";
+import { GiftMark } from "@/components/brand-tiles";
+import { CoinIcon } from "@/components/coin-icon";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { toast } from "@/stores/use-ui-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
-import { radius, spacing, useColors } from "@/theme";
+import { palette, radius, spacing, useColors } from "@/theme";
+import { openCardCreation } from "@/utils/verification";
 
-const PERKS: { icon: IconName; title: string; body: string }[] = [
-  { icon: "globe", title: "Pay anywhere online", body: "Netflix, Spotify, Apple, AliExpress and any site that accepts Mastercard or Visa." },
-  { icon: "swap", title: "Fund from any balance", body: "Top up in dollars from USDT, BTC, Naira or any currency you hold." },
-  { icon: "snowflake", title: "Freeze in a tap", body: "Lock it the second something looks off. Unfreeze just as fast." },
+
+// the real card face (what you get), three finishes fanned: two behind, Midnight in front
+const FAN: { theme: CardTheme; rotate: string; x: number; y: number }[] = [
+  { theme: "lime", rotate: "-14deg", x: -26, y: -34 },
+  { theme: "sunset", rotate: "9deg", x: 26, y: -16 },
+  { theme: "midnight", rotate: "-3deg", x: 0, y: 16 },
 ];
 
-/** No cards yet: the start of the card onboarding. */
+/** No cards yet: the start of card creation — a fan of finishes, what you get, how it goes. */
 function CardsIntro() {
   const c = useColors();
   const { width } = useWindowDimensions();
+  const steps = [
+    { title: "Pick a finish", body: "Seven looks, from Midnight to Lime." },
+    { title: "Choose Mastercard or Visa", body: "Both work almost everywhere online." },
+    { title: "Name it and fund it", body: "Top up in dollars from any balance. $1 to create." },
+    { title: "Spend", body: "Your card is ready the second you confirm." },
+  ];
   return (
     <Screen>
-      <Animated.View entering={FadeIn} style={{ alignItems: "center", marginTop: spacing.sm }}>
-        <VirtualCardFace card={{ theme: "midnight", network: "mastercard", holder: "Your name", number: "5399", last4: "0000", expiry: "09/29", cvv: "", frozen: false }} width={width - spacing.md * 2} />
-      </Animated.View>
-      <View style={{ gap: spacing.xs, alignItems: "center" }}>
+      {/* three finishes of the real (landscape) card, fanned and springing in one after another */}
+      <View style={{ height: 270, alignItems: "center", justifyContent: "center", marginTop: spacing.xl }}>
+        {FAN.map((f, i) => (
+          <Animated.View key={f.theme} entering={ZoomIn.delay(i * 110).springify().damping(13)} style={{ position: "absolute" }}>
+            <View style={{ transform: [{ translateX: f.x }, { translateY: f.y }, { rotate: f.rotate }] }}>
+              <VirtualCardFace card={{ theme: f.theme, network: i === 1 ? "visa" : "mastercard", holder: "Your name", number: i === 1 ? "4532" : "5399", last4: "4821", expiry: "09/29", cvv: "", frozen: false }} width={Math.min(width - spacing.md * 2 - 40, 300)} />
+            </View>
+          </Animated.View>
+        ))}
+      </View>
+      <View style={{ gap: spacing.sm, alignItems: "center", paddingHorizontal: spacing.md }}>
         <Text variant="title" align="center">
           A dollar card in a minute
         </Text>
         <Text variant="body" tone="muted" align="center">
-          Five finishes. Mastercard or Visa. $1 to create.
+          Seven finishes. Mastercard or Visa. $1 to create.
         </Text>
       </View>
-      <ListSection>
-        {PERKS.map((p) => (
-          <ListRow key={p.title} icon={p.icon} iconBg={c.brandSoft} iconTint={c.brandText} title={p.title} subtitle={p.body} />
-        ))}
-      </ListSection>
-      <Button title="Get your card" icon="card" onPress={() => router.push("/card-new")} />
+      {/* how it goes: a vertical stepper — each stop with what happens there; Verify only if needed */}
+      <View style={{ gap: spacing.sm }}>
+        <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
+          How it goes
+        </Text>
+        <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md }}>
+          {steps.map((step, i) => {
+            const last = i === steps.length - 1;
+            return (
+              <View key={step.title} style={{ flexDirection: "row", gap: spacing.smd }}>
+                {/* the dot, and the line down to the next one */}
+                <View style={{ alignItems: "center", width: 28 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: last ? palette.orange[500] : c.brand, alignItems: "center", justifyContent: "center" }}>
+                    {last ? (
+                      <Icon name="check" size={12} color="#fff" weight="bold" />
+                    ) : (
+                      <Text variant="caption" style={{ color: c.onBrand, fontFamily: "Poppins_600SemiBold" }}>
+                        {i + 1}
+                      </Text>
+                    )}
+                  </View>
+                  {!last && <View style={{ flex: 1, width: 2, minHeight: spacing.md, borderRadius: 1, backgroundColor: c.brandSoft, marginVertical: spacing.xs }} />}
+                </View>
+                <View style={{ flex: 1, gap: spacing.xxs, paddingTop: spacing.xs, paddingBottom: last ? 0 : spacing.md }}>
+                  <Text variant="bodyStrong">{step.title}</Text>
+                  <Text variant="caption" tone="muted">
+                    {step.body}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* what you get, as a bento: one big brand tile, two smaller ones */}
+      <View style={{ gap: spacing.smd }}>
+        <View style={{ backgroundColor: c.brand, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.mdl, gap: spacing.md, overflow: "hidden" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flexDirection: "row" }}>
+              {["netflix", "spotify", "apple", "googleplay"].map((id, i) => (
+                <View key={id} style={{ marginLeft: i ? -10 : 0, borderRadius: 22, borderWidth: 2, borderColor: c.brand, zIndex: 4 - i }}>
+                  <GiftMark brand={giftBrandById(id)} size={38} />
+                </View>
+              ))}
+            </View>
+            <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
+              <Text variant="caption" style={{ color: "#fff", fontFamily: "Poppins_600SemiBold" }}>
+                Mastercard · Visa
+              </Text>
+            </View>
+          </View>
+          <View style={{ gap: spacing.xs }}>
+            <Text variant="title" style={{ color: c.onBrand }}>
+              Pay anywhere online
+            </Text>
+            <Text variant="caption" style={{ color: "rgba(255,255,255,0.82)" }}>
+              Netflix, Spotify, Apple, AliExpress, and any site that takes cards.
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", gap: spacing.smd }}>
+          <View style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
+            <View style={{ flexDirection: "row" }}>
+              {(["USDT", "BTC", "NGN"] as const).map((code, i) => (
+                <View key={code} style={{ marginLeft: i ? -10 : 0, borderRadius: 18, borderWidth: 2, borderColor: c.surface, zIndex: 3 - i }}>
+                  <CoinIcon code={code} size={30} />
+                </View>
+              ))}
+            </View>
+            <View style={{ gap: spacing.xxs }}>
+              <Text variant="bodyStrong">Fund from anything</Text>
+              <Text variant="caption" tone="muted">
+                USDT, BTC, Naira or any balance.
+              </Text>
+            </View>
+          </View>
+          <View style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
+            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <Icon name="snowflake" size={16} color={c.brandText} />
+            </View>
+            <View style={{ gap: spacing.xxs }}>
+              <Text variant="bodyStrong">Freeze in a tap</Text>
+              <Text variant="caption" tone="muted">
+                Lock it the second something looks off.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <Button title="Get your card" icon="card" onPress={() => openCardCreation()} />
     </Screen>
   );
 }
@@ -137,14 +242,16 @@ export default function Cards() {
         headerStyle: { backgroundColor: cards.length ? tint.page : c.bg },
         headerLargeStyle: { backgroundColor: cards.length ? tint.page : c.bg },
         contentStyle: { backgroundColor: cards.length ? tint.page : c.bg },
-        headerRight: () => (
-          <PressableScale onPress={() => router.push("/card-new")} accessibilityLabel="New card" style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.text, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6, marginRight: Platform.OS === "web" ? spacing.md : 0 }}>
-            <Icon name="plusCircle" size={13} color={c.bg} />
-            <Text variant="subhead" style={{ color: c.bg }}>
-              New card
-            </Text>
-          </PressableScale>
-        ),
+        // no card yet: the intro's "Get your card" is the one way in, so no header shortcut
+        headerRight: () =>
+          cards.length ? (
+            <PressableScale onPress={() => openCardCreation()} accessibilityLabel="New card" style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.text, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.sm, marginRight: Platform.OS === "web" ? spacing.md : 0 }}>
+              <Icon name="plusCircle" size={13} color={c.bg} />
+              <Text variant="subhead" style={{ color: c.bg }}>
+                New card
+              </Text>
+            </PressableScale>
+          ) : null,
       }}
     />
   );
@@ -206,7 +313,7 @@ export default function Cards() {
       <Screen background={tint.page}>
         {/* card switcher + menu */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Pressable onPress={switchCard} accessibilityRole="button" accessibilityLabel={`Card: ${card.label}. Switch card`} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable onPress={switchCard} accessibilityRole="button" accessibilityLabel={`Card: ${card.label}. Switch card`} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: spacing.sm, opacity: pressed ? 0.6 : 1 })}>
             <Text variant="title">{card.label}</Text>
             <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: tint.accent, alignItems: "center", justifyContent: "center" }}>
               <Icon name="chevronDown" size={10} color={tint.accentFg} weight="bold" />
@@ -229,7 +336,7 @@ export default function Cards() {
           <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface, alignItems: "center", justifyContent: "center" }}>
             <NetworkMark network={card.network} color={c.text} size={22} />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, gap: spacing.xxs }}>
             <Text variant="bodyStrong">{card.holder}</Text>
             <Pressable onPress={() => router.push({ pathname: "/cards/details", params: { id: card.id } })} hitSlop={8}>
               <Text variant="caption" style={{ color: tint.accent }}>

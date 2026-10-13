@@ -33,7 +33,7 @@ export default function GiftCards() {
       </Note>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.smd }}>
         {GIFT_BRANDS.map((b) => (
-          <PressableScale key={b.id} onPress={() => router.push({ pathname: "/gift/[id]", params: { id: b.id, mode } })} accessibilityLabel={`${mode === "buy" ? "Buy" : "Sell"} ${b.name} gift card`} scaleTo={0.97} style={{ gap: 6 }}>
+          <PressableScale key={b.id} onPress={() => router.push({ pathname: "/gift/[id]", params: { id: b.id, mode } })} accessibilityLabel={`${mode === "buy" ? "Buy" : "Sell"} ${b.name} gift card`} scaleTo={0.97} style={{ gap: spacing.sm }}>
             <GiftCardFace brand={b} width={cardWidth} />
             <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 2 }}>
               <Text variant="subhead">{b.name}</Text>

@@ -126,7 +126,7 @@ export default function SendAmount() {
   return (
     <FlowScreen title={scope === "crypto" ? "Send crypto" : scope === "global" ? "Global send" : "Send Naira"} cancel="back" scroll={false} footer={<Button title="Continue" disabled={!value} onPress={review} />}>
       {/* recipient's details */}
-      <View style={{ gap: 4 }}>
+      <View style={{ gap: spacing.xs }}>
         <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: c.brandSoft, borderRadius: radius.group, borderCurve: "continuous", borderWidth: 1, borderColor: c.brand, overflow: "hidden" }}>
           <PressableScale onPress={changeCurrency} accessibilityLabel={`Receive currency ${receive}, change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.smd, borderRightWidth: 1, borderRightColor: c.border }}>
             <CoinIcon code={receive} size={28} />
@@ -139,7 +139,7 @@ export default function SendAmount() {
           </PressableScale>
           <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.smd }}>
             <Avatar size={28} name={recipient.name} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="subhead" numberOfLines={1}>
                 {recipient.name}
               </Text>
@@ -166,7 +166,7 @@ export default function SendAmount() {
             <PressableScale onPress={() => openAssetPicker({ title: "Asset to debit", value: debit, onSelect: setDebit })} accessibilityLabel={`Pay with ${d.name}, change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
               <CoinIcon code={debit} size={34} />
               <View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
                   <Text variant="bodyStrong">{debit}</Text>
                   <Icon name="chevron" size={10} color={c.textMuted} weight="bold" />
                 </View>
@@ -187,7 +187,7 @@ export default function SendAmount() {
             </View>
           </View>
           <View style={{ alignItems: "center", paddingVertical: spacing.xs }}>
-            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, maxWidth: "100%" }}>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm, maxWidth: "100%" }}>
               <Text variant="balance" style={{ color: over ? c.danger : value ? c.text : c.textSubtle, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit>
                 {groupAmount(amount)}
               </Text>
@@ -210,7 +210,7 @@ export default function SendAmount() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <CoinIcon code={receive} size={34} />
             <View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
                 <Text variant="bodyStrong">{receive}</Text>
                 <Icon name="chevron" size={10} color={c.textMuted} weight="bold" />
               </View>

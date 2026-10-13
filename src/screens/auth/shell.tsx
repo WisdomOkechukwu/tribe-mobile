@@ -27,7 +27,7 @@ export function MarkDisc({ size = 38 }: { size?: number }) {
 /** Thin segments for "step n of m", white on the band, orange once done. */
 function Steps({ at, of }: { at: number; of: number }) {
   return (
-    <View style={{ flexDirection: "row", gap: 6 }} accessible accessibilityLabel={`Step ${at} of ${of}`}>
+    <View style={{ flexDirection: "row", gap: spacing.sm }} accessible accessibilityLabel={`Step ${at} of ${of}`}>
       {Array.from({ length: of }, (_, i) => (
         <View key={i} style={{ width: 22, height: 4, borderRadius: radius.full, backgroundColor: i < at ? palette.orange[400] : "rgba(255,255,255,0.22)" }} />
       ))}
@@ -143,7 +143,7 @@ export function AuthShell({
 /** "Don't have an account? Sign up" style switch line under a CTA. */
 export function SwitchLink({ prompt, action, onPress }: { prompt: string; action: string; onPress: () => void }) {
   return (
-    <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
+    <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xs }}>
       <Text variant="body" tone="muted">
         {prompt}
       </Text>

@@ -49,7 +49,7 @@ export default function Invite() {
         <View pointerEvents="none" style={{ position: "absolute", right: -70, top: -60, width: 220, height: 200, overflow: "hidden", opacity: 0.35 }}>
           <Stripes band={14} gap={8} count={12} colors={[palette.purple[400], palette.orange[500]]} />
         </View>
-        <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 4 }}>
+        <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(255,255,255,0.16)", borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
           <Icon name="infinity" size={12} color={palette.orange[300]} />
           <Text variant="caption" style={{ color: "#fff", fontFamily: "Poppins_600SemiBold" }}>
             Earn for life
@@ -72,7 +72,7 @@ export default function Invite() {
             ["This month", naira(earnedThisMonth())],
             ["Friends earning", String(earning)],
           ].map(([k, v]) => (
-            <View key={k} style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: radius.input, padding: spacing.smd, gap: 2 }}>
+            <View key={k} style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: radius.input, padding: spacing.smd, gap: spacing.xs }}>
               <Text variant="caption" style={{ color: palette.purple[100], fontSize: 11 }}>
                 {k}
               </Text>
@@ -97,7 +97,7 @@ export default function Invite() {
             {code}
           </Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.brandSoft, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.brandSoft, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6 }}>
           <Icon name="copy" size={13} color={c.brandText} />
           <Text variant="subhead" tone="brand">
             Copy

@@ -40,7 +40,7 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
       <View pointerEvents="none" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "38%", overflow: "hidden" }}>
         <Stripes band={12} gap={16} colors={[palette.orange[500], palette.purple[500]]} opacity={0.85} />
       </View>
-      <View style={{ gap: 2 }}>
+      <View style={{ gap: spacing.xs }}>
         <Text variant="overline" style={{ color: palette.orange[300] }}>
           {waiting ? `${waiting} token${waiting > 1 ? "s" : ""} to load` : "All caught up"}
         </Text>
@@ -58,7 +58,7 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
       {waiting > 0 && (
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {STEPS.map((s, i) => (
-            <View key={s.label} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: palette.purple[800], borderRadius: radius.full, paddingVertical: 7, paddingHorizontal: spacing.sm }}>
+            <View key={s.label} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: palette.purple[800], borderRadius: radius.full, paddingVertical: 7, paddingHorizontal: spacing.sm }}>
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
                 <Text variant="caption" style={{ color: palette.purple[900], fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14 }}>
                   {i + 1}
@@ -88,7 +88,7 @@ function TokenTicket({ t, next }: { t: VaultToken; next: boolean }) {
     <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, padding: spacing.md }}>
         <BillerThumb biller={PHED} size={42} />
-        <View style={{ flex: 1, gap: 1 }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
           <Text variant="bodyStrong" numberOfLines={1}>
             {t.provider}
           </Text>
@@ -173,7 +173,7 @@ function LoadedToken({ t }: { t: VaultToken }) {
           <Icon name="check" size={9} color="#fff" weight="bold" />
         </View>
       </View>
-      <View style={{ flex: 1, gap: 1 }}>
+      <View style={{ flex: 1, gap: spacing.xxs }}>
         <Text variant="bodyStrong" numberOfLines={1}>
           {t.kwh} kWh · •••• {last4}
         </Text>
@@ -247,7 +247,7 @@ export default function Vault() {
             <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
               <Icon name="bolt" size={19} color={c.brandText} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="bodyStrong">Running low?</Text>
               <Text variant="caption" tone="muted">
                 Buy PHED units. The token lands here instantly.

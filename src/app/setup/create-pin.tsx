@@ -9,10 +9,11 @@ export default function CreatePin() {
     <PinCreate
       length={4}
       title="Create transaction PIN"
+      headline={["Your payment", "PIN."]}
       subtitle="4 digits that approve every payment. Keep it private, Tribe will never ask for it."
       onDone={(pin) => {
         setPin(pin);
-        router.push("/pin-done");
+        router.push("/setup/pin-done");
       }}
     />
   );

@@ -25,6 +25,9 @@ import { toast } from "@/stores/use-ui-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { portfolioUsd, useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
+import { setupTasks } from "@/utils/setup-flow";
+import { FinishSetupCard } from "@/components/finish-setup-card";
+import { guardWalletOpen, useWalletsUnlocked, openCardCreation } from "@/utils/verification";
 
 /** Demo: how long the global-accounts review takes before it's approved. */
 const GLOBAL_REVIEW_MS = 45_000;
@@ -116,7 +119,6 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const user = useSessionStore((s) => s.user);
   const kycTier = useSessionStore((s) => s.kycTier);
-  const kycStatus = useSessionStore((s) => s.kycStatus);
   const balances = useWalletStore((s) => s.balances);
   const opened = useWalletStore((s) => s.opened);
   const transactions = useWalletStore((s) => s.transactions);
@@ -125,6 +127,7 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const globalAccounts = useSessionStore((s) => s.globalAccounts);
+  const walletsUnlocked = useWalletsUnlocked();
   const globalRequestedAt = useSessionStore((s) => s.globalRequestedAt);
   const dismissed = usePrefsStore((s) => s.dismissedPromos);
   const dismissPromo = usePrefsStore((s) => s.dismissPromo);
@@ -133,24 +136,32 @@ export default function Home() {
   useEffect(() => {
     const href = useSessionStore.getState().consumeLanding();
     if (!href) return;
-    const t = setTimeout(() => (href.startsWith("/pay") ? router.navigate(href as Href) : router.push(href as Href)), 450);
+    // the card world lands on card creation, through the verification check
+    const t = setTimeout(() => (href === "/card-new" ? openCardCreation() : href.startsWith("/pay") ? router.navigate(href as Href) : router.push(href as Href)), 450);
     return () => clearTimeout(t);
   }, []);
 
   // Global payments world: the request is "reviewed", then the USD, GBP and EUR accounts open.
+  // Opening them still needs full verification: until then the approval waits.
   useEffect(() => {
-    if (globalAccounts !== "review") return;
+    if (globalAccounts !== "review" || !walletsUnlocked) return;
     const wait = Math.max(0, (globalRequestedAt ?? Date.now()) + GLOBAL_REVIEW_MS - Date.now());
     const t = setTimeout(() => {
       useSessionStore.getState().setGlobalAccounts("ready");
       const w = useWalletStore.getState();
       (["USD", "GBP", "EUR"] as const).forEach((code) => w.openAccount(code));
-      useInboxStore.getState().push({ kind: "money", title: "Your global accounts are ready", body: "USD, GBP and EUR account details in your name. Start receiving money from abroad.", href: "/asset/USD" });
+      useInboxStore.getState().push({ kind: "money", title: "Your global accounts are ready", body: "USD, GBP and EUR account details in your name. Start receiving money from abroad.", assets: ["USD", "GBP", "EUR"], badge: "check", href: "/asset/USD" });
       toast("Your USD, GBP and EUR accounts are ready", "success");
     }, wait);
     return () => clearTimeout(t);
-  }, [globalAccounts, globalRequestedAt]);
+  }, [globalAccounts, globalRequestedAt, walletsUnlocked]);
 
+
+  // Finish setup: nothing here blocks the app; each row starts the chain at that task
+  const phoneVerified = useSessionStore((s) => s.phoneVerified);
+  const pin = useSessionStore((s) => s.pin);
+  const world = useSessionStore((s) => s.world);
+  const tasks = setupTasks({ phoneVerified, pin, kycTier, world, globalAccounts });
 
   const totalUsd = portfolioUsd(balances);
   const weighted = ASSETS.reduce(
@@ -187,7 +198,7 @@ export default function Home() {
             title: "Get a dollar card",
             body: "A virtual card for Netflix, Spotify, AliExpress and more.",
             art: <PromoArt icon="card" bg={c.brand} />,
-            onPress: () => router.push("/card-new"),
+            onPress: () => openCardCreation(),
           },
         ]
       : []),
@@ -202,7 +213,7 @@ export default function Home() {
             body: "Local account details in minutes. Free to open.",
             art: <PromoArt icon="globe" bg={c.brand} />,
             tone: "neutral" as const,
-            onPress: () => router.push("/add-currency"),
+            onPress: () => guardWalletOpen(() => router.push("/add-currency")),
           },
         ]
       : []),
@@ -276,14 +287,15 @@ export default function Home() {
         <BalanceHero totalUsd={totalUsd} changePct={change} />
 
         <CircleActionRow>
+          {/* money coming in: our own incoming-arrow glyph */}
           <CircleAction
-            icon="add"
-            label="Add"
+            glyph="incoming"
+            label="Receive"
             primary
             onPress={openAddMoneySheet}
           />
           <CircleAction
-            icon="send"
+            glyph="outgoing"
             label="Send"
             onPress={() => router.push("/send")}
           />
@@ -296,24 +308,30 @@ export default function Home() {
         </CircleActionRow>
 
         {globalAccounts === "review" && (
-          <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
+          <PressableScale
+            scaleTo={0.98}
+            disabled={walletsUnlocked}
+            onPress={() => router.push("/verify")}
+            style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.smd }}
+          >
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.warningSoft, alignItems: "center", justifyContent: "center" }}>
               <Icon name="clock" size={18} color={c.pending} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="bodyStrong">Global accounts under review</Text>
               <Text variant="caption" tone="muted">
-                We&apos;ll notify you the moment your USD, GBP and EUR accounts are ready.
+                {walletsUnlocked ? "We'll notify you the moment your USD, GBP and EUR accounts are ready." : "Finish verification (NIN + selfie, ID + address) and we'll open your USD, GBP and EUR accounts."}
               </Text>
             </View>
-          </View>
+            {!walletsUnlocked && <Icon name="chevron" size={14} color={c.textSubtle} />}
+          </PressableScale>
         )}
         {globalAccounts === "ready" && !dismissed.includes("global-ready") && (
           <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.successSoft, alignItems: "center", justifyContent: "center" }}>
               <Icon name="globe" size={18} color={c.success} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="bodyStrong">Your global accounts are ready</Text>
               <Text variant="caption" tone="muted">
                 Receive dollars, pounds and euros in your name.
@@ -334,29 +352,8 @@ export default function Home() {
           </View>
         )}
 
-        {kycTier < 1 && kycStatus !== "pending" && (
-          <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, gap: spacing.sm }}>
-            <Text variant="subhead" tone="muted">
-              To do
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
-                <Icon name="verified" size={19} color={c.brandText} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text variant="bodyStrong">Complete level one verification</Text>
-                <Text variant="caption" tone="muted">
-                  Unlock higher limits and dollar cards.
-                </Text>
-              </View>
-              <PressableScale onPress={() => router.push({ pathname: "/verify/[tier]", params: { tier: "1" } })} accessibilityLabel="Start verification" style={{ backgroundColor: c.brand, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6 }}>
-                <Text variant="subhead" tone="onBrand">
-                  Start now
-                </Text>
-              </PressableScale>
-            </View>
-          </View>
-        )}
+        {/* Finish setup: what's next + progress; hides once everything's done */}
+        <FinishSetupCard tasks={tasks} />
 
         <PromoCarousel promos={promos} />
 

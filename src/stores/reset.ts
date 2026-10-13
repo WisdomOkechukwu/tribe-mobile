@@ -18,3 +18,12 @@ export function resetDemoData() {
   useBeneficiariesStore.getState().reset();
   useReferralStore.getState().reset();
 }
+
+/**
+ * A fresh sign-up keeps the demo balances (so every flow is testable) but starts without a
+ * virtual card: the Cards tab walks them through creating one first.
+ */
+export function startNewAccount() {
+  useCardsStore.getState().clear();
+  useWalletStore.getState().dropCardActivity();
+}

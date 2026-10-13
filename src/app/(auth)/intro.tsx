@@ -160,7 +160,7 @@ export default function Intro() {
 
       <View style={{ paddingHorizontal: spacing.mdl, gap: spacing.md, paddingTop: spacing.md }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ flexDirection: "row", gap: 6 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <View style={{ flexDirection: "row", gap: spacing.sm }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             {SLIDES.map((sl, i) => (
               <PressableScale key={sl.key} onPress={() => tap(i)} hitSlop={8} haptic={false}>
                 <View style={{ width: i === index ? 22 : 7, height: 7, borderRadius: radius.full, backgroundColor: i === index ? "#fff" : "rgba(255,255,255,0.4)" }} />
@@ -175,7 +175,7 @@ export default function Intro() {
             style={{ minWidth: 150 }}
           />
         </View>
-        <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xs }}>
           <Text variant="body" style={{ color: BODY }}>
             Already on Tribe?
           </Text>

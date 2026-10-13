@@ -19,7 +19,7 @@ export function Sheet({ title, subtitle, children, footer, scroll = true, onClos
     <KeyboardFrame backgroundColor={c.bg}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.mdl, paddingTop: spacing.lg, paddingBottom: spacing.sm }}>
         {leading}
-        <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1, gap: spacing.xs }}>
           <Text variant="title">{title}</Text>
           {subtitle && (
             <Text variant="subhead" tone="muted">
@@ -76,7 +76,7 @@ export function ChipRow<T extends string | number>({ options, value, onChange, r
             }
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: spacing.smd + 2, height: 40, borderRadius: radius.full, backgroundColor: on ? c.brand : c.surface }}
+            style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.smd + 2, height: 40, borderRadius: radius.full, backgroundColor: on ? c.brand : c.surface }}
           >
             {render(o, on)}
           </PressableScale>

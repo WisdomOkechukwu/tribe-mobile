@@ -21,7 +21,7 @@ export function Dropdown({ label, value, sub, leading, onPress, placeholder = "C
         {({ pressed }) => (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: pressed ? c.surfaceAlt : c.surface, borderRadius: radius.input, borderCurve: "continuous", paddingHorizontal: spacing.md, minHeight: 60, paddingVertical: spacing.sm }}>
             {leading}
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="bodyStrong" style={value ? undefined : { color: c.textSubtle }} numberOfLines={1}>
                 {value ?? placeholder}
               </Text>

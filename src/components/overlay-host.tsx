@@ -79,11 +79,11 @@ function BottomSheet({ title, subtitle, children }: { title?: string; subtitle?:
         style={[{ backgroundColor: c.bg, borderTopLeftRadius: radius.panel, borderTopRightRadius: radius.panel, borderCurve: "continuous", maxHeight: height * 0.86, paddingBottom: Math.max(insets.bottom, spacing.md) }, sheet]}
       >
         <GestureDetector gesture={drag}>
-          <View style={{ paddingTop: spacing.sm, paddingHorizontal: spacing.mdl, paddingBottom: spacing.md, gap: 2 }}>
+          <View style={{ paddingTop: spacing.sm, paddingHorizontal: spacing.mdl, paddingBottom: spacing.md, gap: spacing.xs }}>
             <View style={{ alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: c.borderStrong, marginBottom: spacing.md }} />
             {title && (
               <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, gap: spacing.xxs }}>
                   <Text variant="title">{title}</Text>
                   {subtitle && (
                     <Text variant="subhead" tone="muted">
@@ -126,7 +126,7 @@ function SelectList({ o, close }: { o: Extract<Overlay, { kind: "select" }>; clo
                   {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: opt.leading ? 66 : spacing.md }} />}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, minHeight: 58, paddingVertical: spacing.sm, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
                     {opt.leading}
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, gap: spacing.xxs }}>
                       <Text variant="bodyStrong" style={opt.destructive ? { color: c.danger } : undefined}>
                         {opt.label}
                       </Text>

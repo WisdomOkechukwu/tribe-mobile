@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { BackHandler, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, FlipInEasyX, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CopyField, Pill } from "@/components/bits";
 import { BillerThumb } from "@/components/brand-tiles";
 import { Button } from "@/components/button";
-import { CardBadge } from "@/components/card-face";
+import { CardBadge, VirtualCardFace } from "@/components/card-face";
 import { CashpointTicket } from "@/components/cashpoint-ticket";
 import { CoinIcon } from "@/components/coin-icon";
 import { CashpointMark } from "@/components/cashpoint-mark";
@@ -43,10 +43,10 @@ function RecurringOfferCard({ offer }: { offer: RecurringOffer }) {
     <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
         <BillerThumb biller={b} size={40} />
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
           <Text variant="bodyStrong">{done ? `${b.name} renews ${FREQUENCY_LABEL[freq].toLowerCase()}` : "Make this recurring?"}</Text>
           <Text variant="caption" tone="muted">
-            {done ? "Manage it any time in Pay › Recurring bills." : `Pay ₦${offer.amountNgn.toLocaleString()} automatically and never get cut off.`}
+            {done ? "Manage it any time in Pay › Recurring bills." : `Pay ₦${offer.amountNgn.toLocaleString()} from your ${assetByCode(offer.payWith).name} wallet automatically, and never get cut off.`}
           </Text>
         </View>
         {done && <Pill label="On" tone="success" icon="check" />}
@@ -72,7 +72,7 @@ function RecurringOfferCard({ offer }: { offer: RecurringOffer }) {
             size="md"
             onPress={() => {
               add({ ...offer, frequency: freq, nextRun: nextDate(new Date(), freq).toISOString() });
-              useInboxStore.getState().push({ kind: "money", title: "Recurring bill set up", body: `${b.name} · ₦${offer.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[freq].toLowerCase()}`, href: "/pay/recurring" });
+              useInboxStore.getState().push({ kind: "money", title: "Recurring bill set up", body: `${b.name} · ₦${offer.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[freq].toLowerCase()}`, href: "/pay/recurring", billerId: offer.billerId, badge: "repeat" });
               toast("Recurring bill on", "success");
               setDone(true);
             }}
@@ -114,10 +114,29 @@ function useLegs(tx: Transaction | undefined): { from: Leg; to: Leg } | null {
 const PROCESSING_MS = 900;
 
 /** The settled icon: what kind of thing just happened. */
+/** A new card: the card itself flips in, with a green tick on its corner. */
+function NewCardReveal({ cardId }: { cardId: string }) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  const card = useCardsStore((s) => s.cards.find((k) => k.id === cardId));
+  if (!card) return null;
+  return (
+    <Animated.View entering={reduce ? undefined : FlipInEasyX.delay(120).springify().damping(14)}>
+      <View style={{ transform: [{ rotate: "-4deg" }] }}>
+        <VirtualCardFace card={card} width={236} />
+      </View>
+      <View style={{ position: "absolute", right: -8, bottom: -8, width: 36, height: 36, borderRadius: 18, backgroundColor: c.success, borderWidth: 3, borderColor: c.bg, alignItems: "center", justifyContent: "center" }}>
+        <Icon name="check" size={15} color="#fff" weight="bold" />
+      </View>
+    </Animated.View>
+  );
+}
+
 function ResultIcon({ tx, pending }: { tx?: Transaction; pending: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const size = 88;
+  if (tx?.meta?.cardOp === "created" && tx.meta.cardId) return <NewCardReveal cardId={tx.meta.cardId} />;
   if (tx?.type === "cashpoint" && tx.direction === "out") return <CashpointMark size={size} />;
   const icon: IconName = !tx ? "repeat" : tx.type === "send" ? "paperplane" : tx.type === "swap" ? "swap" : tx.type === "card" ? "card" : tx.type === "bill" ? (tx.meta?.token ? "bolt" : "bill") : tx.type === "giftcard" ? "gift" : "receive";
   const [bg, fg] = pending ? [c.warningSoft, c.pending] : [c.brandSoft, c.brandText];
@@ -282,7 +301,7 @@ export default function Success() {
       <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} bounces={false} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         <View style={{ alignItems: "center", gap: spacing.sm }} accessibilityLiveRegion="polite">
           <ResultIcon tx={tx} pending={pending} />
-          <Animated.View entering={reduce ? undefined : FadeInDown.delay(80).duration(320)} style={{ alignItems: "center", gap: spacing.xs, marginTop: spacing.xs }}>
+          <Animated.View entering={reduce ? undefined : FadeInDown.delay(80).duration(320)} style={{ alignItems: "center", gap: spacing.sm, marginTop: spacing.xs }}>
             {pending && <Pill label="Processing" tone="warning" icon="clock" />}
             <Text variant="title" align="center">
               {headline}

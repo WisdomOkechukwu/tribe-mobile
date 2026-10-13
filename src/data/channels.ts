@@ -34,12 +34,21 @@ const NAME: FieldSpec = { key: "name", label: "Account holder's full name", plac
 const ADDRESS: FieldSpec = { key: "address", label: "Account holder's address", placeholder: "Account holder's address" };
 const PURPOSE: FieldSpec = { key: "purpose", label: "Payment purpose", kind: "select", options: ["Family support", "Gift", "Rent", "School fees", "Business payment", "Salary", "Savings", "Other"], placeholder: "Payment purpose" };
 
+export const FPS_FIELDS: FieldSpec[] = [
+  { key: "accountType", label: "Account type", kind: "select", options: ["Personal", "Corporate"], placeholder: "Account type" },
+  NAME,
+  { key: "account", label: "Account number", kind: "digits", length: 8, placeholder: "8-digit account number" },
+  { key: "sortCode", label: "Sort code", kind: "digits", length: 6, format: "sortcode", placeholder: "Sort code (12-34-56)" },
+  { key: "reference", label: "Reference", optional: true, placeholder: "Reference (optional)" },
+];
+const SEPA_FIELDS: FieldSpec[] = [NAME, { key: "iban", label: "IBAN", kind: "code", range: [15, 34], placeholder: "IBAN" }, { key: "bic", label: "BIC / SWIFT", kind: "code", range: [8, 11], optional: true, placeholder: "BIC (optional)" }, { key: "reference", label: "Reference", optional: true, placeholder: "Reference (optional)" }];
+
 export const NG_BANKS = ["GTBank", "Access Bank", "Kuda", "Opay", "Zenith Bank", "UBA", "Moniepoint", "First Bank", "Wema Bank"];
 
 export const CHANNELS: Channel[] = [
   {
     id: "ngn-bank",
-    name: "Bank transfer",
+    name: "Bank transfer (NIP)",
     blurb: "Any Nigerian bank or fintech account",
     eta: "Within minutes",
     feeUsd: 25 / 1540,
@@ -83,13 +92,16 @@ export const CHANNELS: Channel[] = [
     eta: "Usually instant",
     feeUsd: 0.5,
     currencies: ["GBP"],
-    fields: [
-      { key: "accountType", label: "Account type", kind: "select", options: ["Personal", "Corporate"], placeholder: "Account type" },
-      NAME,
-      { key: "account", label: "Account number", kind: "digits", length: 8, placeholder: "8-digit account number" },
-      { key: "sortCode", label: "Sort code", kind: "digits", length: 6, format: "sortcode", placeholder: "Sort code (12-34-56)" },
-      { key: "reference", label: "Reference", optional: true, placeholder: "Reference (optional)" },
-    ],
+    fields: FPS_FIELDS,
+  },
+  {
+    id: "bacs",
+    name: "BACS",
+    blurb: "UK bank accounts · lowest fee",
+    eta: "3 working days",
+    feeUsd: 0.2,
+    currencies: ["GBP"],
+    fields: FPS_FIELDS,
   },
   {
     id: "sepa",
@@ -98,7 +110,16 @@ export const CHANNELS: Channel[] = [
     eta: "Within 1 working day",
     feeUsd: 0.5,
     currencies: ["EUR"],
-    fields: [NAME, { key: "iban", label: "IBAN", kind: "code", range: [15, 34], placeholder: "IBAN" }, { key: "bic", label: "BIC / SWIFT", kind: "code", range: [8, 11], optional: true, placeholder: "BIC (optional)" }, { key: "reference", label: "Reference", optional: true, placeholder: "Reference (optional)" }],
+    fields: SEPA_FIELDS,
+  },
+  {
+    id: "sepa-instant",
+    name: "SEPA Instant",
+    blurb: "Euro accounts · lands in seconds",
+    eta: "In seconds",
+    feeUsd: 1,
+    currencies: ["EUR"],
+    fields: SEPA_FIELDS,
   },
   {
     id: "swift",

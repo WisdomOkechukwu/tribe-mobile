@@ -30,7 +30,7 @@ export function AssetRow({ a, onPress }: { a: Asset; onPress?: () => void }) {
       {({ pressed }) => (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 64, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
           <CoinIcon code={a.code} size={40} />
-          <View style={{ flex: 1, gap: 1 }}>
+          <View style={{ flex: 1, gap: spacing.xxs }}>
             <Text variant="bodyStrong" numberOfLines={1}>
               {a.name}
             </Text>
@@ -43,7 +43,7 @@ export function AssetRow({ a, onPress }: { a: Asset; onPress?: () => void }) {
               )}
             </Text>
           </View>
-          <View style={{ alignItems: "flex-end", gap: 1, minWidth: 92 }}>
+          <View style={{ alignItems: "flex-end", gap: spacing.xxs, minWidth: 92 }}>
             <Text variant="amount" numberOfLines={1}>
               {hidden ? "•••••" : formatMoney(toDisplay(bal, a.code, display), display)}
             </Text>

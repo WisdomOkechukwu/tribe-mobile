@@ -29,7 +29,7 @@ export function Pill({ label, tone = "neutral", icon }: { label: string; tone?: 
   };
   const [bg, fg] = map[tone];
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: bg, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3, alignSelf: "flex-start" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: bg, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3, alignSelf: "flex-start" }}>
       {icon && <Icon name={icon} size={11} color={fg} weight="bold" />}
       <Text variant="caption" style={{ color: fg, fontFamily: "Poppins_600SemiBold", fontSize: 11, lineHeight: 15 }}>
         {label}
@@ -81,7 +81,7 @@ export function CopyField({ label, value, mono, copyValue }: { label: string; va
       onPress={() => copyToClipboard(copyValue ?? (mono ? value.replace(/\s/g, "") : value), `${label} copied`)}
       style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingVertical: spacing.smd, paddingHorizontal: spacing.md }}
     >
-      <View style={{ flex: 1, gap: 1 }}>
+      <View style={{ flex: 1, gap: spacing.xxs }}>
         <Text variant="caption" tone="muted">
           {label}
         </Text>

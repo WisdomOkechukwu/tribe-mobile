@@ -77,7 +77,7 @@ export default function VerifyEmail() {
             Resend code in 0:{String(seconds).padStart(2, "0")}
           </Text>
         ) : (
-          <View style={{ flexDirection: "row", gap: 4 }}>
+          <View style={{ flexDirection: "row", gap: spacing.xs }}>
             <Text variant="subhead" tone="muted">
               Didn&apos;t get it?
             </Text>

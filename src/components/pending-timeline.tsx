@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { View } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import type { Transaction } from "@/data/seed";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
@@ -35,7 +35,13 @@ function Dot({ state }: { state: Step["state"] }) {
   const reduce = useReducedMotion();
   const pulse = useSharedValue(1);
   useEffect(() => {
-    if (state === "active" && !reduce) pulse.set(withRepeat(withSequence(withTiming(1.35, { duration: 700 }), withTiming(1, { duration: 700 })), -1));
+    if (state !== "active" || reduce) return;
+    pulse.set(withRepeat(withSequence(withTiming(1.35, { duration: 700 }), withTiming(1, { duration: 700 })), -1));
+    // stop the endless pulse once this step is no longer the active one
+    return () => {
+      cancelAnimation(pulse);
+      pulse.set(1);
+    };
   }, [state, pulse, reduce]);
   const halo = useAnimatedStyle(() => ({ transform: [{ scale: pulse.get() }], opacity: 2 - pulse.get() * 1.2 }));
   if (state === "done")
@@ -66,7 +72,7 @@ export function PendingTimeline({ tx }: { tx: Transaction }) {
             <Dot state={s.state} />
             {i < steps.length - 1 && <View style={{ width: 2, flex: 1, minHeight: 18, backgroundColor: s.state === "done" ? c.success : c.border, marginVertical: 3 }} />}
           </View>
-          <View style={{ flex: 1, paddingBottom: i < steps.length - 1 ? spacing.md : 0, gap: 1 }}>
+          <View style={{ flex: 1, paddingBottom: i < steps.length - 1 ? spacing.md : 0, gap: spacing.xxs }}>
             <Text variant="bodyStrong" style={{ color: s.state === "todo" ? c.textMuted : c.text }}>
               {s.title}
             </Text>

@@ -1,6 +1,8 @@
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { Pressable, View } from "react-native";
+import { memo, type ReactElement } from "react";
+import { Pressable, SectionList, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { billerById, giftBrandById } from "@/data/catalog";
 import type { Transaction } from "@/data/seed";
 import { usePrefsStore } from "@/stores/use-prefs-store";
@@ -14,13 +16,16 @@ import { CashpointMark } from "./cashpoint-mark";
 import { CoinIcon } from "./coin-icon";
 import { Icon, type IconName } from "./icon";
 import { PairIcon } from "./pair-icon";
+import { GLASS_TAB_BAR_HEIGHT } from "./glass-tab-bar";
 import { Text } from "./text";
 
 const SIZE = 40;
 /** One leading slot for every row (fits a PairIcon), so every title starts at the same x. */
 const LEAD = 56;
+const SEPARATOR_INSET = spacing.md + LEAD + spacing.smd;
 
-function Leading({ tx }: { tx: Transaction }) {
+/** The leading art for a transaction (coin pair, biller, card, Cashpoint…) — rows and notifications share it. */
+export function TxLeading({ tx }: { tx: Transaction }) {
   const c = useColors();
   if (tx.type === "swap" && tx.toAsset) return <PairIcon from={tx.asset} to={tx.toAsset} size={SIZE} />;
   // bills & gift cards: what paid (coin/flag) underneath, what it bought in front
@@ -88,10 +93,13 @@ export function CardLeading({ tx, size }: { tx: Transaction; size: number }) {
 /** The thing bought/funded in its own terms — hidden when it would just repeat a Naira amount. */
 export const showFace = (tx: Transaction) => !!tx.meta?.face && !(tx.asset === "NGN" && tx.meta.face.startsWith("₦"));
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+// one formatter each — toLocale*String builds a new Intl formatter on every call
+const TIME_FMT = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
+const DAY_FMT = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const time = (iso: string) => TIME_FMT.format(new Date(iso));
 
 /** `interactive={false}` for summaries (e.g. the support form) where tapping shouldn't open the receipt. */
-export function TransactionRow({ tx, interactive = true }: { tx: Transaction; interactive?: boolean }) {
+export const TransactionRow = memo(function TransactionRow({ tx, interactive = true }: { tx: Transaction; interactive?: boolean }) {
   const c = useColors();
   const hidden = usePrefsStore((s) => s.hideBalances);
   const incoming = tx.direction === "in";
@@ -112,9 +120,9 @@ export function TransactionRow({ tx, interactive = true }: { tx: Transaction; in
       {({ pressed }) => (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingVertical: spacing.smd, paddingHorizontal: spacing.md, minHeight: 64, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
           <View style={{ width: LEAD, alignItems: "center" }}>
-            <Leading tx={tx} />
+            <TxLeading tx={tx} />
           </View>
-          <View style={{ flex: 1, gap: 1 }}>
+          <View style={{ flex: 1, gap: spacing.xxs }}>
             <Text variant="bodyStrong" numberOfLines={1}>
               {txTitle(tx)}
             </Text>
@@ -122,7 +130,7 @@ export function TransactionRow({ tx, interactive = true }: { tx: Transaction; in
               {`${time(tx.date)} · ${txSubtitle(tx)}`}
             </Text>
           </View>
-          <View style={{ alignItems: "flex-end", gap: 1 }}>
+          <View style={{ alignItems: "flex-end", gap: spacing.xxs }}>
             {isSwap ? (
               <>
                 <Text variant="amount" tone="success">
@@ -158,7 +166,7 @@ export function TransactionRow({ tx, interactive = true }: { tx: Transaction; in
       )}
     </Pressable>
   );
-}
+});
 
 /** "Today" / "Yesterday" / "Mon 6 Oct" */
 export function dayLabel(iso: string) {
@@ -168,7 +176,7 @@ export function dayLabel(iso: string) {
   const diff = Math.round((startOf(today) - startOf(d)) / 864e5);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
-  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return DAY_FMT.format(d);
 }
 
 /** Day buckets, newest first — merges by day even if the list isn't strictly sorted. */
@@ -177,7 +185,9 @@ export function groupByDay<T extends { date: string }>(items: T[]) {
   const map = new Map<string, T[]>();
   for (const tx of sorted) {
     const day = dayLabel(tx.date);
-    map.set(day, [...(map.get(day) ?? []), tx]);
+    const list = map.get(day);
+    if (list) list.push(tx);
+    else map.set(day, [tx]);
   }
   return [...map].map(([day, list]) => ({ day, items: list }));
 }
@@ -189,7 +199,7 @@ export function TransactionGroup({ items }: { items: Transaction[] }) {
     <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
       {items.map((tx, i) => (
         <View key={tx.id}>
-          {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: spacing.md + LEAD + spacing.smd }} />}
+          {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: SEPARATOR_INSET }} />}
           <TransactionRow tx={tx} />
         </View>
       ))}
@@ -211,5 +221,63 @@ export function TransactionList({ items, grouped = true }: { items: Transaction[
         </View>
       ))}
     </View>
+  );
+}
+
+/**
+ * Full history, virtualised: only the rows on screen (plus a small window) are mounted, so a long
+ * history costs the same as a short one. Day labels and inset groups look like `TransactionList`.
+ * Use it as a screen's body (it scrolls); `header` sits above the first day.
+ */
+export function TransactionSectionList({ items, header, empty }: { items: Transaction[]; header?: ReactElement; empty?: ReactElement }) {
+  const c = useColors();
+  const insets = useSafeAreaInsets();
+  const sections = groupByDay(items).map((g) => ({ title: g.day, data: g.items }));
+  return (
+    <SectionList
+      sections={sections}
+      keyExtractor={(tx) => tx.id}
+      stickySectionHeadersEnabled={false}
+      initialNumToRender={12}
+      maxToRenderPerBatch={10}
+      windowSize={7}
+      removeClippedSubviews
+      showsVerticalScrollIndicator={false}
+      showsHorizontalScrollIndicator={false}
+      contentInsetAdjustmentBehavior="automatic"
+      style={{ backgroundColor: c.bg }}
+      contentContainerStyle={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: insets.bottom + GLASS_TAB_BAR_HEIGHT + spacing.xl }}
+      ListHeaderComponent={header ? <View style={{ gap: spacing.lg, paddingBottom: spacing.lg }}>{header}</View> : undefined}
+      ListEmptyComponent={empty}
+      renderSectionHeader={({ section }) => (
+        <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs, paddingBottom: spacing.sm }}>
+          {section.title}
+        </Text>
+      )}
+      SectionSeparatorComponent={({ leadingItem, trailingSection }) =>
+        // gap after a finished group, before the next day's label
+        leadingItem && trailingSection ? <View style={{ height: spacing.md }} /> : null
+      }
+      renderItem={({ item, index, section }) => {
+        const first = index === 0;
+        const last = index === section.data.length - 1;
+        return (
+          <View
+            style={{
+              backgroundColor: c.surface,
+              overflow: "hidden",
+              borderCurve: "continuous",
+              borderTopLeftRadius: first ? radius.group : 0,
+              borderTopRightRadius: first ? radius.group : 0,
+              borderBottomLeftRadius: last ? radius.group : 0,
+              borderBottomRightRadius: last ? radius.group : 0,
+            }}
+          >
+            {!first && <View style={{ height: 1, backgroundColor: c.border, marginLeft: SEPARATOR_INSET }} />}
+            <TransactionRow tx={item} />
+          </View>
+        );
+      }}
+    />
   );
 }

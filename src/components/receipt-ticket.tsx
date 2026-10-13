@@ -57,7 +57,7 @@ export const ReceiptTicket = forwardRef<View, { tx: Transaction; width: number }
           </View>
           <Dashes />
           <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: INK, marginBottom: spacing.sm }}>{title}</Text>
-          <View style={{ gap: 9 }}>
+          <View style={{ gap: spacing.sm }}>
             {rows.map((r) => (
               <View key={r.label} style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}>
                 <Text style={{ fontFamily: fonts.regular, fontSize: 12, color: MUTED }}>{r.label}</Text>

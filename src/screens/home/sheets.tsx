@@ -1,6 +1,5 @@
 import { router, type Href } from "expo-router";
 import { ScrollView, View } from "react-native";
-import { CashpointMark } from "@/components/cashpoint-mark";
 import { Icon, type IconName } from "@/components/icon";
 import { ListRow, ListSection } from "@/components/list";
 import { PressableScale } from "@/components/pressable-scale";
@@ -46,12 +45,13 @@ function AddMoneyList({ close }: { close: Close }) {
   const go = (href: Href) => close(() => router.push(href, { withAnchor: true }));
   return (
     <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm }} bounces={false}>
+      {/* one quiet style: our own line glyphs on soft brand circles; the Cashpoint keeps its orange moment */}
       <ListSection>
-        <ListRow icon="bank" iconBg={c.successSoft} iconTint={c.success} title="Bank transfer" subtitle="Your Naira account · lands in minutes" onPress={() => go({ pathname: "/receive/[code]", params: { code: "NGN" } })} />
-        <ListRow icon="globe" iconBg={c.brandSoft} iconTint={c.brandText} title="From abroad" subtitle="USD, GBP and EUR account details" onPress={() => go({ pathname: "/receive/[code]", params: { code: "USD" } })} />
-        <ListRow icon="bitcoin" iconBg={c.accentSoft} iconTint={c.accentText} title="Deposit crypto" subtitle="USDT, BTC, ETH, USDC, SOL" onPress={() => go({ pathname: "/receive/[code]", params: { code: "USDT" } })} />
-        <ListRow leading={<CashpointMark size={38} />} title="Redeem a Cashpoint" subtitle="Got a 12-digit code? Load it here" onPress={() => go({ pathname: "/cashpoint", params: { mode: "redeem" } })} />
-        <ListRow icon="people" iconBg={c.surfaceAlt} title="Ask a friend" subtitle="Share your @tag or QR code" onPress={() => go("/me/qr")} />
+        <ListRow glyph="bank" iconBg={c.brandSoft} iconTint={c.brandText} title="Bank transfer" subtitle="Your Naira account · lands in minutes" onPress={() => go({ pathname: "/receive/[code]", params: { code: "NGN" } })} />
+        <ListRow glyph="globe" iconBg={c.brandSoft} iconTint={c.brandText} title="From abroad" subtitle="USD, GBP and EUR account details" onPress={() => go({ pathname: "/receive/[code]", params: { code: "USD" } })} />
+        <ListRow glyph="crypto" iconBg={c.brandSoft} iconTint={c.brandText} title="Crypto deposit" subtitle="USDT, BTC, ETH, USDC, SOL" onPress={() => go({ pathname: "/receive/[code]", params: { code: "USDT" } })} />
+        <ListRow glyph="cashpoint" iconBg={c.accentSoft} iconTint={c.accentText} title="Redeem a Cashpoint" subtitle="Got a 12-digit code? Load it here" onPress={() => go({ pathname: "/cashpoint", params: { mode: "redeem" } })} />
+        <ListRow glyph="at" iconBg={c.brandSoft} iconTint={c.brandText} title="From a Tribe friend" subtitle="Share your @tag or QR code" onPress={() => go("/me/qr")} />
       </ListSection>
     </ScrollView>
   );
@@ -60,5 +60,5 @@ function AddMoneyList({ close }: { close: Close }) {
 /** Home → More: every other action, as a grid in our own bottom sheet. */
 export const openMoreSheet = () => overlay.sheet({ title: "More", content: (close) => <MoreGrid close={close} /> });
 
-/** Home → Add: every way money gets into Tribe. */
-export const openAddMoneySheet = () => overlay.sheet({ title: "Add money", content: (close) => <AddMoneyList close={close} /> });
+/** Home → Receive: every way money gets into Tribe. */
+export const openAddMoneySheet = () => overlay.sheet({ title: "Receive money", content: (close) => <AddMoneyList close={close} /> });

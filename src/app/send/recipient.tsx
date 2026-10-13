@@ -18,6 +18,7 @@ import { overlay } from "@/stores/use-overlay-store";
 import { useSendDraft, type Recipient } from "@/stores/use-send-draft";
 import { toast } from "@/stores/use-ui-store";
 import { radius, spacing, useColors } from "@/theme";
+import { formatMoney } from "@/utils/format";
 
 type Mode = "tribe" | "external";
 
@@ -29,7 +30,7 @@ const shortAddress = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}…${a.sli
 function Chip({ label, onPress }: { label: string; onPress: () => void }) {
   const c = useColors();
   return (
-    <PressableScale onPress={onPress} accessibilityRole="button" style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", borderRadius: radius.full, borderWidth: 1, borderColor: c.borderStrong, paddingVertical: 5, paddingHorizontal: spacing.smd }}>
+    <PressableScale onPress={onPress} accessibilityRole="button" style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start", borderRadius: radius.full, borderWidth: 1, borderColor: c.borderStrong, paddingVertical: 5, paddingHorizontal: spacing.smd }}>
       <Text variant="subhead">{label}</Text>
       <Icon name="chevronDown" size={9} color={c.textMuted} weight="bold" />
     </PressableScale>
@@ -74,6 +75,10 @@ export default function SendRecipient() {
   const a = assetByCode(code);
   const crypto = scope === "crypto";
   const channels = channelsFor(code);
+  // labels for the rail cards: lowest fee, and quickest arrival (seconds < minutes < same day < days)
+  const speed = (eta: string) => (/second|instant/i.test(eta) ? 0 : /minute/i.test(eta) ? 1 : /same/i.test(eta) ? 2 : 3);
+  const cheapestId = channels.length > 1 ? [...channels].sort((x, y) => x.feeUsd - y.feeUsd)[0].id : undefined;
+  const fastestId = channels.length > 1 ? [...channels].sort((x, y) => speed(x.eta) - speed(y.eta) || x.feeUsd - y.feeUsd).find((ch) => ch.id !== cheapestId)?.id : undefined;
   const [mode, setMode] = useState<Mode | null>(null);
   const [query, setQuery] = useState("");
   const [channelId, setChannelId] = useState<string | undefined>(channels[0]?.id); // cheapest local rail first
@@ -114,16 +119,6 @@ export default function SendRecipient() {
   };
   const pickBeneficiary = (kind: Beneficiary["kind"]) => openBeneficiaries((b) => b.asset === code && (kind === "tribe" ? b.kind === "tribe" : b.kind !== "tribe"), fromBeneficiary);
 
-  const pickChannel = () =>
-    overlay.select({
-      title: "Select channel",
-      value: channelId,
-      options: channels.map((ch) => ({ value: ch.id, label: ch.name, sub: `${ch.blurb} · ${ch.eta}` })),
-      onSelect: (id) => {
-        setChannelId(id);
-        setValues((v) => ({ name: v.name ?? "" }));
-      },
-    });
   const pickNetwork = () =>
     overlay.select({
       title: "Select network",
@@ -229,9 +224,52 @@ export default function SendRecipient() {
           {channels.length > 1 && (
             <>
               <Text variant="subhead" tone="muted">
-                Select send channel
+                How should it travel?
               </Text>
-              <Dropdown value={channel?.name} sub={channel ? `${channel.blurb} · ${channel.eta}` : undefined} placeholder="Select channel" onPress={pickChannel} />
+              {/* every rail this currency can use, side by side: speed, fee, and which is cheapest / fastest */}
+              <View style={{ gap: spacing.sm }}>
+                {channels.map((ch) => {
+                  const on = ch.id === channel?.id;
+                  const tag = ch.id === cheapestId ? "Cheapest" : ch.id === fastestId ? "Fastest" : null;
+                  return (
+                    <PressableScale
+                      key={ch.id}
+                      scaleTo={0.98}
+                      onPress={() => {
+                        setChannelId(ch.id);
+                        if (ch.id !== channelId) setValues((v) => ({ name: v.name ?? "" }));
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`${ch.name}, ${ch.eta}, fee ${formatMoney(ch.feeUsd, "USD")}`}
+                      style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: on ? c.brandSoft : c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, borderWidth: 1.5, borderColor: on ? c.brand : "transparent" }}
+                    >
+                      <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: on ? 6 : 1.5, borderColor: on ? c.brand : c.borderStrong }} />
+                      <View style={{ flex: 1, gap: spacing.xxs }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                          <Text variant="bodyStrong">{ch.name}</Text>
+                          {tag && (
+                            <View style={{ backgroundColor: tag === "Cheapest" ? c.successSoft : c.accentSoft, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs }}>
+                              <Text variant="caption" style={{ color: tag === "Cheapest" ? c.success : c.accentText, fontFamily: "Poppins_600SemiBold" }}>
+                                {tag}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text variant="caption" tone="muted" numberOfLines={1}>
+                          {ch.blurb}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: spacing.xxs }}>
+                        <Text variant="subhead">{ch.eta}</Text>
+                        <Text variant="caption" tone="muted">
+                          Fee {formatMoney(ch.feeUsd, "USD")}
+                        </Text>
+                      </View>
+                    </PressableScale>
+                  );
+                })}
+              </View>
             </>
           )}
           <Chip label="Beneficiary" onPress={() => pickBeneficiary("bank")} />

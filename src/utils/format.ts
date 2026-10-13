@@ -1,4 +1,4 @@
-import { liveUsd } from "@/utils/rates";
+import { liveUsd, quoteTick } from "@/utils/rates";
 import { assetByCode, NGN_PER_USD, SWAP_FEE, type AssetCode } from "@/data/assets";
 
 export type DisplayCurrency = "USD" | "NGN";
@@ -13,6 +13,20 @@ export function toDisplay(amount: number, code: AssetCode, display: DisplayCurre
  * Display-currency money. Dollars always show cents; Naira shows kobo below ₦1,000 and whole
  * naira above (₦1,909,600 — never the ragged ₦308,654.5). `exact` keeps 2 decimals (balances).
  */
+/** One Intl.NumberFormat per option set — `toLocaleString` with options builds a new one every call. */
+const numberFormats = new Map<string, Intl.NumberFormat>();
+function fmtNumber(n: number, min: number, max: number) {
+  const key = `${min}:${max}`;
+  let f = numberFormats.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat("en-US", { minimumFractionDigits: min, maximumFractionDigits: max });
+    numberFormats.set(key, f);
+  }
+  return f.format(n);
+}
+const SHORT_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+const FULL_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
 export function formatMoney(value: number, display: DisplayCurrency, opts: { compact?: boolean; sign?: boolean; exact?: boolean } = {}) {
   const symbol = display === "USD" ? "$" : "₦";
   const abs = Math.abs(value);
@@ -20,7 +34,7 @@ export function formatMoney(value: number, display: DisplayCurrency, opts: { com
   const body =
     opts.compact && abs >= 1_000_000
       ? `${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 1 : 2)}m`
-      : abs.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      : fmtNumber(abs, decimals, decimals);
   const sign = opts.sign ? (value < 0 ? "−" : "+") : value < 0 ? "−" : "";
   return `${sign}${symbol}${body}`;
 }
@@ -29,7 +43,7 @@ export function formatMoney(value: number, display: DisplayCurrency, opts: { com
 export function formatAsset(amount: number, code: AssetCode, opts: { sign?: "+" | "−" } = {}) {
   const a = assetByCode(code);
   const d = amount >= 1000 ? Math.min(a.decimals, 2) : a.decimals;
-  const num = amount.toLocaleString("en-US", { minimumFractionDigits: a.kind === "fiat" ? 2 : 0, maximumFractionDigits: d });
+  const num = fmtNumber(amount, Math.min(a.kind === "fiat" ? 2 : 0, d), d);
   const sign = opts.sign ?? "";
   return a.kind === "fiat" ? `${sign}${a.symbol}${num}` : `${sign}${num} ${a.code}`;
 }
@@ -41,10 +55,11 @@ export function rateLine(from: AssetCode, to: AssetCode, paid: number, received:
   return r >= 1 ? `${unit(from)} = ${formatAsset(r, to)}` : `${unit(to)} = ${formatAsset(1 / r, from)}`;
 }
 
-export function quote(amount: number, from: AssetCode, to: AssetCode) {
+/** `tick` = the quote window; pass `useQuoteTick()`'s value from screens so they re-price on time. */
+export function quote(amount: number, from: AssetCode, to: AssetCode, tick = quoteTick()) {
   const fee = amount * SWAP_FEE;
   // live (demo) prices — the swap screen's countdown refreshes them
-  const rate = liveUsd(from) / liveUsd(to);
+  const rate = liveUsd(from, tick) / liveUsd(to, tick);
   return { fee, rate, receive: Math.max(0, (amount - fee) * rate) };
 }
 
@@ -56,11 +71,11 @@ export function relativeDate(iso: string) {
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   if (hrs < 48) return "Yesterday";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return SHORT_DATE.format(d);
 }
 
 export function fullDate(iso: string) {
-  return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return FULL_DATE.format(new Date(iso));
 }
 
 /** "482719305561" → "4827 1930 5561" */

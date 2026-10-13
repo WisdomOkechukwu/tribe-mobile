@@ -20,8 +20,8 @@ export const CARD_THEMES: Record<CardTheme, Theme> = {
   sky: { name: "Sky", bg: "#5AC8FA", fg: "#062A47", sub: "#0E4A75", mark: "#062A47", line: "#2FAEEF", swatch: ["#9ADFFF", "#2FAEEF"], shadow: "0 26px 44px -26px rgba(20,100,160,0.55)" },
 };
 
-/** Swatch order on "Select a theme": the Virtual Card.png set first, then Tribe's own two. */
-export const CARD_THEME_ORDER: CardTheme[] = ["onyx", "lime", "forest", "cream", "sky", "midnight", "sunset"];
+/** Swatch order on "Select a theme": Tribe's own two first (brand), then the rest light → dark. */
+export const CARD_THEME_ORDER: CardTheme[] = ["midnight", "sunset", "lime", "sky", "cream", "forest", "onyx"];
 
 type Pair = { light: string; dark: string };
 /** How each finish tints the Cards pages: page background, the action colour and soft fills. */
@@ -137,7 +137,7 @@ export function VirtualCardFace({ card, revealed = false, width = 340, style }: 
         <Wordmark color={t.mark} />
         <NetworkMark network={card.network} color={t.fg} />
       </View>
-      <View style={{ gap: 6 }}>
+      <View style={{ gap: spacing.sm }}>
         <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: width * 0.05, letterSpacing: 1.6, color: t.fg, fontVariant: ["tabular-nums"] }}>{revealed ? card.number : masked}</Text>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
           <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, letterSpacing: 1, color: t.sub }}>{(card.holder || "Card holder").toUpperCase()}</Text>
@@ -145,7 +145,7 @@ export function VirtualCardFace({ card, revealed = false, width = 340, style }: 
         </View>
       </View>
       {card.frozen && (
-        <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(214,226,240,0.55)", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(214,226,240,0.55)", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
           <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.85)", alignItems: "center", justifyContent: "center" }}>
             <Icon name="snowflake" size={26} color="#3A6EA5" />
           </View>

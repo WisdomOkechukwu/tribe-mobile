@@ -21,7 +21,7 @@ function ReasonRow({ reason, selected, onPress }: { reason: IssueReason; selecte
     <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={r.label}>
       {({ pressed }) => (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
-          <View style={{ flex: 1, gap: 1 }}>
+          <View style={{ flex: 1, gap: spacing.xxs }}>
             <Text variant="bodyStrong">{r.label}</Text>
             <Text variant="caption" tone="muted">
               {r.sub}
@@ -63,7 +63,7 @@ export default function ReportIssue() {
           disabled={!ready}
           onPress={() => {
             const ticket = openTicket({ txId: tx.id, reason: reason!, details: details.trim() });
-            useInboxStore.getState().push({ kind: "support", title: `Ticket ${ticket.id} opened`, body: `${ISSUE_REASON[reason!].label} · ${tx.title}. We'll reply here, usually within a few hours.`, href: `/transaction/${tx.id}` });
+            useInboxStore.getState().push({ kind: "support", title: `Ticket ${ticket.id} opened`, body: `${ISSUE_REASON[reason!].label} · ${tx.title}. We'll reply here, usually within a few hours.`, href: `/transaction/${tx.id}`, txId: tx.id, badge: "chatLine" });
             toast("Sent to support", "success");
             router.back();
           }}

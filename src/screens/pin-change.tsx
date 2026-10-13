@@ -34,17 +34,17 @@ function PasswordSheet({ close, onOk }: { close: (after?: () => void) => void; o
  * current → new → confirm on the brand pad, for either PIN (transaction: 4, lock: 6).
  * Forgot the current one? The password gets you to "new". No current PIN yet → starts at "new".
  */
-export function PinChangeFlow({ length, current, kind, onSave }: { length: number; current: string | null; kind: "transaction" | "lock"; onSave: (pin: string) => void }) {
+export function PinChangeFlow({ length, current, onSave }: { length: number; current: string | null; onSave: (pin: string) => void }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>(current ? "current" : "new");
   const [value, setValue] = useState("");
   const [fresh, setFresh] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const name = kind === "lock" ? "lock PIN" : "transaction PIN";
+  const name = "transaction PIN";
   const copy: Record<Step, { title: string; body: string }> = {
     current: { title: `Enter your current ${name}`, body: "Just making sure it's you." },
-    new: { title: current ? `Choose a new ${name}` : `Set up your ${name}`, body: kind === "lock" ? `${length} digits that unlock Tribe. Not your ${length === 6 ? "4-digit transaction" : "lock"} PIN.` : "4 digits that approve payments. Avoid birthdays and 1234." },
+    new: { title: current ? `Choose a new ${name}` : `Set up your ${name}`, body: "4 digits that approve payments. Avoid birthdays and 1234." },
     confirm: { title: `Confirm your ${name}`, body: "Type it one more time." },
   };
   const steps: Step[] = current ? ["current", "new", "confirm"] : ["new", "confirm"];
@@ -98,7 +98,7 @@ export function PinChangeFlow({ length, current, kind, onSave }: { length: numbe
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingHorizontal: spacing.mdl, paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm }}>
       <View style={{ alignItems: "center", gap: spacing.sm, marginTop: spacing.xl }}>
-        <View style={{ flexDirection: "row", gap: 6, marginBottom: spacing.sm }}>
+        <View style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm }}>
           {steps.map((k, i) => (
             <View key={k} style={{ width: 28, height: 4, borderRadius: 2, backgroundColor: i <= steps.indexOf(step) ? c.brand : c.borderStrong }} />
           ))}

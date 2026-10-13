@@ -22,9 +22,9 @@ export default function Security() {
   const wipe = useSessionStore((s) => s.wipe);
   const hidden = usePrefsStore((s) => s.hideBalances);
   const toggleHidden = usePrefsStore((s) => s.toggleHideBalances);
-  const lockPin = useSessionStore((s) => s.lockPin);
+  const pin = useSessionStore((s) => s.pin);
   const bioName = BIOMETRIC_LABEL;
-  const score = [biometrics, twoFactor, !!lockPin].filter(Boolean).length;
+  const score = [biometrics, twoFactor, !!pin].filter(Boolean).length;
   const toggleBio = async (on: boolean) => {
     if (!on) {
       setBiometrics(false);
@@ -49,14 +49,12 @@ export default function Security() {
         />
       </ListSection>
 
-      <ListSection title="App lock" footer="Tribe locks after 10 minutes without a tap. Your lock PIN unlocks the app; it isn't your transaction PIN.">
-        <ListRow icon="lockLine" title="Lock PIN" subtitle={lockPin ? "6 digits · Change or reset" : "Not set · Set up now"} onPress={() => router.push("/me/lock-pin")} />
-        <ListRow icon="clock" title="Auto-lock" value="After 10 min" />
-        <ListRow icon={Platform.OS === "ios" ? "faceid" : "fingerprint"} title={bioName} subtitle="Unlock and approve with a glance" trailing={<BrandSwitch label={bioName} value={biometrics} onValueChange={toggleBio} />} />
+      <ListSection title="Approvals" footer={`Every payment, swap and Cashpoint is approved with your PIN${biometrics ? ` or ${bioName}` : ""}.`}>
+        <ListRow icon="keyLine" title="Transaction PIN" subtitle={pin ? "4 digits · Change or reset" : "Not set yet · you'll create it on your first payment"} onPress={() => router.push("/me/change-pin")} />
+        <ListRow icon={Platform.OS === "ios" ? "faceid" : "fingerprint"} title={bioName} subtitle="Approve payments with a glance" trailing={<BrandSwitch label={bioName} value={biometrics} onValueChange={toggleBio} />} />
       </ListSection>
 
-      <ListSection title="Sign-in & approvals">
-        <ListRow icon="keyLine" title="Transaction PIN" subtitle="4 digits that approve payments" onPress={() => router.push("/me/change-pin")} />
+      <ListSection title="Sign-in">
         <ListRow icon="key" title="Password" subtitle="Used to sign in on any device" onPress={() => router.push("/me/password")} />
         <ListRow icon="shieldLine" title="2-step verification" subtitle="A code by SMS for new devices" trailing={<BrandSwitch label="2-step verification" value={twoFactor} onValueChange={setTwoFactor} />} />
       </ListSection>

@@ -12,7 +12,8 @@ import { ASSETS } from "@/data/assets";
 import { BILLERS, GIFT_BRANDS } from "@/data/catalog";
 import { openAddMoneySheet } from "@/screens/home/sheets";
 import { useWalletStore } from "@/stores/use-wallet-store";
-import { useColors } from "@/theme";
+import { spacing, useColors } from "@/theme";
+import { guardWalletOpen, openCardCreation } from "@/utils/verification";
 
 const ACTIONS: { title: string; keywords: string; icon: IconName; href?: Href; run?: () => void }[] = [
   { title: "Send money", keywords: "send transfer pay tag bank", icon: "send", href: "/send" },
@@ -22,8 +23,8 @@ const ACTIONS: { title: string; keywords: string; icon: IconName; href?: Href; r
   { title: "Scan to pay", keywords: "scan qr camera pay", icon: "scan", href: "/scan" },
   { title: "Generate a Cashpoint", keywords: "cashpoint code cash 12 digit", icon: "cashpoint", href: "/cashpoint" },
   { title: "Redeem a Cashpoint", keywords: "cashpoint redeem code", icon: "cashpoint", href: { pathname: "/cashpoint", params: { mode: "redeem" } } },
-  { title: "Get a virtual card", keywords: "card virtual dollar new create", icon: "card", href: "/card-new" },
-  { title: "Open a new currency", keywords: "currency account open new gbp eur kes ghs cad", icon: "globe", href: "/add-currency" },
+  { title: "Get a virtual card", keywords: "card virtual dollar new create", icon: "card", run: openCardCreation },
+  { title: "Open a new currency", keywords: "currency account open new gbp eur kes ghs cad", icon: "globe", run: () => guardWalletOpen(() => router.push("/add-currency")) },
   { title: "Token Vault", keywords: "token vault electricity light phed meter", icon: "vault", href: "/pay/vault" },
   { title: "Invite friends", keywords: "invite referral friends reward", icon: "people", href: "/me/invite" },
   { title: "Change PIN", keywords: "pin security password change", icon: "key", href: "/me/change-pin" },
@@ -56,7 +57,7 @@ export default function Search() {
       {nothing ? (
         <EmptyState icon="search" title="No results" body={`Nothing matches "${q}". Try a currency, a biller or a name.`} />
       ) : (
-        <View style={{ gap: 24 }}>
+        <View style={{ gap: spacing.lg }}>
           {assets.length > 0 && (
             <ListSection title="Assets">
               {assets.map((a) => (

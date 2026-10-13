@@ -8,6 +8,7 @@ import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, w
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MeAvatar } from "@/components/avatar";
 import { Button } from "@/components/button";
+import { Glyph, type GlyphName } from "@/components/glyphs";
 import { Icon, type IconName } from "@/components/icon";
 import { Text } from "@/components/text";
 import { findTribeUser } from "@/data/contacts";
@@ -50,6 +51,30 @@ function Viewfinder({ box }: { box: number }) {
     </Animated.View>
   );
 }
+
+/** Permission hero: orange corner brackets framing a QR code, everything centred on one axis. */
+function ScanHero() {
+  const size = 168;
+  const arm = 36;
+  const edge = { position: "absolute" as const, width: arm, height: arm, borderColor: palette.orange[400] };
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={[edge, { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 24 }]} />
+      <View style={[edge, { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 24 }]} />
+      <View style={[edge, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 24 }]} />
+      <View style={[edge, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 24 }]} />
+      <View style={{ width: 108, height: 108, borderRadius: 28, borderCurve: "continuous", backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" }}>
+        <Glyph name="qr" size={58} color={palette.white} strokeWidth={1.6} />
+      </View>
+    </View>
+  );
+}
+
+const STEPS: { glyph: GlyphName; label: string }[] = [
+  { glyph: "qr", label: "Scan a code" },
+  { glyph: "at", label: "We fill in who" },
+  { glyph: "outgoing", label: "You review & pay" },
+];
 
 /** "bitcoin:bc1q…?amount=…" / "ethereum:0x…@1" → the bare address. */
 const bareAddress = (data: string) => data.trim().replace(/^[a-z]+:/i, "").split(/[?@]/)[0];
@@ -99,19 +124,19 @@ export default function Scan() {
         {({ pressed }) => (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: c.bg, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.smd, opacity: pressed ? 0.85 : 1 }}>
             <MeAvatar size={44} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="bodyStrong">Show my code</Text>
               <Text variant="caption" tone="muted">
                 Get paid to @{user.tag}
               </Text>
             </View>
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
-              <Icon name="qr" size={20} color={c.brandText} />
+              <Glyph name="qr" size={20} color={c.brandText} />
             </View>
           </View>
         )}
       </Pressable>
-      <Button title="Type a @tag instead" variant="onDark" icon="send" onPress={() => router.replace("/send")} />
+      <Button title="Type a @tag instead" variant="onDark" icon="search" onPress={() => router.replace("/send")} />
     </View>
   );
 
@@ -121,21 +146,41 @@ export default function Scan() {
       <View style={{ flex: 1, backgroundColor: palette.purple[900] }}>
         <StatusBar style="light" />
         {topBar}
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, gap: spacing.md }}>
-          <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="scan" size={44} color="#fff" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, gap: spacing.lg, paddingBottom: addressMode ? 0 : 150 }}>
+          <ScanHero />
+          <View style={{ alignItems: "center", gap: spacing.sm }}>
+            <Text variant="title" align="center" style={{ color: "#fff" }}>
+              {addressMode ? "Scan a wallet address" : "Pay anyone with a scan"}
+            </Text>
+            <Text variant="body" align="center" style={{ color: palette.purple[100] }}>
+              {addressMode ? "Point your camera at a wallet QR code and we'll paste the address." : "Point your camera at a Tribe code and we fill in who you're paying."}
+            </Text>
           </View>
-          <Text variant="title" align="center" style={{ color: "#fff" }}>
-            Pay anyone with a scan
-          </Text>
-          <Text variant="body" align="center" style={{ color: palette.purple[100] }}>
-            Point your camera at a Tribe code and we fill in who you&apos;re paying. The camera is only used to read QR codes.
-          </Text>
-          {permission && !permission.canAskAgain ? (
-            <Button title="Open Settings" variant="white" inline onPress={() => Linking.openSettings()} />
-          ) : (
-            <Button title="Allow camera" variant="white" inline icon="camera" onPress={request} />
+          {/* how it works: three stops, each icon centred in its own circle */}
+          {!addressMode && (
+            <View style={{ flexDirection: "row", alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: radius.group, borderCurve: "continuous", paddingVertical: spacing.md }}>
+              {STEPS.map((st) => (
+                <View key={st.label} style={{ flex: 1, alignItems: "center", gap: spacing.sm }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+                    <Glyph name={st.glyph} size={20} color={palette.white} />
+                  </View>
+                  <Text variant="caption" align="center" style={{ color: palette.purple[100] }}>
+                    {st.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
           )}
+          <View style={{ alignSelf: "stretch", gap: spacing.sm }}>
+            {permission && !permission.canAskAgain ? (
+              <Button title="Open Settings" variant="white" icon="settings" onPress={() => Linking.openSettings()} />
+            ) : (
+              <Button title="Allow camera" variant="white" icon="camera" onPress={request} />
+            )}
+            <Text variant="caption" align="center" style={{ color: "rgba(255,255,255,0.6)" }}>
+              The camera is only used to read QR codes.
+            </Text>
+          </View>
         </View>
         {!addressMode && bottom}
       </View>
@@ -182,7 +227,7 @@ export default function Scan() {
       <View pointerEvents="none" style={{ position: "absolute", top, left: (width - box) / 2 }}>
         <Viewfinder box={box} />
       </View>
-      <View pointerEvents="none" style={{ position: "absolute", top: top + box + spacing.lg, left: 0, right: 0, alignItems: "center", gap: 4 }}>
+      <View pointerEvents="none" style={{ position: "absolute", top: top + box + spacing.lg, left: 0, right: 0, alignItems: "center", gap: spacing.xs }}>
         <Text variant="bodyStrong" style={{ color: "#fff" }}>
           {addressMode ? "Point at a wallet QR code" : notTribe ? "That isn't a Tribe code" : "Point at a Tribe QR code"}
         </Text>

@@ -106,7 +106,7 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
       {fund ? <TransferLegs from={accountLeg} to={cardLeg} /> : <TransferLegs from={cardLeg} to={accountLeg} />}
 
       {/* amount */}
-      <View style={{ flex: 1, minHeight: 112, alignItems: "center", justifyContent: "center", gap: 6 }}>
+      <View style={{ flex: 1, minHeight: 112, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
         <Text variant="hero" adjustsFontSizeToFit numberOfLines={1} accessibilityLabel={`${groupAmount(amount)} US dollars`} style={{ fontSize: 52, lineHeight: 58, color: over ? c.danger : usd ? c.text : c.textSubtle }}>
           ${groupAmount(amount)}
         </Text>
@@ -114,13 +114,13 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
           {helper}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
             <Icon name="swap" size={11} color={c.textMuted} />
             <Text variant="caption" tone="muted">
               {rate}
             </Text>
           </View>
-          <View style={{ backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 4 }}>
+          <View style={{ backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
             <Text variant="caption" tone={fund && usd ? "brand" : "muted"}>
               {fund ? (usd ? `Funding fee $${feeUsd.toFixed(2)}` : "Fee 1%, min $0.50") : "No fee"}
             </Text>

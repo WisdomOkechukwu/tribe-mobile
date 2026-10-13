@@ -11,7 +11,7 @@ import { Text } from "./text";
 export function PasswordRules({ value, strict = false }: { value: string; strict?: boolean }) {
   const c = useColors();
   return (
-    <View style={{ gap: 6, paddingHorizontal: spacing.xs }} accessibilityRole="summary">
+    <View style={{ gap: spacing.sm, paddingHorizontal: spacing.xs }} accessibilityRole="summary">
       {PASSWORD_RULES.map((r) => {
         const ok = r.test(value);
         const bad = !ok && strict;

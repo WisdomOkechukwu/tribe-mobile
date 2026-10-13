@@ -12,7 +12,7 @@ import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { FREQUENCY_LABEL, useRecurringStore, type Frequency, type Schedule } from "@/stores/use-recurring-store";
 import { toast } from "@/stores/use-ui-store";
-import { spacing, useColors } from "@/theme";
+import { radius, spacing, useColors } from "@/theme";
 
 const when = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
@@ -76,15 +76,15 @@ export default function Recurring() {
         <EmptyState icon="repeat" title="Nothing renewing yet" body="Set data, TV and light to renew themselves, so you never get cut off." />
       ) : (
         <>
-          <View style={{ backgroundColor: c.surface, borderRadius: 18, padding: spacing.md, flexDirection: "row" }}>
-            <View style={{ flex: 1, gap: 2 }}>
+          <View style={{ backgroundColor: c.surface, borderRadius: radius.group, padding: spacing.md, flexDirection: "row" }}>
+            <View style={{ flex: 1, gap: spacing.xs }}>
               <Text variant="caption" tone="muted">
                 Active
               </Text>
               <Text variant="title">{active.length}</Text>
             </View>
             <View style={{ width: 1, backgroundColor: c.border, marginHorizontal: spacing.md }} />
-            <View style={{ flex: 2, gap: 2 }}>
+            <View style={{ flex: 2, gap: spacing.xs }}>
               <Text variant="caption" tone="muted">
                 About per month
               </Text>
@@ -101,7 +101,7 @@ export default function Recurring() {
                   title={`${b.name}${s.plan ? ` · ${s.plan}` : ""}`}
                   subtitle={s.active ? `₦${s.amountNgn.toLocaleString()} · ${FREQUENCY_LABEL[s.frequency]} · next ${when(s.nextRun)}` : "Paused"}
                   trailing={
-                    <View style={{ alignItems: "flex-end", gap: 6 }}>
+                    <View style={{ alignItems: "flex-end", gap: spacing.sm }}>
                       <BrandSwitch label={`${b.name} renews automatically`} value={s.active} onValueChange={() => toggle(s.id)} />
                       <Pill label={s.payWith} tone="neutral" />
                     </View>

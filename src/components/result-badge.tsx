@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useEffect } from "react";
 import { View } from "react-native";
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSpring, withTiming } from "react-native-reanimated";
 import { useColors } from "@/theme";
 import { Icon } from "./icon";
 
@@ -28,6 +28,7 @@ export function ResultBadge({ state, size = 104 }: { state: ResultState; size?: 
     if (state === "success") ripple.set(withDelay(120, withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) })));
     spin.set(0);
     if (state !== "success") spin.set(withRepeat(withTiming(1, { duration: state === "processing" ? 900 : 2600, easing: Easing.linear }), -1));
+    return () => cancelAnimation(spin);
   }, [state, pop, ripple, spin, reduce]);
 
   const core = useAnimatedStyle(() => ({ transform: [{ scale: pop.get() }], opacity: Math.min(1, pop.get() * 1.4) }));

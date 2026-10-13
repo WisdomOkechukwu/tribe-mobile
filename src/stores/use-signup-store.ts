@@ -16,16 +16,13 @@ export type SignupDraft = {
 };
 
 /**
- * In-memory signup progress: the Create-account draft, then the post-signup world + checklist.
+ * In-memory signup progress: the Create-account draft, then the world picked after sign-up.
  * Not persisted: a restart mid-way begins that part again.
  */
 type SignupState = {
   draft: SignupDraft;
-  /** the Tribe world picked after signup (SBU.png) — decides the checklist and where Home lands */
+  /** the Tribe world picked after signup (SBU.png) — decides where Home lands first */
   world: WorldId | null;
-  phoneVerified: boolean;
-  identityVerified: boolean;
-  profileDone: boolean;
   /** name returned by the BVN lookup */
   bvnName: { first: string; last: string } | null;
   answers: Partial<Record<"address" | "income" | "employment" | "industry" | "deposit" | "frequency", string>>;
@@ -35,7 +32,7 @@ type SignupState = {
 };
 
 const EMPTY_DRAFT: SignupDraft = { email: "", country: "NG", firstName: "", lastName: "", tag: "", phone: "", referral: "", heardFrom: "" };
-const initial = { draft: EMPTY_DRAFT, world: null, phoneVerified: false, identityVerified: false, profileDone: false, bvnName: null, answers: {} };
+const initial = { draft: EMPTY_DRAFT, world: null, bvnName: null, answers: {} };
 
 export const useSignupStore = create<SignupState>()((set) => ({
   ...initial,

@@ -41,7 +41,7 @@ export function PromoCarousel({ promos, gutter = spacing.md }: { promos: Promo[]
             <View key={p.id} style={{ width: cardW }}>
               <PressableScale onPress={p.onPress} scaleTo={0.98} accessibilityLabel={`${p.title}. ${p.body}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: bg, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, paddingRight: spacing.xl }}>
                 {p.art}
-                <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flex: 1, gap: spacing.xs }}>
                   <Text variant="bodyStrong">{p.title}</Text>
                   <Text variant="caption" tone="muted" numberOfLines={2}>
                     {p.body}
@@ -57,7 +57,7 @@ export function PromoCarousel({ promos, gutter = spacing.md }: { promos: Promo[]
         })}
       </ScrollView>
       {shown.length > 1 && (
-        <View style={{ flexDirection: "row", justifyContent: "center", gap: 5 }}>
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xs }}>
           {shown.map((p, i) => (
             <View key={p.id} style={{ width: i === Math.min(page, shown.length - 1) ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: i === Math.min(page, shown.length - 1) ? c.brand : c.borderStrong }} />
           ))}

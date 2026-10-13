@@ -20,7 +20,7 @@ export function CashpointTicket({ amount, code, note, compact = false }: { amoun
     return (
       <View accessible accessibilityLabel={label} style={{ flexDirection: "row", height: 108, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden", backgroundColor: palette.orange[500] }}>
         <View style={{ flex: 1, padding: spacing.md, justifyContent: "space-between" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
             <CashpointMark size={22} plain />
             <Text variant="subhead" style={{ color: palette.orange[50] }}>
               Cashpoint
@@ -36,7 +36,7 @@ export function CashpointTicket({ amount, code, note, compact = false }: { amoun
           <View style={[notch, { top: -11, left: -10 }]} />
           <View style={[notch, { bottom: -11, left: -10 }]} />
         </View>
-        <View style={{ width: 112, backgroundColor: palette.orange[600], padding: spacing.md, justifyContent: "center", gap: 4 }}>
+        <View style={{ width: 112, backgroundColor: palette.orange[600], padding: spacing.md, justifyContent: "center", gap: spacing.xs }}>
           <Text variant="overline" style={{ color: palette.orange[100] }}>
             Code
           </Text>
@@ -72,7 +72,7 @@ export function CashpointTicket({ amount, code, note, compact = false }: { amoun
         <View style={[notch, { left: -11, top: -10 }]} />
         <View style={[notch, { right: -11, top: -10 }]} />
       </View>
-      <View style={{ backgroundColor: palette.orange[600], paddingHorizontal: spacing.mdl, paddingVertical: spacing.md, gap: 2 }}>
+      <View style={{ backgroundColor: palette.orange[600], paddingHorizontal: spacing.mdl, paddingVertical: spacing.md, gap: spacing.xs }}>
         <Text variant="caption" style={{ color: palette.orange[100] }}>
           {code ? "12-digit code" : "Your code appears here"}
         </Text>

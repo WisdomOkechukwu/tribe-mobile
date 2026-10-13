@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { spacing, useColors } from "@/theme";
+import { radius, spacing, useColors } from "@/theme";
 import { NumberPad } from "./pin-pad";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";
@@ -31,6 +31,7 @@ export function AmountEntry({
   presets,
   error,
   showDisplay = true,
+  pad = true,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -42,12 +43,14 @@ export function AmountEntry({
   error?: string;
   /** false when the screen renders the amount itself (e.g. Swap's pay card) */
   showDisplay?: boolean;
+  /** false when the screen docks one shared `KeypadDock` instead (bills, recurring) */
+  pad?: boolean;
 }) {
   const c = useColors();
   return (
     <View style={{ gap: spacing.md }}>
       {showDisplay && (
-      <View style={{ alignItems: "center", gap: 4, paddingVertical: spacing.sm }}>
+      <View style={{ alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm }}>
         <Text variant="hero" adjustsFontSizeToFit numberOfLines={1} style={{ color: error ? c.danger : value ? c.text : c.textSubtle, fontSize: 48, lineHeight: 54 }}>
           {prefix}
           {groupAmount(value)}
@@ -61,12 +64,13 @@ export function AmountEntry({
       {presets && (
         <View style={{ flexDirection: "row", gap: spacing.sm, justifyContent: "center" }}>
           {presets.map((p) => (
-            <PressableScale key={p.label} onPress={() => onChange(p.value)} style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 999, backgroundColor: c.surface }}>
+            <PressableScale key={p.label} onPress={() => onChange(p.value)} style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, backgroundColor: c.surface }}>
               <Text variant="label">{p.label}</Text>
             </PressableScale>
           ))}
         </View>
       )}
+      {pad && (
       <NumberPad
         onKey={(d) => onChange(pushDigit(value, d, decimals))}
         onDelete={() => onChange(value.slice(0, -1))}
@@ -80,6 +84,7 @@ export function AmountEntry({
           ) : null
         }
       />
+      )}
     </View>
   );
 }

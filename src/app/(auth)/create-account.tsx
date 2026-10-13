@@ -13,7 +13,7 @@ import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
 import { withLoader } from "@/stores/use-ui-store";
-import { useColors } from "@/theme";
+import { spacing, useColors } from "@/theme";
 import { isEmail } from "@/utils/hash";
 
 /** Create account, step 1 of 3 (Create Account.png "Get started"): email + country, then a code. */
@@ -55,7 +55,7 @@ export default function CreateAccount() {
         </>
       }
     >
-      <View style={{ gap: 14 }}>
+      <View style={{ gap: spacing.md }}>
         <Field
           value={email}
           onChangeText={(v) => {
@@ -72,7 +72,7 @@ export default function CreateAccount() {
           hint={taken ? "This email already has a Tribe account. Sign in instead." : undefined}
           hintTone="danger"
         />
-        <View style={{ gap: 6 }}>
+        <View style={{ gap: spacing.sm }}>
           <Dropdown value={country.name} leading={<CoinIcon code={country.flag} size={28} />} onPress={pickCountry} />
           <Text variant="caption" tone="muted" style={{ paddingHorizontal: 4 }}>
             You&apos;ll verify with an ID document from this country.

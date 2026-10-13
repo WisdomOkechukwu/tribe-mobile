@@ -21,7 +21,21 @@ export function liveUsd(code: AssetCode, tick = quoteTick()) {
   return a.usd * (1 + swing * Math.sin(tick * 1.7 + seed(code)));
 }
 
-/** Re-renders every second with the seconds left in the current quote window. */
+/**
+ * Re-renders once per quote window (every 30 s), when rates change — not every second.
+ * Screens that price things use this; only `QuoteTimer` ticks each second.
+ */
+export function useQuoteTick() {
+  const [tick, setTick] = useState(() => quoteTick());
+  useEffect(() => {
+    const msLeft = QUOTE_SECONDS * 1000 - (Date.now() % (QUOTE_SECONDS * 1000));
+    const t = setTimeout(() => setTick(quoteTick()), msLeft + 20);
+    return () => clearTimeout(t);
+  }, [tick]);
+  return tick;
+}
+
+/** Re-renders every second with the seconds left in the current quote window. Keep it in small leaf components. */
 export function useQuoteClock() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

@@ -19,6 +19,8 @@ type CardsState = {
   debit: (id: string, usd: number) => void;
   /** delete returns the card balance (refund handled by the caller) */
   deleteCard: (id: string) => VirtualCard | undefined;
+  /** no cards at all — a new account creates its first one (Cards tab → intro → /card-new) */
+  clear: () => void;
   reset: () => void;
 };
 
@@ -62,6 +64,7 @@ export const useCardsStore = create<CardsState>()(
         set({ cards: [...get().cards, card], selected: card.id });
         return card;
       },
+      clear: () => set({ cards: [], selected: null }),
       reset: () => set({ cards: SEED_CARDS.map((c) => ({ ...c })), selected: null }),
     }),
     {

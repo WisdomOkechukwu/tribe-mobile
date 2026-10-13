@@ -14,7 +14,7 @@ import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
 import { GIFT_AMOUNTS, GIFT_CARD_BUY_MARKUP, giftBrandById } from "@/data/catalog";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
-import { spacing, useColors } from "@/theme";
+import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
 
 type Mode = "buy" | "sell";
@@ -123,7 +123,7 @@ export default function Gift() {
               ]}
             />
           </View>
-          <View style={{ backgroundColor: c.successSoft, borderRadius: 18, padding: spacing.md, gap: 2 }}>
+          <View style={{ backgroundColor: c.successSoft, borderRadius: radius.group, padding: spacing.md, gap: spacing.xs }}>
             <Text variant="subhead" tone="muted">
               You get
             </Text>

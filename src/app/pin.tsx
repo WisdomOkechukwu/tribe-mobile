@@ -7,12 +7,13 @@ import { Icon } from "@/components/icon";
 import { NumberPad, PinCells } from "@/components/pin-pad";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
-import { DEMO } from "@/data/seed";
 import { actionSummary } from "@/screens/review";
 import { authenticate, BIOMETRIC_ICON, BIOMETRIC_LABEL } from "@/services/biometrics";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { InsufficientFunds } from "@/stores/use-wallet-store";
+import { toast } from "@/stores/use-ui-store";
+import { WEAK } from "@/screens/onboarding/pin-create";
 import { radius, spacing, useColors } from "@/theme";
 
 const LENGTH = 4;
@@ -28,6 +29,10 @@ export default function Pin() {
   const pending = useFlowStore((s) => s.pending);
   const execute = useFlowStore((s) => s.execute);
   const storedPin = useSessionStore((s) => s.pin);
+  const setPin = useSessionStore((s) => s.setPin);
+  // no PIN yet (new users): create it right here, on the first payment, then approve
+  const [mode, setMode] = useState<"enter" | "create" | "confirm">(storedPin ? "enter" : "create");
+  const [first, setFirst] = useState("");
   const biometrics = useSessionStore((s) => s.biometrics);
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +56,39 @@ export default function Pin() {
   useEffect(() => {
     if (value.length !== LENGTH) return;
     const t = setTimeout(() => {
-      if (value === (storedPin ?? DEMO.pin)) {
+      if (mode === "create") {
+        if (WEAK.test(value)) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+          setError("Too easy to guess. Try another.");
+          setTimeout(() => {
+            setValue("");
+            setError(null);
+          }, 900);
+          return;
+        }
+        setFirst(value);
+        setValue("");
+        setMode("confirm");
+        return;
+      }
+      if (mode === "confirm") {
+        if (value === first) {
+          setPin(value);
+          toast("Payment PIN set", "success");
+          approve();
+          return;
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        setError("PINs didn't match. Start again.");
+        setTimeout(() => {
+          setValue("");
+          setError(null);
+          setFirst("");
+          setMode("create");
+        }, 900);
+        return;
+      }
+      if (value === storedPin) {
         approve();
         return;
       }
@@ -91,7 +128,7 @@ export default function Pin() {
       {/* what you're approving, compact */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, marginTop: spacing.lg, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.smd }}>
         <View style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{summary.badge ?? <View style={{ transform: [{ scale: 0.72 }] }}>{summary.icon}</View>}</View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
           <Text variant="bodyStrong" numberOfLines={1}>
             {summary.amount}
           </Text>
@@ -106,15 +143,15 @@ export default function Pin() {
           <Icon name="lock" size={22} color={c.brandText} />
         </View>
         <Text variant="title" align="center">
-          Approve this transaction
+          {mode === "enter" ? "Approve this transaction" : mode === "create" ? "Create your payment PIN" : "Confirm your PIN"}
         </Text>
         <Text variant="body" tone="muted" align="center">
-          Enter your 4-digit transaction PIN
+          {mode === "enter" ? "Enter your 4-digit transaction PIN" : mode === "create" ? "First payment! Pick 4 digits. You'll use them to approve every payment." : "Enter it once more and we'll approve this payment."}
         </Text>
       </View>
 
       <View style={{ marginTop: spacing.lg, gap: spacing.md }}>
-        <PinCells length={LENGTH} value={value} error={error === "Wrong PIN"} />
+        <PinCells length={LENGTH} value={value} error={!!error} />
         <Text variant="subhead" tone={error ? "danger" : "muted"} align="center" style={{ minHeight: 18 }}>
           {error ? (error === "Wrong PIN" && attempts >= 3 ? "Wrong PIN. Forgot it? Reset it in Me › Security." : error) : " "}
         </Text>
@@ -124,7 +161,7 @@ export default function Pin() {
           onKey={(d) => setValue((v) => (v.length < LENGTH ? v + d : v))}
           onDelete={() => setValue((v) => v.slice(0, -1))}
           extra={
-            biometrics ? (
+            biometrics && mode === "enter" ? (
               <PressableScale onPress={bio} accessibilityLabel={`Use ${BIOMETRIC_LABEL}`} style={{ width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", backgroundColor: c.brandSoft }}>
                 <Icon name={BIOMETRIC_ICON} size={28} color={c.brandText} weight="regular" />
               </PressableScale>

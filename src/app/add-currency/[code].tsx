@@ -2,6 +2,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
+import { Note } from "@/components/bits";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { FlowScreen } from "@/components/flow-screen";
@@ -14,6 +15,7 @@ import { assetByCode } from "@/data/assets";
 import { useInboxStore } from "@/stores/use-inbox-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
+import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
 
 const PURPOSES = ["Getting paid", "Family & friends", "Saving", "Travel", "Business"];
 
@@ -28,6 +30,7 @@ export default function OpenCurrency() {
   const [purpose, setPurpose] = useState(PURPOSES[0]);
   const [agreed, setAgreed] = useState(false);
   const [working, setWorking] = useState(false);
+  const unlocked = useWalletsUnlocked();
   const fiat = a.kind === "fiat";
 
   const perks: { icon: IconName; title: string; body: string }[] = fiat
@@ -42,12 +45,13 @@ export default function OpenCurrency() {
         { icon: "swap", title: "Swap any time", body: "Into Naira, dollars or other crypto." },
       ];
 
-  const open = () => {
+  const open = () => guardWalletOpen(openNow);
+  const openNow = () => {
     setWorking(true);
     // Demo: a real build calls the partner bank / custody API here.
     setTimeout(() => {
       openAccount(a.code);
-      useInboxStore.getState().push({ kind: "money", title: `${a.code} account open`, body: `Your ${a.name} ${fiat ? "account details are" : "address is"} ready to share.`, href: `/asset/${a.code}`, asset: a.code });
+      useInboxStore.getState().push({ kind: "money", title: `${a.code} account open`, body: `Your ${a.name} ${fiat ? "account details are" : "address is"} ready to share.`, href: `/asset/${a.code}`, asset: a.code, badge: "plus" });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.replace({ pathname: "/add-currency/done", params: { code: a.code } });
     }, 1100);
@@ -68,7 +72,11 @@ export default function OpenCurrency() {
             }}
           />
         ) : (
-          <Button title={working ? "Setting up your account…" : `Open ${a.code} account`} loading={working} disabled={!agreed} onPress={open} />
+          unlocked ? (
+            <Button title={working ? "Setting up your account…" : `Open ${a.code} account`} loading={working} disabled={!agreed} onPress={open} />
+          ) : (
+            <Button title="Verify to open" icon="shield" onPress={open} />
+          )
         )
       }
     >
@@ -107,7 +115,11 @@ export default function OpenCurrency() {
         </View>
       )}
 
-      {!isOpen && (
+      {!isOpen && !unlocked && (
+        <Note icon="shield">New wallets open once you&apos;re fully verified: BVN, NIN + selfie, and an ID document with your address.</Note>
+      )}
+
+      {!isOpen && unlocked && (
         <PressableScale scaleTo={0.98} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }} onPress={() => setAgreed((v) => !v)} style={{ flexDirection: "row", gap: spacing.smd, alignItems: "flex-start", paddingHorizontal: spacing.xs }}>
           <View style={{ width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: agreed ? c.brand : c.borderStrong, backgroundColor: agreed ? c.brand : "transparent", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
             {agreed && <Icon name="check" size={13} color="#fff" weight="bold" />}

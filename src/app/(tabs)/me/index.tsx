@@ -16,6 +16,8 @@ import { useSessionStore } from "@/stores/use-session-store";
 import { toast } from "@/stores/use-ui-store";
 import { palette, radius, spacing, useColors } from "@/theme";
 import { pickAppearance, pickDisplayCurrency } from "@/utils/pickers";
+import * as WebBrowser from "expo-web-browser";
+import { LEGAL_URL } from "@/data/links";
 
 const APPEARANCE_LABEL = { system: "System", light: "Light", dark: "Dark" } as const;
 
@@ -60,11 +62,11 @@ export default function Me() {
               <Icon name="pencil" size={11} color={c.onBrand} weight="bold" />
             </View>
           </PressableScale>
-          <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flex: 1, gap: spacing.xs }}>
             <Text variant="title" numberOfLines={1}>
               {user.firstName} {user.lastName}
             </Text>
-            <PressableScale onPress={() => copyToClipboard(`@${user.tag}`, "Tag copied")} accessibilityLabel={`Copy your tag @${user.tag}`} style={{ flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start" }}>
+            <PressableScale onPress={() => copyToClipboard(`@${user.tag}`, "Tag copied")} accessibilityLabel={`Copy your tag @${user.tag}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start" }}>
               <Text variant="subhead" tone="muted">
                 @{user.tag}
               </Text>
@@ -88,7 +90,7 @@ export default function Me() {
         <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
           <Icon name="giftLine" size={20} color={palette.orange[300]} />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
           <Text variant="bodyStrong" style={{ color: "#fff" }}>
             Earn from friends, for life
           </Text>
@@ -102,7 +104,7 @@ export default function Me() {
       <ListSection title="Account">
         <ListRow icon="personLine" title="Personal details" subtitle="Name, photo, email and @tag" onPress={() => router.push("/me/edit")} />
         <ListRow icon="shieldLine" title="Verification & limits" subtitle={tier ? `Tier ${tier} · higher limits on` : "Unverified · unlock higher limits"} onPress={() => router.push("/verify")} />
-        <ListRow icon="docLine" title="Statements" subtitle="Monthly PDFs for every account" onPress={() => router.push("/me/statements")} />
+        <ListRow icon="docLine" title="Statements" subtitle="Monthly PDFs, sent to your email" onPress={() => router.push("/me/statements")} />
       </ListSection>
 
       <ListSection title="Security">
@@ -120,7 +122,11 @@ export default function Me() {
       <ListSection title="Support">
         <ListRow icon="chatLine" title="Help & chat" subtitle="Chat with support, 24/7" onPress={() => toast("Chat opens in the full app")} />
         <ListRow icon="starLine" title="Rate Tribe" onPress={() => toast("Ratings open in the App Store")} />
-        <ListRow icon="legalLine" title="Legal" subtitle="Terms, privacy and licences" onPress={() => toast("Legal pages open in the full app")} />
+        <ListRow icon="legalLine" title="Legal" subtitle="Terms, privacy and licences" onPress={() =>
+            // the legal page in an in-app browser sheet (Safari View Controller / Custom Tabs), in our colours
+            WebBrowser.openBrowserAsync(LEGAL_URL, { toolbarColor: c.bg, controlsColor: c.brand, presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }).catch(() => toast("Couldn't open the legal page", "danger"))
+          }
+        />
       </ListSection>
 
       <ListSection>

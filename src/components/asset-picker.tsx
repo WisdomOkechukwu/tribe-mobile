@@ -8,6 +8,7 @@ import { toast } from "@/stores/use-ui-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
+import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
 import { CoinIcon } from "./coin-icon";
 import { Field } from "./field";
 import { Icon } from "./icon";
@@ -46,8 +47,11 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
     .filter((a) => !term || a.code.toLowerCase().includes(term) || a.name.toLowerCase().includes(term));
   const showTip = o.tip && !dismissed.includes(o.tip.id);
 
+  const unlocked = useWalletsUnlocked();
   const choose = (code: AssetCode) => {
     Haptics.selectionAsync().catch(() => {});
+    // creating a wallet needs full verification — explain what's left instead
+    if (!opened.includes(code) && !unlocked) return close(() => guardWalletOpen(() => {}));
     if (!opened.includes(code)) {
       openAccount(code);
       toast(`${code} wallet created`, "success");
@@ -100,7 +104,7 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
             {POPULAR.filter((code) => !o.exclude?.includes(code)).map((code) => {
               const on = code === o.value;
               return (
-                <PressableScale key={code} onPress={() => choose(code)} accessibilityLabel={`Pick ${code}`} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingLeft: 6, paddingRight: spacing.smd, borderRadius: radius.full, backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1, borderColor: on ? c.brand : "transparent" }}>
+                <PressableScale key={code} onPress={() => choose(code)} accessibilityLabel={`Pick ${code}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, paddingLeft: 6, paddingRight: spacing.smd, borderRadius: radius.full, backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1, borderColor: on ? c.brand : "transparent" }}>
                   <CoinIcon code={code} size={22} />
                   <Text variant="subhead">{code}</Text>
                 </PressableScale>
@@ -138,7 +142,7 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
                   {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: 66 }} />}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : on ? c.brandSoft : "transparent" }}>
                     <CoinIcon code={a.code} size={38} />
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, gap: spacing.xxs }}>
                       <Text variant="bodyStrong">{a.code}</Text>
                       <Text variant="caption" tone="muted">
                         {a.name}
@@ -149,8 +153,8 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
                         {formatAsset(balances[a.code], a.code)}
                       </Text>
                     ) : (
-                      <Text variant="subhead" tone="brand">
-                        Tap to create
+                      <Text variant="subhead" tone={unlocked ? "brand" : "muted"}>
+                        {unlocked ? "Tap to create" : "Verify to create"}
                       </Text>
                     )}
                   </View>

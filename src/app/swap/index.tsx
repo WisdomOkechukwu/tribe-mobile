@@ -19,7 +19,7 @@ import { useSwapDraft } from "@/stores/use-swap-draft";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { motion, radius, spacing, useColors } from "@/theme";
 import { formatAsset, quote } from "@/utils/format";
-import { useQuoteClock } from "@/utils/rates";
+import { useQuoteTick } from "@/utils/rates";
 
 function pick(side: "from" | "to") {
   const draft = useSwapDraft.getState();
@@ -36,7 +36,7 @@ function AssetButton({ code, side, label }: { code: AssetCode; side: "from" | "t
         <Text variant="caption" tone="muted">
           {label}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
           <Text variant="bodyStrong">{code}</Text>
           <Icon name="chevron" size={10} color={c.textMuted} weight="bold" />
         </View>
@@ -61,18 +61,19 @@ export default function Swap() {
   const flip = useSwapDraft((s) => s.flip);
   const [amount, setAmount] = useState("");
   const [spins, setSpins] = useState(0);
-  const { left } = useQuoteClock();
+  // re-price when the quote window rolls over (the countdown ring ticks on its own)
+  const tick = useQuoteTick();
 
   useEffect(() => {
     start(params.from ? assetByCode(params.from).code : undefined);
   }, [params.from, start]);
 
   const value = Number(amount) || 0;
-  const q = quote(value, from, to);
+  const q = quote(value, from, to, tick);
   const fromA = assetByCode(from);
   const over = value > balances[from] + 1e-9;
   const spin = useAnimatedStyle(() => ({ transform: [{ rotate: withSpring(`${spins * 180}deg`, motion.spring) }] }), [spins]);
-  const unit = quote(1, from, to).rate;
+  const unit = quote(1, from, to, tick).rate;
   const rateText = unit >= 1 ? `1 ${from} ⇄ ${formatAsset(unit, to)}` : `1 ${to} ⇄ ${formatAsset(1 / unit, from)}`;
 
   const review = () => {
@@ -103,15 +104,15 @@ export default function Swap() {
           <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.smd }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
               <AssetButton code={from} side="from" label="From" />
-              <View style={{ alignItems: "flex-end", gap: 4 }}>
-                <QuoteTimer left={left} />
+              <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
+                <QuoteTimer />
                 <Text variant="caption" tone="muted">
                   {rateText}
                 </Text>
               </View>
             </View>
-            <View style={{ alignItems: "center", gap: 2, paddingVertical: spacing.sm }}>
-              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, maxWidth: "100%" }}>
+            <View style={{ alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm }}>
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm, maxWidth: "100%" }}>
                 <Text variant="balance" style={{ color: over ? c.danger : value ? c.text : c.textSubtle, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit>
                   {groupAmount(amount)}
                 </Text>

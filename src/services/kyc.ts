@@ -20,7 +20,7 @@ export type KycOutcome = { status: "approved" | "pending" | "failed" | "cancelle
 export const TIER_INFO: Record<Exclude<KycTier, 0>, { title: string; needs: string[]; unlocks: string; idLabel: string; idLength: number }> = {
   1: { title: "Verify your BVN", needs: ["Your 11-digit BVN", "Date of birth"], unlocks: "Send, receive, swap and pay bills with higher limits.", idLabel: "BVN", idLength: 11 },
   2: { title: "NIN + selfie", needs: ["Your 11-digit NIN", "A quick selfie (liveness check)"], unlocks: "Virtual cards, crypto withdrawals and bigger Cashpoints.", idLabel: "NIN", idLength: 11 },
-  3: { title: "ID document + address", needs: ["Driver's licence, voter's card, NIN slip or passport", "Your home address"], unlocks: "Highest limits and USD, GBP and EUR accounts.", idLabel: "ID number", idLength: 0 },
+  3: { title: "ID document + address", needs: ["Driver's licence, voter's card, NIN slip or passport", "Your home address"], unlocks: "Highest limits, and opening new wallets in any currency or coin.", idLabel: "ID number", idLength: 0 },
 };
 
 const SESSION_URL = process.env.EXPO_PUBLIC_KYC_SESSION_URL;

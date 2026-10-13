@@ -14,8 +14,8 @@ import { spacing, useColors } from "@/theme";
 import { isEmail } from "@/utils/hash";
 
 /**
- * Sign in (Sign in.png, devnote 1): after a log-out it's just email and password — no
- * biometrics here. Face ID / the lock PIN live on the lock screen, for returning-from-idle.
+ * Sign in (Sign in.png, devnote 1): after a log-out it's just email and password. Face ID
+ * approves payments only; there's no app lock.
  * Tribe's brand band + sheet (AuthShell) instead of the mockup's plain white page.
  */
 export default function SignIn() {
@@ -36,7 +36,7 @@ export default function SignIn() {
     // "ok" flips the route guard: setup or Home takes over
   };
 
-  const subtitle = reason === "lock" ? "For your security, sign in with your password." : reason === "password-reset" ? "Sign in with your new password." : "Pick up right where you left off. Sign in with your email and password.";
+  const subtitle = reason === "password-reset" ? "Sign in with your new password." : "Pick up right where you left off. Sign in with your email and password.";
 
   return (
     <AuthShell

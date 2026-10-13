@@ -11,7 +11,7 @@ export type User = { firstName: string; lastName: string; tag: string; phone: st
 export type Device = { id: string; name: string; detail: string; current: boolean; lastActive: string };
 export type Account = { email: string; country: string; passwordHash: string };
 /** why the last sign-out happened — the sign-in screen words itself accordingly */
-export type SignOutReason = "user" | "lock" | "password-reset";
+export type SignOutReason = "user" | "password-reset";
 export type SignInResult = "ok" | "no-email" | "wrong-password";
 /** USD/GBP/EUR accounts requested from the Global payments world */
 export type GlobalAccounts = "none" | "review" | "ready";
@@ -25,7 +25,7 @@ const SEED_DEVICES: Device[] = [
 type SessionState = {
   /** signed in on this device (email + password, or the demo account) */
   signedIn: boolean;
-  /** the post-signup setup (world, checklist, PINs) is finished */
+  /** the user picked a world after sign-up and reached Home (Finish setup happens in the app) */
   hasOnboarded: boolean;
   /** the account created on this device — kept after sign-out so "Welcome back" can prefill */
   account: Account | null;
@@ -40,12 +40,6 @@ type SessionState = {
    * verifies them server-side and keeps only a device key in expo-secure-store.
    */
   pin: string | null;
-  /** 6-digit app lock PIN — separate from the 4-digit transaction PIN */
-  lockPin: string | null;
-  locked: boolean;
-  lockFails: number;
-  /** epoch ms of the last touch / foreground — drives the 10-minute auto-lock */
-  lastActiveAt: number;
   biometrics: boolean;
   twoFactor: boolean;
   devices: Device[];
@@ -56,11 +50,17 @@ type SessionState = {
   landing: string | null;
   globalAccounts: GlobalAccounts;
   globalRequestedAt: number | null;
+  /** setup verifications skipped at sign-up; Home asks for them until they're done */
+  /** phone number verified by SMS code (Finish setup) */
+  phoneVerified: boolean;
+  /** the Tribe world picked after sign-up — decides whether the global-accounts questions apply */
+  world: "global" | "crypto" | "card" | "bills" | null;
+  setPhoneVerified: (v: boolean) => void;
+  setWorld: (w: SessionState["world"]) => void;
   setUser: (patch: Partial<User>) => void;
   changeTag: (tag: string) => void;
   setAvatar: (uri: string | null) => void;
   setPin: (pin: string) => void;
-  setLockPin: (pin: string | null) => void;
   setBiometrics: (on: boolean) => void;
   setTwoFactor: (on: boolean) => void;
   removeDevice: (id: string) => void;
@@ -73,11 +73,6 @@ type SessionState = {
   resetPassword: (email: string, password: string) => boolean;
   checkPassword: (password: string) => boolean;
   setPassword: (password: string) => void;
-  lock: () => void;
-  unlock: () => void;
-  /** a wrong lock PIN; returns how many in a row */
-  failUnlock: () => number;
-  touch: () => void;
   signOut: (reason?: SignOutReason) => void;
   /** Me › Log out: signs out, keeps this device's account and data */
   logOut: () => void;
@@ -98,10 +93,6 @@ const initial = {
   avatarUri: null,
   tagChangedAt: null,
   pin: null,
-  lockPin: null as string | null,
-  locked: false,
-  lockFails: 0,
-  lastActiveAt: 0,
   biometrics: false,
   twoFactor: true,
   devices: SEED_DEVICES,
@@ -111,6 +102,8 @@ const initial = {
   landing: null as string | null,
   globalAccounts: "none" as GlobalAccounts,
   globalRequestedAt: null as number | null,
+  phoneVerified: false,
+  world: null as SessionState["world"],
 };
 
 export const TAG_COOLDOWN_DAYS = 30;
@@ -126,11 +119,10 @@ export const useSessionStore = create<SessionState>()(
       changeTag: (tag) => set((s) => ({ user: { ...s.user, tag }, tagChangedAt: new Date().toISOString() })),
       setAvatar: (avatarUri) => set({ avatarUri }),
       setPin: (pin) => set({ pin }),
-      setLockPin: (lockPin) => set({ lockPin }),
       setBiometrics: (biometrics) => set({ biometrics }),
       setTwoFactor: (twoFactor) => set({ twoFactor }),
       removeDevice: (id) => set((s) => ({ devices: s.devices.filter((d) => d.id !== id || d.current) })),
-      completeOnboarding: (landing = null) => set({ hasOnboarded: true, landing, lastActiveAt: Date.now() }),
+      completeOnboarding: (landing = null) => set({ hasOnboarded: true, landing }),
       setKyc: ({ tier, status, reference }) =>
         set((s) => ({ kycStatus: status, kycTier: tier ?? s.kycTier, kycReference: reference === undefined ? s.kycReference : reference })),
 
@@ -146,15 +138,13 @@ export const useSessionStore = create<SessionState>()(
           user: { ...user, email: norm(email) },
           signedIn: true,
           hasOnboarded: false,
-          lastActiveAt: Date.now(),
         }),
       signIn: (email, password) => {
         const s = get();
         const e = norm(email);
-        const now = Date.now();
         if (s.account?.email === e) {
           if (s.account.passwordHash !== demoHash(e, password)) return "wrong-password";
-          set({ signedIn: true, locked: false, lockFails: 0, signOutReason: null, lastActiveAt: now });
+          set({ signedIn: true, signOutReason: null });
           return "ok";
         }
         if (isDemo(e)) {
@@ -166,10 +156,7 @@ export const useSessionStore = create<SessionState>()(
             account: { email: e, country: "NG", passwordHash: demoHash(e, password) },
             user: { ...SEED_USER },
             pin: s.pin ?? DEMO.pin,
-            locked: false,
-            lockFails: 0,
             signOutReason: null,
-            lastActiveAt: now,
           });
           return "ok";
         }
@@ -198,15 +185,7 @@ export const useSessionStore = create<SessionState>()(
         if (a) set({ account: { ...a, passwordHash: demoHash(a.email, password) } });
       },
 
-      lock: () => set({ locked: true, lockFails: 0 }),
-      unlock: () => set({ locked: false, lockFails: 0, lastActiveAt: Date.now() }),
-      failUnlock: () => {
-        const n = get().lockFails + 1;
-        set({ lockFails: n });
-        return n;
-      },
-      touch: () => set({ lastActiveAt: Date.now() }),
-      signOut: (reason = "user") => set((s) => ({ signedIn: false, locked: false, lockFails: 0, signOutReason: reason, rememberedEmail: s.account?.email ?? s.user.email })),
+      signOut: (reason = "user") => set((s) => ({ signedIn: false, signOutReason: reason, rememberedEmail: s.account?.email ?? s.user.email })),
       logOut: () => get().signOut("user"),
       wipe: () => set({ ...initial, user: { ...SEED_USER }, devices: SEED_DEVICES }),
 
@@ -217,11 +196,13 @@ export const useSessionStore = create<SessionState>()(
       },
       requestGlobalAccounts: () => set({ globalAccounts: "review", globalRequestedAt: Date.now() }),
       setGlobalAccounts: (globalAccounts) => set({ globalAccounts }),
+      setPhoneVerified: (phoneVerified) => set({ phoneVerified }),
+      setWorld: (world) => set({ world }),
     }),
     {
       name: "tribe:session",
       storage: persistStorage,
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = { ...initial, ...(persisted as object) } as SessionState;
         // v2 had no auth: anyone already set up becomes signed in to the demo account
@@ -229,7 +210,12 @@ export const useSessionStore = create<SessionState>()(
           const email = norm(state.user.email || DEMO.account.email);
           state.signedIn = true;
           state.account = { email, country: "NG", passwordHash: demoHash(email, DEMO.account.password) };
-          state.lastActiveAt = Date.now();
+        }
+        if (version < 4) {
+          // v4: the app lock is gone — drop its persisted fields; anyone already set up keeps going
+          const old = state as SessionState & Record<string, unknown>;
+          for (const k of ["lockPin", "locked", "lockFails", "lastActiveAt", "pendingSetup"]) delete old[k];
+          if (state.hasOnboarded && state.pin) state.phoneVerified = true;
         }
         return state;
       },

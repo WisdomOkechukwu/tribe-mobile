@@ -10,6 +10,7 @@ import { Text } from "@/components/text";
 import type { VirtualCard } from "@/data/seed";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { radius, spacing, useColors } from "@/theme";
+import { openCardCreation } from "@/utils/verification";
 
 function Tile({ card, onPress }: { card: VirtualCard; onPress: () => void }) {
   const c = useColors();
@@ -54,7 +55,7 @@ export default function MyCards() {
             }}
           />
         ))}
-        <PressableScale onPress={() => router.push("/card-new")} accessibilityLabel="New card" style={{ width: "48.5%", minHeight: 118, borderRadius: radius.group, borderCurve: "continuous", borderWidth: 1.5, borderStyle: "dashed", borderColor: c.borderStrong, alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <PressableScale onPress={() => openCardCreation()} accessibilityLabel="New card" style={{ width: "48.5%", minHeight: 118, borderRadius: radius.group, borderCurve: "continuous", borderWidth: 1.5, borderStyle: "dashed", borderColor: c.borderStrong, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
           <Icon name="plusCircle" size={22} color={c.brandText} />
           <Text variant="subhead" tone="brand">
             New card

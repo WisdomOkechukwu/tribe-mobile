@@ -95,7 +95,7 @@ export function receiptRows(tx: Transaction): { title: string; rows: ReceiptRow[
     case "receive":
       return {
         title: "Deposit details",
-        rows: [{ label: "Account credited", value: a.kind === "crypto" ? `${a.code} wallet` : `${a.code} account` }, { label: "From", value: tx.title }, { label: m.network ? "Network" : "Channel", value: m.network ?? tx.subtitle }, feeRow, { label: "Transaction type", value: a.kind === "crypto" ? "Crypto deposit" : "Deposit" }, ref, date],
+        rows: [{ label: "Account credited", value: a.kind === "crypto" ? `${a.code} wallet` : `${a.code} account` }, { label: "From", value: m.sender ? `${m.sender.name}${m.sender.detail ? ` · ${m.sender.detail}` : ""}` : tx.title }, { label: m.network ? "Network" : "Channel", value: m.network ?? tx.subtitle }, feeRow, { label: "Transaction type", value: a.kind === "crypto" ? "Crypto deposit" : "Deposit" }, ref, date],
       };
     case "swap":
       return {
@@ -176,4 +176,10 @@ export function receiptRows(tx: Transaction): { title: string; rows: ReceiptRow[
 export function headline(tx: Transaction) {
   if (tx.type === "swap" && tx.toAsset && tx.toAmount !== undefined) return `+${formatAsset(tx.toAmount, tx.toAsset)}`;
   return `${tx.direction === "in" ? "+" : "−"}${formatAsset(tx.amount, tx.asset)}`;
+}
+
+/** Who sent an incoming deposit, with a stable key to group every payment from them. */
+export function senderOf(tx: Transaction) {
+  if (tx.type !== "receive" || tx.direction !== "in") return null;
+  return tx.meta?.sender ?? { key: `title:${tx.title}`, name: tx.title, kind: "bank" as const };
 }

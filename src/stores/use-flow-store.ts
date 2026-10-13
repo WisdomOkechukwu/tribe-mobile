@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { assetByCode, type AssetCode } from "@/data/assets";
 import { billerById, GIFT_CARD_BUY_MARKUP, giftBrandById } from "@/data/catalog";
-import type { InboxKind } from "@/data/inbox";
+import type { InboxItem, InboxKind } from "@/data/inbox";
 import { CARD_FEE_USD, cardFundingFee, type CardNetwork, type CardTheme, type Transaction } from "@/data/seed";
 import { formatAsset, randomDigits } from "@/utils/format";
 import { liveUsd } from "@/utils/rates";
@@ -63,7 +63,7 @@ export type FlowResult = {
   headline: string;
   detail: string;
   extra?: { label: string; value: string };
-  notify?: { kind: InboxKind; title: string; body: string; href?: string };
+  notify?: { kind: InboxKind; title: string; body: string; href?: string; billerId?: string; badge?: InboxItem["badge"] };
   recurringOffer?: RecurringOffer;
   /** a send to someone not saved yet: the result card offers "Add to beneficiaries" */
   beneficiary?: BeneficiaryDraft;
@@ -186,7 +186,7 @@ function run(action: PendingAction): FlowResult {
       const user = cardHolderName();
       const card = useCardsStore.getState().createCard({ label: action.label, theme: action.theme, network: action.network, holder: user });
       const tx = wallet.record(
-        { type: "card", asset: action.from, amount: cost, direction: "out", fee: (CARD_FEE_USD + cardFundingFee(action.usd)) / assetByCode(action.from).usd, title: "New virtual card", subtitle: `Paid with ${action.from} · ${action.label} •• ${card.last4}`, meta: { cardId: card.id, face: action.usd ? `+$${action.usd.toFixed(2)} to card` : `$${CARD_FEE_USD.toFixed(2)} card fee` } },
+        { type: "card", asset: action.from, amount: cost, direction: "out", fee: (CARD_FEE_USD + cardFundingFee(action.usd)) / assetByCode(action.from).usd, title: "New virtual card", subtitle: `Paid with ${action.from} · ${action.label} •• ${card.last4}`, meta: { cardId: card.id, cardOp: "created", face: action.usd ? `+$${action.usd.toFixed(2)} to card` : `$${CARD_FEE_USD.toFixed(2)} card fee` } },
         { [action.from]: -cost },
       );
       if (action.usd) useCardsStore.getState().credit(card.id, action.usd);
@@ -220,7 +220,7 @@ function run(action: PendingAction): FlowResult {
       return {
         headline: "Recurring bill on",
         detail: `${b.name}${action.plan ? ` ${action.plan}` : ""} renews ${FREQUENCY_LABEL[action.frequency].toLowerCase()} from ${when}, paid with ${action.payWith}.`,
-        notify: { kind: "money", title: "Recurring bill set up", body: `${b.name} · ₦${action.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[action.frequency].toLowerCase()}`, href: "/pay/recurring" },
+        notify: { kind: "money", title: "Recurring bill set up", body: `${b.name} · ₦${action.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[action.frequency].toLowerCase()}`, href: "/pay/recurring", billerId: action.billerId, badge: "repeat" },
       };
     }
     case "referral-withdraw": {
@@ -262,7 +262,7 @@ export const useFlowStore = create<FlowState>()((set, get) => ({
     const { pending } = get();
     if (!pending) throw new Error("Nothing to confirm.");
     const result = run(pending);
-    if (result.notify) useInboxStore.getState().push({ ...result.notify, href: result.notify.href ?? (result.tx ? `/transaction/${result.tx.id}` : undefined) });
+    if (result.notify) useInboxStore.getState().push({ ...result.notify, txId: result.tx?.id, href: result.notify.href ?? (result.tx ? `/transaction/${result.tx.id}` : undefined) });
     set({ pending: null, result });
     return result;
   },

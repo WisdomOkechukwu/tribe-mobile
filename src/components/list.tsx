@@ -4,6 +4,7 @@ import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { radius, spacing, useColors } from "@/theme";
 import { Icon, type IconName } from "./icon";
 import { Text } from "./text";
+import { Glyph, type GlyphName } from "./glyphs";
 
 /**
  * Inset grouped list — the main way content is grouped in v2 (hairlines, not boxes).
@@ -37,12 +38,12 @@ export function ListSection({ title, action, footer, children, style, inset = 66
   );
 }
 
-/** Leading icon bubble for ListRow. */
-export function RowIcon({ name, tint, bg }: { name: IconName; tint?: string; bg?: string }) {
+/** Leading icon bubble for ListRow: a system icon, or one of our own `glyph`s. */
+export function RowIcon({ name, glyph, tint, bg, size = 38 }: { name?: IconName; glyph?: GlyphName; tint?: string; bg?: string; size?: number }) {
   const c = useColors();
   return (
-    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: bg ?? c.surfaceAlt, alignItems: "center", justifyContent: "center" }}>
-      <Icon name={name} size={18} color={tint ?? c.text} />
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg ?? c.surfaceAlt, alignItems: "center", justifyContent: "center" }}>
+      {glyph ? <Glyph name={glyph} size={size * 0.5} color={tint ?? c.text} /> : name ? <Icon name={name} size={size * 0.47} color={tint ?? c.text} /> : null}
     </View>
   );
 }
@@ -50,6 +51,7 @@ export function RowIcon({ name, tint, bg }: { name: IconName; tint?: string; bg?
 export function ListRow({
   leading,
   icon,
+  glyph,
   iconTint,
   iconBg,
   title,
@@ -66,6 +68,8 @@ export function ListRow({
 }: {
   leading?: ReactNode;
   icon?: IconName;
+  /** our own line icon instead of a system one */
+  glyph?: GlyphName;
   iconTint?: string;
   iconBg?: string;
   title: string;
@@ -98,8 +102,8 @@ export function ListRow({
   }
   const body = (pressed: boolean) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
-      {leading ?? (icon ? <RowIcon name={icon} tint={destructive ? c.danger : iconTint} bg={destructive ? c.dangerSoft : iconBg} /> : null)}
-      <View style={{ flex: 1, gap: 1 }}>
+      {leading ?? (icon || glyph ? <RowIcon name={icon} glyph={glyph} tint={destructive ? c.danger : iconTint} bg={destructive ? c.dangerSoft : iconBg} /> : null)}
+      <View style={{ flex: 1, gap: spacing.xxs }}>
         <Text variant="bodyStrong" numberOfLines={1} style={destructive ? { color: c.danger } : undefined}>
           {title}
         </Text>
@@ -110,7 +114,7 @@ export function ListRow({
         )}
       </View>
       {(value || valueSub) && (
-        <View style={{ alignItems: "flex-end", gap: 1 }}>
+        <View style={{ alignItems: "flex-end", gap: spacing.xxs }}>
           {value && (
             <Text variant="amount" tone={valueTone === "success" ? "success" : valueTone === "danger" ? "danger" : valueTone === "muted" ? "muted" : "text"}>
               {value}

@@ -26,16 +26,16 @@ export default function Otp() {
     if (code.length !== LENGTH) return;
     const t = setTimeout(() => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      router.push("/phone-done");
+      router.push({ pathname: "/setup/phone-done", params: { phone } });
       setCode("");
     }, 650);
     return () => clearTimeout(t);
-  }, [code]);
+  }, [code, phone]);
 
   const verifying = code.length === LENGTH;
 
   return (
-    <OnboardingShell icon="phone" title="We've sent a code" subtitle={`Enter the 6-digit one-time password we sent to ${phone}.`} scroll={false}>
+    <OnboardingShell icon="phone" title="We've sent a code" headline={["Check your", "texts."]} subtitle={`Enter the 6-digit one-time password we sent to ${phone}.`} scroll={false}>
       <PinCells length={LENGTH} value={code} masked={false} />
       <View style={{ alignItems: "center", minHeight: 22 }}>
         {verifying ? (

@@ -77,14 +77,16 @@ function Cell() {
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "extra", "0", "del"] as const;
 
 /** Brand number pad — no system keyboard for PINs, amounts or codes. */
-export function NumberPad({ onKey, onDelete, extra }: { onKey: (d: string) => void; onDelete: () => void; extra?: ReactNode }) {
+/** `compact` shortens the keys for screens that also hold a ticket or card (short phones). */
+export function NumberPad({ onKey, onDelete, extra, compact = false }: { onKey: (d: string) => void; onDelete: () => void; extra?: ReactNode; compact?: boolean }) {
   const c = useColors();
+  const h = compact ? 46 : 64;
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: spacing.sm }}>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: compact ? 0 : spacing.sm }}>
       {KEYS.map((k) => (
         <View key={k} style={{ width: "33.333%", alignItems: "center" }}>
           {k === "extra" ? (
-            <View style={{ width: 76, height: 64, alignItems: "center", justifyContent: "center" }}>{extra}</View>
+            <View style={{ width: 76, height: h, alignItems: "center", justifyContent: "center" }}>{extra}</View>
           ) : (
             <PressableScale
               haptic={false}
@@ -95,7 +97,7 @@ export function NumberPad({ onKey, onDelete, extra }: { onKey: (d: string) => vo
                 if (k === "del") onDelete();
                 else onKey(k);
               }}
-              style={{ width: 76, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" }}
+              style={{ width: 76, height: h, borderRadius: h / 2, alignItems: "center", justifyContent: "center" }}
             >
               {k === "del" ? <Icon name="backspace" size={24} color={c.text} weight="regular" /> : <Text variant="display" style={{ fontSize: 30 }}>{k}</Text>}
             </PressableScale>

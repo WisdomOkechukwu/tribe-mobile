@@ -65,7 +65,7 @@ export default function Details() {
         />
       }
     >
-      <View style={{ gap: 14 }}>
+      <View style={{ gap: spacing.md }}>
         <View style={{ flexDirection: "row", gap: spacing.smd }}>
           <View style={{ flex: 1 }}>
             <Field value={first} onChangeText={setFirst} placeholder="First name" autoCapitalize="words" textContentType="givenName" autoComplete="given-name" />
@@ -96,7 +96,7 @@ export default function Details() {
           autoComplete="tel"
           maxLength={dial.digits + 3}
           leading={
-            <Pressable onPress={pickDial} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Country code ${dial.dial}, change`} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingRight: spacing.sm, borderRightWidth: 1, borderRightColor: c.border, marginRight: 2 }}>
+            <Pressable onPress={pickDial} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Country code ${dial.dial}, change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingRight: spacing.sm, borderRightWidth: 1, borderRightColor: c.border, marginRight: 2 }}>
               <CoinIcon code={dial.flag} size={22} />
               <Text variant="bodyStrong">{dial.dial}</Text>
               <Icon name="chevronDown" size={10} color={c.textMuted} weight="bold" />

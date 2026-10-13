@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useEffect } from "react";
 import { View } from "react-native";
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSpring, withTiming } from "react-native-reanimated";
 import { palette } from "@/theme";
 import { Icon } from "./icon";
 import { Stripes } from "./stripes";
@@ -19,7 +19,10 @@ export function SuccessBurst({ size = 168 }: { size?: number }) {
     spin.value = withRepeat(withTiming(1, { duration: 14_000, easing: Easing.linear }), -1);
     check.value = withDelay(260, withSpring(1, { damping: 9, stiffness: 220 }));
     const t = setTimeout(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}), 280);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      cancelAnimation(spin);
+    };
   }, [disc, spin, check, reduce]);
 
   const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: disc.value }, { rotate: `${spin.value * 360}deg` }] }));

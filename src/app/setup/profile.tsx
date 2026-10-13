@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { continueSetup, exitSetup } from "@/utils/setup-flow";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { Button } from "@/components/button";
@@ -7,7 +7,7 @@ import { Dropdown } from "@/components/dropdown";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
 import { Text } from "@/components/text";
-import { OnboardingShell } from "@/screens/onboarding/shell";
+import { BandSkip, OnboardingShell } from "@/screens/onboarding/shell";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
@@ -59,31 +59,36 @@ export default function KnowYou() {
   return (
     <OnboardingShell
       title="Let's get to know you"
+      headline={["A few quick", "questions."]}
+      icon="personLine"
+      right={<BandSkip onPress={exitSetup} />}
       subtitle="A few questions to open your USD, GBP and EUR accounts. Regulators ask, we keep it private."
       footer={
+        <>
         <Button
           title="Submit for review"
           disabled={!complete}
           onPress={async () => {
             await withLoader("Submitting your request…", () => {
-              set({ answers: { ...answers, address: address.trim() }, profileDone: true });
+              set({ answers: { ...answers, address: address.trim() } });
               requestGlobal();
             });
             toast("Submitted. We'll let you know when your accounts are ready.", "success");
-            router.dismissTo("/checklist");
+            continueSetup();
           }}
         />
+        </>
       }
     >
-      <View style={{ flexDirection: "row", gap: 6 }} accessible accessibilityLabel="US dollar, British pound and euro accounts">
+      <View style={{ flexDirection: "row", gap: spacing.sm }} accessible accessibilityLabel="US dollar, British pound and euro accounts">
         {["USD", "GBP", "EUR"].map((code) => (
-          <View key={code} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.surface, borderRadius: radius.full, paddingVertical: 6, paddingLeft: 6, paddingRight: spacing.smd }}>
+          <View key={code} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.surface, borderRadius: radius.full, paddingVertical: 6, paddingLeft: 6, paddingRight: spacing.smd }}>
             <CoinIcon code={code} size={22} />
             <Text variant="subhead">{code}</Text>
           </View>
         ))}
       </View>
-      <View style={{ gap: 14 }}>
+      <View style={{ gap: spacing.md }}>
         <Field value={address} onChangeText={setAddress} placeholder="Home address" textContentType="fullStreetAddress" autoComplete="street-address" leading={<Icon name="location" size={16} color={c.textMuted} />} />
         {QUESTIONS.map((q) => (
           <Dropdown key={q.key} label={q.label} value={answers[q.key]} placeholder="Select one" onPress={() => ask(q)} />

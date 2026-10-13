@@ -39,6 +39,8 @@ export type Transaction = {
     scope?: "local" | "global" | "crypto";
     recipientKind?: "tribe" | "bank" | "wallet";
     eta?: string;
+    /** money in: who sent it. `key` groups every payment from the same sender (receipt → "More from…") */
+    sender?: { key: string; name: string; detail?: string; kind: "tribe" | "bank" | "wallet" };
     /** card activity: merchant and what kind of card movement */
     merchant?: string;
     cardOp?: "funding" | "withdrawal" | "expense" | "refund" | "chargeback" | "created";
@@ -58,8 +60,6 @@ export const DEMO = {
   takenPhones: ["8035550142", "8030000000"],
   /** email codes: any 4 digits verify except this one, which reads as expired */
   badEmailCode: "0000",
-  /** lock PIN set by dev?action=onboard */
-  lockPin: "123456",
   /** Cashpoint codes the redeem screen rejects (anything else redeems ₦5,000) */
   cashpointInvalid: "000000000000",
   cashpointUsed: "111111111111",
@@ -94,13 +94,20 @@ export const SEED_BALANCES: Record<AssetCode, number> = {
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const ref = (n: number) => `TRB-${(482_190 + n * 7_919).toString(36).toUpperCase()}`;
 
+const UPWORK = { key: "bank:upwork", name: "Upwork Inc.", detail: "Bank of America •• 3021", kind: "bank" } as const;
+const TUNDE = { key: "tribe:tunde", name: "Tunde Bakare", detail: "@tunde", kind: "tribe" } as const;
+const BINANCE_TRC20 = { key: "trc20:TXk3…9QpL", name: "TXk3…9QpL", detail: "Tron wallet", kind: "wallet" } as const;
+
+/** Seed deposits added after v4, for the "More from this sender" receipts (wallet store migration). */
+export const SENDER_SEED_IDS = ["t23", "t24", "t25", "t26", "t27"];
+
 export function seedTransactions(): Transaction[] {
   return ([
     { id: "t1", type: "swap", asset: "USDT", amount: 250, direction: "out", toAsset: "NGN", toAmount: 383_075, title: "Swapped USDT → NGN", subtitle: "Rate ₦1,540", status: "completed", date: ago(18), fee: 1.25, reference: ref(1) },
     { id: "t2", type: "bill", asset: "NGN", amount: 15_000, direction: "out", title: "PHED Prepaid", subtitle: "Paid with NGN · 34.2 kWh", status: "completed", date: ago(95), reference: ref(2), meta: { billerId: "phed", token: "4821 0937 5512 8846 3307", units: "34.2 kWh", face: "₦15,000" } },
-    { id: "t3", type: "receive", asset: "USD", amount: 450, direction: "in", title: "Upwork Inc.", subtitle: "ACH transfer", status: "completed", date: ago(240), reference: ref(3) },
+    { id: "t3", type: "receive", asset: "USD", amount: 450, direction: "in", title: "Upwork Inc.", subtitle: "ACH transfer", status: "completed", date: ago(240), reference: ref(3), meta: { channel: "ACH", sender: UPWORK } },
     { id: "t4", type: "cashpoint", asset: "NGN", amount: 5_000, direction: "out", title: "Cashpoint generated", subtitle: "Redeemed by @tolu", status: "completed", date: ago(60 * 9), reference: ref(4), meta: { code: "4827 1930 5561" } },
-    { id: "t5", type: "receive", asset: "BTC", amount: 0.0042, direction: "in", title: "Received Bitcoin", subtitle: "Bitcoin network", status: "completed", date: ago(60 * 26), reference: ref(5), meta: { network: "Bitcoin" } },
+    { id: "t5", type: "receive", asset: "BTC", amount: 0.0042, direction: "in", title: "Received Bitcoin", subtitle: "Bitcoin network", status: "completed", date: ago(60 * 26), reference: ref(5), meta: { network: "Bitcoin", sender: { key: "btc:bc1qxy…0wlh", name: "bc1qxy…0wlh", detail: "Bitcoin wallet", kind: "wallet" } } },
     { id: "t6", type: "card", asset: "USD", amount: 15.49, direction: "out", title: "Netflix", subtitle: "Virtual card •• 4821", status: "completed", date: ago(60 * 30), reference: ref(6), meta: { cardId: "c1", merchant: "Netflix.com", cardOp: "expense" } },
     { id: "t18", type: "card", asset: "USD", amount: 2.99, direction: "out", title: "Apple iCloud+", subtitle: "Virtual card •• 4821", status: "completed", date: ago(60 * 20), reference: ref(18), meta: { cardId: "c1", merchant: "Apple Services", cardOp: "expense" } },
     { id: "t19", type: "card", asset: "USD", amount: 10.99, direction: "out", title: "Spotify Premium", subtitle: "Virtual card •• 4821", status: "completed", date: ago(60 * 96), reference: ref(19), meta: { cardId: "c1", merchant: "Spotify AB", cardOp: "expense" } },
@@ -112,11 +119,17 @@ export function seedTransactions(): Transaction[] {
     { id: "t10", type: "bill", asset: "NGN", amount: 3_500, direction: "out", title: "MTN 10GB data", subtitle: "Paid with NGN · 0803 555 0142", status: "completed", date: ago(60 * 75), reference: ref(10), meta: { billerId: "mtn", face: "₦3,500" } },
     { id: "t11", type: "giftcard", asset: "NGN", amount: 62_000, direction: "in", title: "Sold Apple gift card", subtitle: "Paid out in NGN · ₦1,240/$", status: "pending", date: ago(60 * 80), reference: ref(11), meta: { giftBrand: "apple", face: "$50 Apple card" } },
     { id: "t12", type: "swap", asset: "NGN", amount: 154_000, direction: "out", toAsset: "USD", toAmount: 99.5, title: "Swapped NGN → USD", subtitle: "Rate ₦1,540", status: "completed", date: ago(60 * 100), reference: ref(12) },
-    { id: "t13", type: "receive", asset: "USDT", amount: 300, direction: "in", title: "Received USDT", subtitle: "Tron (TRC20)", status: "completed", date: ago(60 * 120), reference: ref(13), meta: { network: "TRC20" } },
+    { id: "t13", type: "receive", asset: "USDT", amount: 300, direction: "in", title: "Received USDT", subtitle: "Tron (TRC20)", status: "completed", date: ago(60 * 120), reference: ref(13), meta: { network: "TRC20", sender: BINANCE_TRC20 } },
     { id: "t14", type: "send", asset: "ETH", amount: 0.05, direction: "out", title: "Sent Ethereum", subtitle: "Ethereum (ERC20) · 0x71C…9A3f", status: "failed", date: ago(60 * 140), fee: 0.0012, reference: ref(14), meta: { recipient: "ETH wallet", handle: "0x71C…9A3f", network: "Ethereum (ERC20)", scope: "crypto", recipientKind: "wallet" } },
     { id: "t15", type: "bill", asset: "NGN", amount: 15_700, direction: "out", title: "DStv Compact", subtitle: "Paid with NGN · Smartcard •• 3317", status: "completed", date: ago(60 * 170), reference: ref(15), meta: { billerId: "dstv", face: "₦15,700" } },
     { id: "t17", type: "card", asset: "USDT", amount: 100, direction: "out", title: "Card top-up", subtitle: "Funded from USDT · Everyday •• 4821", status: "completed", date: ago(60 * 44), reference: ref(17), meta: { cardId: "c1", face: "+$100.00 to card" } },
     { id: "t22", type: "referral", asset: "NGN", amount: 3_000, direction: "in", title: "Referral payout", subtitle: "From referral earnings", status: "completed", date: ago(60 * 24 * 12), reference: ref(22), meta: { face: "₦3,000" } },
+    // earlier deposits, so a receipt can show "More from this sender"
+    { id: "t23", type: "receive", asset: "USD", amount: 380, direction: "in", title: "Upwork Inc.", subtitle: "ACH transfer", status: "completed", date: ago(60 * 24 * 14), reference: ref(23), meta: { channel: "ACH", sender: UPWORK } },
+    { id: "t24", type: "receive", asset: "USD", amount: 520, direction: "in", title: "Upwork Inc.", subtitle: "ACH transfer", status: "completed", date: ago(60 * 24 * 29), reference: ref(24), meta: { channel: "ACH", sender: UPWORK } },
+    { id: "t25", type: "receive", asset: "NGN", amount: 25_000, direction: "in", title: "Tunde Bakare", subtitle: "Tribe transfer · @tunde", status: "completed", date: ago(60 * 24 * 3), reference: ref(25), meta: { channel: "Tribe transfer", sender: TUNDE } },
+    { id: "t26", type: "receive", asset: "NGN", amount: 10_000, direction: "in", title: "Tunde Bakare", subtitle: "Tribe transfer · @tunde", status: "completed", date: ago(60 * 24 * 9), reference: ref(26), meta: { channel: "Tribe transfer", sender: TUNDE } },
+    { id: "t27", type: "receive", asset: "USDT", amount: 150, direction: "in", title: "Received USDT", subtitle: "Tron (TRC20)", status: "completed", date: ago(60 * 24 * 20), reference: ref(27), meta: { network: "TRC20", sender: BINANCE_TRC20 } },
     { id: "t16", type: "swap", asset: "GBP", amount: 100, direction: "out", toAsset: "EUR", toAmount: 116.38, title: "Swapped GBP → EUR", subtitle: "Rate €1.17", status: "completed", date: ago(60 * 200), reference: ref(16) },
   ] as Transaction[]).sort((a, b) => b.date.localeCompare(a.date));
 }

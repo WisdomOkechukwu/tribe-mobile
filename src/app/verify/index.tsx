@@ -18,14 +18,14 @@ export default function VerifyCentre() {
   return (
     <Screen>
       <View style={{ flexDirection: "row", backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md }}>
-        <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1, gap: spacing.xs }}>
           <Text variant="caption" tone="muted">
             Daily limit
           </Text>
           <Text variant="title">{TIER_LIMITS[tier].daily}</Text>
         </View>
         <View style={{ width: 1, backgroundColor: c.border, marginHorizontal: spacing.md }} />
-        <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1, gap: spacing.xs }}>
           <Text variant="caption" tone="muted">
             Max balance
           </Text>

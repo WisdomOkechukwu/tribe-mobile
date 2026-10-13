@@ -4,6 +4,9 @@ export type AssetCode = "USDT" | "BTC" | "ETH" | "USDC" | "SOL" | "NGN" | "USD" 
 
 export type Network = { id: string; name: string; fee: number; eta: string };
 
+/** One way money can arrive in a fiat account, with the details to share for it (demo values). */
+export type Rail = { id: string; name: string; eta: string; fee: string; fields: { label: string; value: string }[] };
+
 export type Asset = {
   code: AssetCode;
   name: string;
@@ -119,3 +122,44 @@ export const DEPOSIT_ADDRESSES: Record<string, string> = {
 
 export const SWAP_FEE = 0.005;
 export const NGN_PER_USD = 1_540;
+
+const ADA = { label: "Account name", value: "Ada Okafor" };
+
+/** Every way to get paid in each fiat currency. Illustrative partner-bank details, demo only. */
+export const RAILS: Partial<Record<AssetCode, Rail[]>> = {
+  NGN: [{ id: "nip", name: "Bank transfer (NIP)", eta: "Instant", fee: "Free", fields: [{ label: "Account number", value: "8123 456 790" }, { label: "Bank", value: "Tribe MFB (Partner)" }, ADA] }],
+  USD: [
+    { id: "ach", name: "ACH", eta: "1–2 working days", fee: "Free", fields: [{ label: "Account number", value: "4400 1928 3374" }, { label: "Routing number (ACH)", value: "021 000 021" }, { label: "Account type", value: "Checking" }, { label: "Bank", value: "Partner Bank, N.A." }, ADA] },
+    { id: "wire", name: "Domestic wire", eta: "Same working day", fee: "Free", fields: [{ label: "Account number", value: "4400 1928 3374" }, { label: "Routing number (wire)", value: "026 009 593" }, { label: "Bank", value: "Partner Bank, N.A." }, { label: "Bank address", value: "100 Pine St, San Francisco, CA" }, ADA] },
+    { id: "swift", name: "SWIFT", eta: "1–3 working days", fee: "Sender's bank fees", fields: [{ label: "SWIFT / BIC", value: "PBNAUS33" }, { label: "Account number", value: "4400 1928 3374" }, { label: "Bank", value: "Partner Bank, N.A." }, { label: "Bank address", value: "100 Pine St, San Francisco, CA" }, ADA] },
+  ],
+  GBP: [
+    { id: "fps", name: "Faster Payments", eta: "Usually instant", fee: "Free", fields: [{ label: "Account number", value: "4182 9937" }, { label: "Sort code", value: "04-00-75" }, { label: "Bank", value: "Partner Bank UK" }, ADA] },
+    { id: "bacs", name: "BACS", eta: "3 working days", fee: "Free", fields: [{ label: "Account number", value: "4182 9937" }, { label: "Sort code", value: "04-00-75" }, { label: "Bank", value: "Partner Bank UK" }, ADA] },
+    { id: "swift", name: "SWIFT", eta: "1–3 working days", fee: "Sender's bank fees", fields: [{ label: "IBAN", value: "GB33 PBUK 0400 7541 8299 37" }, { label: "SWIFT / BIC", value: "PBUKGB2L" }, { label: "Bank", value: "Partner Bank UK" }, ADA] },
+  ],
+  EUR: [
+    { id: "sepa", name: "SEPA", eta: "Within 1 working day", fee: "Free", fields: [{ label: "IBAN", value: "DE89 3704 0044 0532 0130 00" }, { label: "BIC", value: "COBADEFFXXX" }, ADA] },
+    { id: "sepa-instant", name: "SEPA Instant", eta: "In seconds", fee: "Free", fields: [{ label: "IBAN", value: "DE89 3704 0044 0532 0130 00" }, { label: "BIC", value: "COBADEFFXXX" }, ADA] },
+    { id: "swift", name: "SWIFT", eta: "1–3 working days", fee: "Sender's bank fees", fields: [{ label: "IBAN", value: "DE89 3704 0044 0532 0130 00" }, { label: "SWIFT / BIC", value: "COBADEFFXXX" }, { label: "Bank", value: "Partner Bank Europe" }, ADA] },
+  ],
+  CAD: [
+    { id: "eft", name: "EFT", eta: "1–2 working days", fee: "Free", fields: [{ label: "Account", value: "5521 8890" }, { label: "Institution", value: "621" }, { label: "Transit", value: "16001" }, ADA] },
+    { id: "interac", name: "Interac e-Transfer", eta: "Within 30 minutes", fee: "Free", fields: [{ label: "Interac email", value: "ada@tribe.africa" }, ADA] },
+    { id: "wire", name: "Wire", eta: "1 working day", fee: "Sender's bank fees", fields: [{ label: "Account", value: "5521 8890" }, { label: "Institution", value: "621" }, { label: "Transit", value: "16001" }, { label: "SWIFT / BIC", value: "PBNACATT" }, ADA] },
+  ],
+  KES: [
+    { id: "mpesa", name: "M-Pesa Paybill", eta: "Instant", fee: "Free", fields: [{ label: "Paybill", value: "880 100" }, { label: "Account", value: "TRIBE-ADA21" }] },
+    { id: "bank", name: "Bank transfer", eta: "1 working day", fee: "Free", fields: [{ label: "Account number", value: "0110 2283 1100" }, { label: "Bank", value: "Partner Bank Kenya" }, { label: "Branch", value: "Nairobi CBD" }, ADA] },
+  ],
+  GHS: [
+    { id: "momo", name: "Mobile money", eta: "Instant", fee: "Free", fields: [{ label: "MoMo number", value: "024 555 0182" }, { label: "Name", value: "Tribe Wallet / Ada" }] },
+    { id: "bank", name: "Bank transfer", eta: "1 working day", fee: "Free", fields: [{ label: "Account number", value: "1401 0039 8812" }, { label: "Bank", value: "Partner Bank Ghana" }, { label: "Branch", value: "Accra" }, ADA] },
+  ],
+};
+
+/** The rails a currency can receive on; falls back to its single account. */
+export function railsFor(a: Asset): Rail[] {
+  if (RAILS[a.code]) return RAILS[a.code]!;
+  return a.account ? [{ id: "main", name: a.account.label.replace(/^Your /, ""), eta: "Within minutes", fee: "Free", fields: a.account.fields }] : [];
+}

@@ -26,7 +26,7 @@ export function BalanceHero({ totalUsd, changePct }: { totalUsd: number; changeP
 
   return (
     <View style={{ alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm }}>
-      <PressableScale onPress={toggleHidden} hitSlop={10} accessibilityLabel={hidden ? "Show balances" : "Hide balances"} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <PressableScale onPress={toggleHidden} hitSlop={10} accessibilityLabel={hidden ? "Show balances" : "Hide balances"} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <Text variant="subhead" tone="muted">
           Total balance
         </Text>
@@ -42,11 +42,11 @@ export function BalanceHero({ totalUsd, changePct }: { totalUsd: number; changeP
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-        <PressableScale onPress={pickCurrency} accessibilityLabel={`Display currency ${display}, change`} style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: c.surface, borderRadius: radius.full, paddingLeft: spacing.smd, paddingRight: spacing.sm, paddingVertical: 5 }}>
+        <PressableScale onPress={pickCurrency} accessibilityLabel={`Display currency ${display}, change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.surface, borderRadius: radius.full, paddingLeft: spacing.smd, paddingRight: spacing.sm, paddingVertical: 5 }}>
           <Text variant="subhead">{display === "NGN" ? "₦ NGN" : "$ USD"}</Text>
           <Icon name="chevronDown" size={11} color={c.textMuted} weight="bold" />
         </PressableScale>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: up ? c.successSoft : c.dangerSoft, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 5 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: up ? c.successSoft : c.dangerSoft, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 5 }}>
           <Icon name={up ? "send" : "receive"} size={10} color={up ? c.success : c.danger} weight="bold" />
           <Text variant="subhead" style={{ color: up ? c.success : c.danger }}>
             {Math.abs(changePct).toFixed(2)}% today

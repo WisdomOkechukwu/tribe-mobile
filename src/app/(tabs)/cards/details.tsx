@@ -10,6 +10,7 @@ import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { spacing, useColors } from "@/theme";
+import { openCardCreation } from "@/utils/verification";
 
 /** Card details: everything needed to pay online, each copyable; plus the billing address. */
 export default function CardDetails() {
@@ -20,7 +21,7 @@ export default function CardDetails() {
   const [shown, setShown] = useState(false);
   const tint = useCardPalette(card?.theme ?? "midnight");
 
-  if (!card) return <EmptyState icon="card" title="No card" body="Create a card first." />;
+  if (!card) return <EmptyState icon="card" title="No card yet" body="Create your virtual card first. It takes about a minute." action={<Button title="Get your card" inline onPress={() => openCardCreation()} />} />;
   const t = CARD_THEMES[card.theme];
 
   return (

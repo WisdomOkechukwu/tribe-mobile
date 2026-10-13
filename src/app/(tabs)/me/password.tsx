@@ -32,7 +32,7 @@ export default function ChangePassword() {
 
   return (
     <Screen>
-      <View style={{ gap: 14 }}>
+      <View style={{ gap: spacing.md }}>
         <PasswordField value={current} onChangeText={(v) => (setCurrent(v), setWrong(false))} placeholder="Current password" hint={wrong ? "That isn't your current password." : undefined} hintTone="danger" />
         <PasswordField value={pw} onChangeText={setPw} placeholder="New password" autoComplete="new-password" textContentType="newPassword" />
         <PasswordRules value={pw} strict={strict} />

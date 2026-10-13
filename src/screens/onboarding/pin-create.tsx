@@ -7,13 +7,13 @@ import { toast } from "@/stores/use-ui-store";
 import { spacing } from "@/theme";
 import { OnboardingShell } from "./shell";
 
-const WEAK = /^(\d)\1+$|^(?:0123|1234|2345|3456|4567|5678|6789|9876|4321|012345|123456|234567|345678|456789|987654|654321)$/;
+export const WEAK = /^(\d)\1+$|^(?:0123|1234|2345|3456|4567|5678|6789|9876|4321|012345|123456|234567|345678|456789|987654|654321)$/;
 
 /**
- * Create → confirm a PIN with segmented cells (transaction PIN: 4 digits; lock PIN: 6).
+ * Create → confirm the 4-digit transaction PIN with segmented cells.
  * The confirm step announces itself with a toast, like Lock screen.png's "Enter your PIN again".
  */
-export function PinCreate({ length, title, subtitle, icon = "lock", right, note, onDone }: { length: number; title: string; subtitle: string; icon?: "lock" | "lockLine" | "key"; right?: ReactNode; note?: ReactNode; onDone: (pin: string) => void }) {
+export function PinCreate({ length, title, headline, subtitle, icon = "lock", right, note, onDone }: { length: number; title: string; headline?: string[]; subtitle: string; icon?: "lock" | "lockLine" | "key"; right?: ReactNode; note?: ReactNode; onDone: (pin: string) => void }) {
   const [first, setFirst] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const [error, setError] = useState(false);
@@ -50,6 +50,7 @@ export function PinCreate({ length, title, subtitle, icon = "lock", right, note,
     <OnboardingShell
       icon={icon}
       title={confirming ? "Confirm your PIN" : title}
+      headline={confirming ? ["One more", "time."] : headline}
       subtitle={confirming ? "Enter it once more." : subtitle}
       scroll={false}
       right={right}

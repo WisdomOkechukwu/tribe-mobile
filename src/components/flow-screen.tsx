@@ -24,6 +24,7 @@ export function FlowScreen({
   cancel = "close",
   headerRight,
   padded = true,
+  tint,
 }: {
   title: string;
   /** e.g. "Step 1 of 3" — shown under the title */
@@ -35,16 +36,20 @@ export function FlowScreen({
   cancel?: "close" | "x" | "back" | "none";
   headerRight?: () => ReactNode;
   padded?: boolean;
+  /** page colour instead of the plain background (e.g. the chosen card finish during card creation) */
+  tint?: string;
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pad = padded ? { paddingHorizontal: spacing.mdl } : null;
+  const bg = tint ?? c.bg;
   return (
     <>
       <Stack.Screen
         options={{
           title,
           headerShown: true,
+          ...(tint ? { headerStyle: { backgroundColor: tint }, contentStyle: { backgroundColor: tint } } : null),
           headerTitle: step
             ? () => (
                 <View style={{ alignItems: "center", transform: [{ translateY: Platform.OS === "ios" ? -1.5 : 0 }] }}>
@@ -81,7 +86,7 @@ export function FlowScreen({
               : undefined),
         }}
       />
-      <KeyboardFrame backgroundColor={c.bg}>
+      <KeyboardFrame backgroundColor={bg}>
         {scroll ? (
           <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}
             contentInsetAdjustmentBehavior="never"
@@ -94,7 +99,7 @@ export function FlowScreen({
         ) : (
           <View style={[{ flex: 1, paddingTop: spacing.md, gap: spacing.lg }, pad]}>{children}</View>
         )}
-        {footer && <View style={{ paddingHorizontal: spacing.mdl, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom, spacing.md), gap: spacing.sm, backgroundColor: c.bg }}>{footer}</View>}
+        {footer && <View style={{ paddingHorizontal: spacing.mdl, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom, spacing.md), gap: spacing.sm, backgroundColor: bg }}>{footer}</View>}
       </KeyboardFrame>
     </>
   );

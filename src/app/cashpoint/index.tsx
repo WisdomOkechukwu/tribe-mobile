@@ -213,7 +213,7 @@ export default function Cashpoint() {
         <Animated.View key="r" entering={FadeIn.duration(180)} style={{ flex: 1, gap: spacing.md }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
             <CashpointMark size={48} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
               <Text variant="headline">Redeem a Cashpoint</Text>
               <Text variant="caption" tone="muted">
                 Enter or paste all 12 digits. The Naira lands instantly.

@@ -66,14 +66,14 @@ export default function ReferralWithdraw() {
       }
     >
       <TransferLegs from={from} to={toLeg} />
-      <View style={{ flex: 1, minHeight: 112, alignItems: "center", justifyContent: "center", gap: 6 }}>
+      <View style={{ flex: 1, minHeight: 112, alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
         <Text variant="hero" adjustsFontSizeToFit numberOfLines={1} style={{ fontSize: 52, lineHeight: 58, color: over || under ? c.danger : value ? c.text : c.textSubtle }}>
           ₦{groupAmount(amount)}
         </Text>
         <Text variant="subhead" align="center" style={{ color: over || under ? c.danger : c.textMuted }}>
           {helper}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 4 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
           <Icon name="swap" size={11} color={c.textMuted} />
           <Text variant="caption" tone="muted">
             {rate} · no fee

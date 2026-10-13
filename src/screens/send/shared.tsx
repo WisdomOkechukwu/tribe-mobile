@@ -31,7 +31,7 @@ export function AssetHeader({ code, country }: { code: AssetCode; country?: stri
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.smd }}>
       <CoinIcon code={code} size={40} />
       <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
           <Text variant="bodyStrong">{code}</Text>
           <Icon name="checkCircle" size={13} color={c.text} />
         </View>
@@ -65,7 +65,7 @@ function BeneficiaryList({ items, close, onPick }: { items: Beneficiary[]; close
                 {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: 66 }} />}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
                   <Avatar size={38} name={b.name} />
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, gap: spacing.xxs }}>
                     <Text variant="bodyStrong" numberOfLines={1}>
                       {b.name}
                     </Text>
@@ -94,7 +94,7 @@ export function openBeneficiaries(filter: (b: Beneficiary) => boolean, onPick: (
 export function ChoiceCard({ title, body, on, onPress }: { title: string; body: string; on: boolean; onPress: () => void }) {
   const c = useColors();
   return (
-    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityLabel={title} accessibilityHint={body} accessibilityState={{ selected: on }} scaleTo={0.98} style={{ padding: spacing.md, borderRadius: radius.group, borderCurve: "continuous", backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1.5, borderColor: on ? c.brand : "transparent", gap: 2 }}>
+    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityLabel={title} accessibilityHint={body} accessibilityState={{ selected: on }} scaleTo={0.98} style={{ padding: spacing.md, borderRadius: radius.group, borderCurve: "continuous", backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1.5, borderColor: on ? c.brand : "transparent", gap: spacing.xs }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Text variant="bodyStrong" tone={on ? "brand" : "text"}>
           {title}

@@ -24,17 +24,18 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **PHED** is the only electricity provider we have a logo for.
 
 ## Structure
-- `src/app/`: routes only. Three guarded groups in the root `<Stack>` (see "Auth and lock" below).
+- `src/app/`: routes only. Three guarded groups in the root `<Stack>` (see "Auth and PIN" below).
   - `(auth)/` (signed out): intro (Onboarding.png carousel) → create-account (1/3: email + country) → verify-email (4-digit code) → details (2/3) → password (3/3); sign-in; forgot → verify-email?mode=reset → password?mode=reset → password-done.
-  - `(onboarding)/` (signed in, not set up — SBU.png): welcome (pick a **world**) → checklist (only that world's needs, `data/worlds.ts`) → phone/otp, bvn, know-you ("Submit for review") → pin-intro → create-pin → pin-done → lock-intro → lock-create → lock-done → biometrics → redeem (Cashpoint) → done. `done` stores the world's landing route; Home opens it once.
+  - `(onboarding)/` (signed in, not set up — SBU.png): just welcome (pick a **world**) → done (member pass; "Got a Cashpoint code?" lands on Cashpoint redeem). Nothing else blocks the app. `done` stores the world in the session and its landing route; Home opens it once.
+  - `setup/` (in-app modal, "Finish setup" on Home): phone → otp → phone-done, pin-intro → create-pin → pin-done → biometrics (Face ID for approving payments), bvn → bvn-done, profile (the USD/GBP/EUR questions, Global payments world only). `utils/setup-flow.ts`: `setupTasks()` (from persisted session: `phoneVerified`, `pin`, `kycTier`, `world`, `globalAccounts`), `continueSetup()` chains to the next unfinished task, `exitSetup()` / the band **Skip** goes back Home. The card hides once everything's done.
   - `(tabs)/` holds five tabs: **Home · Wallet · Pay · Cards · Me**. Every tab `_layout` exports `unstable_settings = { initialRouteName: "index" }`.
     - `(home)/`: index (fixed top bar), activity (**History**: All/Local/Crypto/Global + type filter; `?type=card&card=c1`), notifications
     - `wallet/`: index
     - `pay/`: index, vault, gift-cards, recurring
     - `cards/`: index (page tinted by the card's theme; Recent + All transactions), details, all ("My cards")
-    - `me/`: index, edit, qr, invite (balance · Earnings · Withdrawals · Friends), security, change-pin (transaction PIN), lock-pin, password, devices, notifications, statements
+    - `me/`: index, edit, qr, invite (balance · Earnings · Withdrawals · Friends), security, change-pin (transaction PIN; sets one up if there's none), password, devices, notifications, statements
   - **Modal flows** (own folder + stack, native headers via `FlowScreen`): `send/` (index: NGN / global / crypto → global or crypto pickers → recipient → amount → review; state in `use-send-draft`), `swap/`, `bill/[id]`, `gift/[id]`, `cashpoint/`, `recurring/`, `card-new/` (index → type → verify → details → review), `card-fund/`, `card-withdraw/` (both render `screens/cards/move-money.tsx`), `add-currency/`, `referral-withdraw/`.
-  - Other root screens: `transaction/[id]` (receipt), `report/[id]`, `receive/[code]`, `search` (modals); `scan` (fullScreenModal); `asset/[code]`, `verify/*`, `pin`, `success`, `dev.tsx` (dev only: `?action=onboard|showcase|lock|signout|reset|hide`, plus `&to=`, `&theme=`, `&demo=send`).
+  - Other root screens: `transaction/[id]` (receipt), `report/[id]`, `receive/[code]`, `search` (modals); `scan` (fullScreenModal); `asset/[code]`, `verify/*`, `pin`, `success`, `dev.tsx` (dev only: `?action=onboard|showcase|signout|reset|hide`, plus `&to=`, `&theme=`, `&demo=send`).
 - **Routing rules:**
   - Only the tabs' Home may be `/`. Guarded groups come first in the root `<Stack>`.
   - Flow folders set `unstable_settings.initialRouteName = "index"`.
@@ -48,12 +49,12 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
   - Money: `balance-hero`, `asset-row`, `transaction-row` (`groupByDay`), `pair-icon`, `transfer-legs` (From → To pair), `result-badge`, `pending-timeline`, `amount-entry`
   - Brand: `cashpoint-mark` (₦ on a tilted ticket), `cashpoint-ticket`, `card-face` (7 finishes, `useCardPalette`), `brand-tiles`, `coin-icon` (circular flags/coins), `illustrations` (intro art built from real assets; `onColour` for the intro bands), `tribe-loader` (logo disc breathing out rings over a wave of slanted bars; + `LoadingHost`, `withLoader()`), `brand-splash` (cold-start breathe-out)
   - **The logo is `assets/brand/tribe-logo.png`** (copied from `../TribeLogo.png`; it carries the TRIBE wordmark, so never set "TRIBE" text next to it). On purple-900 or orange put it on a white disc (`MarkDisc` in `screens/auth/shell.tsx`).
-  - Auth: `lock-gate` (app lock overlay), `password-field`, `password-rules`. Signed-out screens use `AuthShell` (`src/screens/auth/shell.tsx`): purple-900 band (corner stripes, logo disc, `poster` caps headline with an orange last line, step segments) and a light sheet rising over it; the band scrolls with the form. Post-signup setup keeps `OnboardingShell`.
+  - Auth: `password-field`, `password-rules`. Signed-out screens use `AuthShell` (`src/screens/auth/shell.tsx`): purple-900 band (corner stripes, logo disc, `poster` caps headline with an orange last line, step segments) and a light sheet rising over it; the band scrolls with the form. Post-signup setup uses `OnboardingShell` (`src/screens/onboarding/shell.tsx`) in the same language: compact purple-900 band, a Finish-setup meter (phone · PIN · identity · global accounts) driven by the route (`STAGES`), a `poster` headline (pass `headline` lines; the last is orange), the step's icon as a tilted orange sticker, and `Hero` + `Perks` for intro screens. Intro screens reuse the success art from `components/verified-art.tsx` with `done={false}`.
   - Pickers & money: `asset-picker` (`openAssetPicker`: search, popular, tabs, "Tap to create"), `quote-timer`, `receipt-ticket` (shareable receipt image)
   - `privacy-guard` (screenshot/recording protection; web no-op)
-- `src/stores/` (Zustand, persisted as `tribe:*`): `session` (auth, PINs, lock, world landing), `prefs`, `wallet`, `cards`, `vault`, `inbox`, `recurring`, `support`, `beneficiaries`, `referrals`. Not persisted: `flow`, `swap-draft`, `send-draft`, `signup`, `overlay`, `ui` (toast + loader). `reset.ts` resets all demo data.
-- `src/data/`: `countries`, `channels` (send rails + their fields), `worlds`, `security` (auto-lock, PIN lengths, password rules) alongside the seed data.
-- `src/utils/`: `tx.ts` (`txScope`, `receiptRows`), `rates.ts` (clock-driven demo quotes), `share-receipt.ts` + `save-image(.web).ts`, `hash.ts` (demo password digest). `src/services/biometrics.ts` wraps expo-local-authentication. `src/hooks/use-auto-lock.ts`.
+- `src/stores/` (Zustand, persisted as `tribe:*`): `session` (auth, transaction PIN, Face ID, KYC, world + landing, phone verified), `prefs`, `wallet`, `cards`, `vault`, `inbox`, `recurring`, `support`, `beneficiaries`, `referrals`. Not persisted: `flow`, `swap-draft`, `send-draft`, `signup`, `overlay`, `ui` (toast + loader). `reset.ts` resets all demo data.
+- `src/data/`: `countries`, `channels` (send rails + their fields), `worlds`, `security` (email code length, password rules) alongside the seed data.
+- `src/utils/`: `tx.ts` (`txScope`, `receiptRows`), `rates.ts` (clock-driven demo quotes), `share-receipt.ts` + `save-image(.web).ts`, `hash.ts` (demo password digest). `src/services/biometrics.ts` wraps expo-local-authentication.
 - `src/theme/`: the only source of colour, type, spacing, radius, shadow and motion.
 
 ## Design rules (v2: Revolut-clean, Gen Z warmth)
@@ -67,7 +68,7 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **No scroll bars**: every `ScrollView` / `FlatList` / `SectionList` sets `showsVerticalScrollIndicator={false}` and `showsHorizontalScrollIndicator={false}`.
 - **Money colour**: outgoing (−) amounts are red, incoming green.
 - **Sensitive screens** (Cashpoint, card details, receipts with tokens/codes, Token Vault, success with a code) mount `<PrivacyGuard />`.
-- **Type:** Bricolage for money and titles only; Poppins for everything else. Use the `Text` variants; never set fontSize in screens. `poster` (uppercase Bricolage 800) is for brand moments only: the intro and the auth band.
+- **Type:** Bricolage for money and titles only; Poppins for everything else. Use the `Text` variants; never set fontSize in screens. `poster` (uppercase Bricolage 800) is for brand moments only: the intro, the auth band and the onboarding finale (`(onboarding)/done`, the member pass). Verification successes (phone, BVN, both PINs) use the custom art in `components/verified-art.tsx`, not icon badges.
 - **Stripes:** at most one stripes motif per screen.
 - **Feedback:** copy actions confirm with `toast()`, not inline "Copied" chips.
 - **Tab bar:**
@@ -80,10 +81,11 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **Currency chips** use `ASSETS_FIAT_FIRST`, and `ChipRow` scrolls a default selection into view.
 - **New native modules** (`expo-blur`, `expo-camera`, `expo-image-picker`, `expo-glass-effect`, `expo-screen-capture`, `expo-clipboard`, `expo-local-authentication`, `expo-sharing`, `expo-media-library`, `react-native-view-shot`) work in Expo Go. A dev build (`npx expo run:ios`) must be **rebuilt** after adding them.
 
-## Auth and lock
+## Auth and PIN
 - **Guards:** `!signedIn` → `(auth)`; `signedIn && !hasOnboarded` → `(onboarding)`; both → the app. Log out = `signOut()` (keeps the device's account and data, remembers the email); Delete account / dev reset = `resetDemoData()` + `wipe()`.
-- **App lock is an overlay, not a guard** (`LockGate` in the root layout, iOS `FullWindowOverlay`), so unlocking returns you exactly where you were. `useAutoLock` locks after 10 min without a touch, incl. background/cold start (`lastActiveAt` is persisted). 3 wrong lock PINs → password sign-in. Mount order in the root layout is the stacking order: LockGate, then OverlayHost (overlays opened from the lock screen must sit above it), LoadingHost, ToastHost.
-- **Two PINs, never confused in copy:** the 4-digit **transaction PIN** approves payments; the 6-digit **lock PIN** unlocks the app. Every lock-PIN screen says it isn't the transaction PIN.
+- **There is no app lock** (removed on purpose: no lock PIN, no auto-lock). Mount order in the root layout is the stacking order: OverlayHost, LoadingHost, ToastHost.
+- **One PIN:** the 4-digit **transaction PIN** approves payments. New users don't create it at sign-up: `/pin` switches to create → confirm the first time a payment is approved (weak PINs refused, `WEAK` in `screens/onboarding/pin-create.tsx`), or they set it in Finish setup / Me › Security. There's no `1234` fallback for real accounts.
+- **Face ID / fingerprint approves payments only** (offered right after the PIN in setup, switchable in Security).
 - **Biometrics are real:** `authenticate()` must succeed before turning Face ID on or approving with it. On web it's simulated in dev only.
 
 ## Rules that came from real bugs
@@ -111,12 +113,11 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - Product codes, the auth header and webhook handling are `TODO(kyc)`.
 
 ## Demo values (never shown in the UI)
-- **Transaction PIN:** whatever the user creates at signup. `1234` is the fallback, and what `dev?action=onboard` sets.
+- **Transaction PIN:** created on the first payment (or in Finish setup). `dev?action=onboard` / `showcase` set `1234` (and mark the phone verified).
 - **OTP:** any 6 digits are accepted (no SMS backend).
 - **Redeem:** any 12-digit Cashpoint redeems ₦5,000, except `000000000000` (doesn't exist) and `111111111111` (already redeemed).
 - **Sign in:** `ada@tribe.africa` / `Tribe@2026`, or the account created on this device. Taken emails, @tags and phone numbers are in `DEMO` (`src/data/seed.ts`).
 - **Email codes:** any 4 digits verify, except `0000` (reads as expired).
-- **Lock PIN:** whatever was set in setup; `dev?action=onboard` sets `123456`. `dev?action=lock` locks now.
 - **Global accounts** (Global payments world) are "approved" 45 s after "Submit for review", while Home is open.
 
 ## Verifying UI changes

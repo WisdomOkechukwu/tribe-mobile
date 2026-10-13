@@ -1,9 +1,3 @@
-/** Auto-lock after this long without a touch (or this long in the background). */
-export const AUTO_LOCK_MS = 10 * 60_000;
-/** The lock PIN unlocks the app. It is NOT the 4-digit transaction PIN. */
-export const LOCK_PIN_LENGTH = 6;
-/** Wrong lock PINs before we ask for the password instead. */
-export const LOCK_MAX_TRIES = 3;
 /** Email codes (sign-up and password reset). */
 export const EMAIL_CODE_LENGTH = 4;
 

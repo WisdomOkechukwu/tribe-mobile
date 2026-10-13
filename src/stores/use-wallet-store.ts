@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { assetByCode, type AssetCode } from "@/data/assets";
-import { SEED_BALANCES, SEED_OPENED, seedTransactions, type Transaction } from "@/data/seed";
+import { SEED_BALANCES, SEED_OPENED, SENDER_SEED_IDS, seedTransactions, type Transaction } from "@/data/seed";
 import { formatAsset, quote, randomDigits } from "@/utils/format";
 import { persistStorage } from "./storage";
 
@@ -27,8 +27,16 @@ type WalletState = {
   redeemCashpoint: (code: string, amount: number) => Transaction;
   /** cancel an unredeemed Cashpoint: the Naira comes back, the code stops working */
   cancelCashpoint: (txId: string) => void;
+  /** a brand-new account has no card yet, so it has no card activity either */
+  dropCardActivity: () => void;
   reset: () => void;
 };
+
+/** History kept on the device. Every write serialises the whole list, so it can't grow forever. */
+const MAX_TRANSACTIONS = 300;
+/** Newest first, capped — older settled entries drop off; anything still pending is kept. */
+const capped = (list: Transaction[]) =>
+  list.length <= MAX_TRANSACTIONS ? list : list.filter((t, i) => i < MAX_TRANSACTIONS || t.status === "pending");
 
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const newRef = () => `TRB-${Date.now().toString(36).toUpperCase().slice(-6)}`;
@@ -48,7 +56,7 @@ export const useWalletStore = create<WalletState>()(
           balances[code] += delta;
         }
         const full: Transaction = { status: "completed", ...tx, id: newId(), date: new Date().toISOString(), reference: newRef() };
-        set({ balances, transactions: [full, ...get().transactions] });
+        set({ balances, transactions: capped([full, ...get().transactions]) });
         return full;
       },
 
@@ -105,12 +113,14 @@ export const useWalletStore = create<WalletState>()(
         });
       },
 
+      dropCardActivity: () => set((s) => ({ transactions: s.transactions.filter((t) => t.type !== "card" && !t.meta?.cardId) })),
+
       reset: () => set({ balances: { ...SEED_BALANCES }, transactions: seedTransactions(), opened: [...SEED_OPENED] }),
     }),
     {
       name: "tribe:wallet",
       storage: persistStorage,
-      version: 4,
+      version: 5,
       migrate: (state, version) => {
         const s = { opened: [...SEED_OPENED], ...(state as object) } as WalletState;
         if (version < 3 && Array.isArray(s.transactions)) {
@@ -125,6 +135,17 @@ export const useWalletStore = create<WalletState>()(
           // v4: seed a card top-up that shows the currency it was funded from
           const topUp = seedTransactions().find((t) => t.id === "t17")!;
           s.transactions = [...s.transactions, topUp].sort((a, b) => b.date.localeCompare(a.date));
+        }
+        if (version < 5 && Array.isArray(s.transactions)) {
+          // v5: deposits know their sender (receipt → "More from…"); add the earlier seed deposits
+          const seeds = new Map(seedTransactions().map((t) => [t.id, t]));
+          s.transactions = s.transactions.map((t) => {
+            const seed = seeds.get(t.id);
+            return t.type === "receive" && !t.meta?.sender && seed?.meta?.sender ? { ...t, meta: { ...t.meta, ...seed.meta } } : t;
+          });
+          const have = new Set(s.transactions.map((t) => t.id));
+          const extra = SENDER_SEED_IDS.filter((id) => !have.has(id)).map((id) => seeds.get(id)!);
+          s.transactions = [...s.transactions, ...extra].sort((a, b) => b.date.localeCompare(a.date));
         }
         return s;
       },

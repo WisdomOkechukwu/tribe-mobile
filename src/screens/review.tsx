@@ -22,7 +22,7 @@ import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore, type PendingAction } from "@/stores/use-flow-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset, quote } from "@/utils/format";
-import { liveUsd, useQuoteClock } from "@/utils/rates";
+import { liveUsd, quoteTick, useQuoteTick } from "@/utils/rates";
 
 type Summary = {
   icon: ReactNode;
@@ -56,7 +56,7 @@ function RecipientCard({ name, handle, sub }: { name: string; handle: string; su
       </Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: c.brandSoft, borderRadius: radius.group, borderCurve: "continuous", borderWidth: 1, borderColor: c.brand, padding: spacing.smd }}>
         <Avatar size={40} name={name} />
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
           <Text variant="bodyStrong" numberOfLines={1}>
             {name}
           </Text>
@@ -71,7 +71,7 @@ function RecipientCard({ name, handle, sub }: { name: string; handle: string; su
 }
 
 /** Everything the review and PIN screens show about a pending money action. */
-export function actionSummary(a: PendingAction): Summary {
+export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
   switch (a.kind) {
     case "send": {
       const toAsset = a.toAsset ?? a.asset;
@@ -81,7 +81,7 @@ export function actionSummary(a: PendingAction): Summary {
         ["Net amount to send", formatAsset(a.amount, a.asset)],
         ["Send fee", a.fee ? formatAsset(a.fee, a.asset) : "Free"],
       ];
-      if (converted) rows.push(["Rate", rateText(a.asset, toAsset, quote(1, a.asset, toAsset).rate)], ["Conversion fee", `${SWAP_FEE * 100}%`]);
+      if (converted) rows.push(["Rate", rateText(a.asset, toAsset, quote(1, a.asset, toAsset, tick).rate)], ["Conversion fee", `${SWAP_FEE * 100}%`]);
       rows.push(["Amount to receive", formatAsset(toAmount, toAsset)], ["Total to debit", formatAsset(a.amount + a.fee, a.asset)], ["Channel", a.network ? `${a.channel}` : a.channel], ["Estimated time", a.eta ?? "Within minutes"]);
       return {
         icon: converted ? <PairIcon from={a.asset} to={toAsset} size={56} /> : <CoinIcon code={a.asset} size={56} />,
@@ -97,7 +97,7 @@ export function actionSummary(a: PendingAction): Summary {
       };
     }
     case "swap": {
-      const q = quote(a.amount, a.from, a.to);
+      const q = quote(a.amount, a.from, a.to, tick);
       return {
         icon: <PairIcon from={a.from} to={a.to} size={60} />,
         amount: formatAsset(q.receive, a.to),
@@ -128,7 +128,7 @@ export function actionSummary(a: PendingAction): Summary {
         icon: <PairIcon from={a.payWith} front={(sz) => <BillerThumb biller={b} size={sz} />} size={64} />,
         amount: `₦${a.amountNgn.toLocaleString()}`,
         line: `${b.name}${a.plan ? ` · ${a.plan}` : ""}`,
-        rows: [[field, a.target], ...(a.plan ? ([["Plan", a.plan]] as [string, string][]) : []), ["Paying with", formatAsset(cost, a.payWith)], ["Fee", "Free"]],
+        rows: [[field, a.target], ...(a.plan ? ([["Plan", a.plan]] as [string, string][]) : []), ["Paying from", `${assetByCode(a.payWith).name} wallet`], ...(a.payWith !== "NGN" ? ([["You pay", formatAsset(cost, a.payWith)]] as [string, string][]) : []), ["Fee", "Free"]],
         note: b.category === "electricity" ? "Your token is saved to the Token Vault the moment it's issued." : undefined,
       };
     }
@@ -226,7 +226,7 @@ export function actionSummary(a: PendingAction): Summary {
       };
     }
     case "referral-withdraw": {
-      const received = (a.amountNgn * liveUsd("NGN")) / liveUsd(a.to);
+      const received = (a.amountNgn * liveUsd("NGN", tick)) / liveUsd(a.to, tick);
       const to = assetByCode(a.to);
       return {
         icon: <PairIcon from="NGN" to={a.to} size={56} />,
@@ -238,7 +238,7 @@ export function actionSummary(a: PendingAction): Summary {
         rows: [
           ["From", "Referral balance"],
           ["To", `${to.name} (${to.code})`],
-          ...(a.to !== "NGN" ? ([["Rate", rateText("NGN", a.to, liveUsd("NGN") / liveUsd(a.to))]] as [string, string][]) : []),
+          ...(a.to !== "NGN" ? ([["Rate", rateText("NGN", a.to, liveUsd("NGN", tick) / liveUsd(a.to, tick))]] as [string, string][]) : []),
           ["You receive", formatAsset(received, a.to)],
           ["Fee", "Free"],
           ["Lands", "Instantly"],
@@ -259,8 +259,8 @@ export function actionSummary(a: PendingAction): Summary {
 /** Shared review step for every money flow → /pin → /success. */
 export function ReviewScreen({ step }: { step?: string }) {
   const pending = useFlowStore((s) => s.pending);
-  // re-renders each second: swap quotes refresh every 30s and the rows follow
-  const { left } = useQuoteClock();
+  // re-renders when the 30-second quote window rolls over, and the rows re-price with it
+  const tick = useQuoteTick();
   const isSwap = pending?.kind === "swap";
 
   if (!pending) {
@@ -270,7 +270,7 @@ export function ReviewScreen({ step }: { step?: string }) {
       </FlowScreen>
     );
   }
-  const s = actionSummary(pending);
+  const s = actionSummary(pending, tick);
 
   return (
     <FlowScreen title="Review" step={step} cancel="back" footer={<Button title={s.cta ?? "Confirm with PIN"} icon="lock" onPress={() => router.push("/pin")} />}>
@@ -297,7 +297,7 @@ export function ReviewScreen({ step }: { step?: string }) {
           </Text>
         </View>
       )}
-      <ListSection inset={spacing.md} title={s.breakdown} action={isSwap ? <QuoteTimer left={left} /> : undefined}>
+      <ListSection inset={spacing.md} title={s.breakdown} action={isSwap ? <QuoteTimer /> : undefined}>
         {s.rows.map(([k, v]) => (
           <ListRow key={k} title={k} value={v} valueTone="text" compact />
         ))}

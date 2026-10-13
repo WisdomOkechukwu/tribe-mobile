@@ -32,7 +32,7 @@ export const Field = forwardRef<TextInput, TextInputProps & { label?: string; hi
         {trailing}
       </View>
       {hint && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.xs }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.xs }}>
           {hintTone === "success" && <Icon name="checkCircle" size={13} color={c.success} />}
           <Text variant="caption" tone={hintTone} style={{ flexShrink: 1 }}>
             {hint}

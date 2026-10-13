@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Share, View } from "react-native";
+import { ScrollView, Share, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { copyToClipboard, CopyField, Note } from "@/components/bits";
 import { Button } from "@/components/button";
@@ -9,13 +9,18 @@ import { Dropdown } from "@/components/dropdown";
 import { FlowScreen } from "@/components/flow-screen";
 import { RowIcon, ListSection } from "@/components/list";
 import { Text } from "@/components/text";
-import { assetByCode, ASSETS_FIAT_FIRST, DEPOSIT_ADDRESSES, type AssetCode } from "@/data/assets";
+import { assetByCode, ASSETS_FIAT_FIRST, DEPOSIT_ADDRESSES, railsFor, type AssetCode } from "@/data/assets";
+import { PressableScale } from "@/components/pressable-scale";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
-import { palette, radius, spacing, useColors } from "@/theme";
+import { fonts, palette, radius, spacing, useColors } from "@/theme";
 
-/** Receive: pick the currency (and network for crypto) from our own dropdowns, then share. */
+/**
+ * Receive: pick the currency, then how it's coming in — the network for crypto, the payment rail
+ * for fiat (ACH / wire / SWIFT, Faster Payments / BACS, SEPA / SEPA Instant…) — and share the
+ * details for exactly that rail.
+ */
 export default function Receive() {
   const c = useColors();
   const params = useLocalSearchParams<{ code: string }>();
@@ -27,6 +32,9 @@ export default function Receive() {
   const net = a.networks?.find((n) => n.id === network) ?? a.networks?.[0];
   const address = net ? (DEPOSIT_ADDRESSES[`${a.code}:${net.id}`] ?? "") : "";
   const crypto = a.kind === "crypto";
+  const rails = railsFor(a);
+  const [railId, setRailId] = useState(rails[0]?.id ?? "");
+  const rail = rails.find((r) => r.id === railId) ?? rails[0];
 
   const pickCurrency = () =>
     overlay.select({
@@ -36,13 +44,14 @@ export default function Receive() {
       options: ASSETS_FIAT_FIRST.filter((x) => opened.includes(x.code)).map((x) => ({
         value: x.code,
         label: x.name,
-        sub: x.kind === "crypto" ? `${x.code} · wallet address` : `${x.code} · ${x.account?.label.replace(/^Your /, "") ?? "account details"}`,
+        sub: x.kind === "crypto" ? `${x.code} · wallet address` : `${x.code} · ${railsFor(x).map((r) => r.name).join(", ")}`,
         leading: <CoinIcon code={x.code} size={36} />,
       })),
       onSelect: (v) => {
         const next = assetByCode(v);
         setCode(next.code);
         setNetwork(next.networks?.[0]?.id ?? "");
+        setRailId(railsFor(next)[0]?.id ?? "");
       },
     });
 
@@ -58,11 +67,11 @@ export default function Receive() {
   const share = () =>
     crypto
       ? Share.share({ message: `My ${a.code} (${net?.name}) address on Tribe: ${address}` })
-      : Share.share({ message: `${a.account?.label}\n${(a.account?.fields ?? []).map((f) => `${f.label}: ${f.value}`).join("\n")}` });
+      : Share.share({ message: `My ${a.code} details for ${rail?.name} (Tribe)\n${(rail?.fields ?? []).map((f) => `${f.label}: ${f.value}`).join("\n")}` });
 
   return (
     <FlowScreen title="Receive" cancel="x" footer={<Button title={crypto ? "Share address" : "Share details"} icon="share" onPress={share} />}>
-      <Dropdown label="Currency" value={a.name} sub={crypto ? `${a.code} · crypto` : `${a.code} · ${a.account?.label.replace(/^Your /, "")}`} leading={<CoinIcon code={a.code} size={36} />} onPress={pickCurrency} />
+      <Dropdown label="Currency" value={a.name} sub={crypto ? `${a.code} · crypto` : `${a.code} · ${rails.length} way${rails.length > 1 ? "s" : ""} to get paid`} leading={<CoinIcon code={a.code} size={36} />} onPress={pickCurrency} />
 
       {crypto ? (
         <>
@@ -86,11 +95,34 @@ export default function Receive() {
           </Note>
         </>
       ) : (
-        <ListSection inset={spacing.md} title="Account details">
-          {(a.account?.fields ?? []).map((f) => (
-            <CopyField key={f.label} label={f.label} value={f.value} />
-          ))}
-        </ListSection>
+        <>
+          {/* how it's coming in: one chip per payment rail */}
+          <View style={{ gap: spacing.sm }}>
+            <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
+              How it&apos;s coming in
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} style={{ marginHorizontal: -spacing.mdl }} contentContainerStyle={{ paddingHorizontal: spacing.mdl, gap: spacing.sm }}>
+              {rails.map((r) => {
+                const on = r.id === rail?.id;
+                return (
+                  <PressableScale key={r.id} onPress={() => setRailId(r.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${r.name}, arrives ${r.eta}`} style={{ minWidth: 118, backgroundColor: on ? c.brand : c.surface, borderRadius: radius.group, borderCurve: "continuous", paddingHorizontal: spacing.md, paddingVertical: spacing.smd, gap: spacing.xxs }}>
+                    <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: on ? c.onBrand : c.text }}>{r.name}</Text>
+                    <Text variant="caption" style={{ color: on ? "rgba(255,255,255,0.8)" : c.textMuted }}>
+                      {r.eta}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </ScrollView>
+          </View>
+          {rail && (
+            <ListSection inset={spacing.md} title={`${rail.name} details`} footer={`Arrives ${rail.eta.toLowerCase()} · ${rail.fee === "Free" ? "free to receive" : rail.fee.toLowerCase()}`}>
+              {rail.fields.map((f) => (
+                <CopyField key={f.label} label={f.label} value={f.value} />
+              ))}
+            </ListSection>
+          )}
+        </>
       )}
 
       <ListSection inset={spacing.md} footer="Tribe-to-Tribe transfers are instant and free, in any currency.">

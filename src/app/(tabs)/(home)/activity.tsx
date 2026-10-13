@@ -5,17 +5,17 @@ import { EmptyState } from "@/components/bits";
 import { Button } from "@/components/button";
 import { Icon } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
-import { Screen } from "@/components/screen";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
-import { TransactionList } from "@/components/transaction-row";
+import { TransactionSectionList } from "@/components/transaction-row";
+import type { AssetCode } from "@/data/assets";
 import type { Transaction, TxType } from "@/data/seed";
 import { openAddMoneySheet } from "@/screens/home/sheets";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
-import { txScope, type TxScope } from "@/utils/tx";
+import { senderOf, txScope, type TxScope } from "@/utils/tx";
 
 type Tab = "all" | TxScope;
 const TABS: { value: Tab; label: string }[] = [
@@ -45,21 +45,27 @@ const TYPES: { value: "any" | TxType; label: string }[] = [
  */
 export default function History() {
   const c = useColors();
-  const params = useLocalSearchParams<{ type?: TxType; card?: string; tab?: Tab }>();
+  const params = useLocalSearchParams<{ type?: TxType; card?: string; tab?: Tab; asset?: AssetCode; from?: string; fromName?: string }>();
   const all = useWalletStore((s) => s.transactions);
   const card = useCardsStore((s) => s.cards.find((k) => k.id === params.card));
   const [tab, setTab] = useState<Tab>(params.tab ?? "all");
   const [type, setType] = useState<"any" | TxType>(params.type ?? "any");
   const [cardId, setCardId] = useState(params.card);
+  const [asset, setAsset] = useState(params.asset);
+  // receipt → "More from…": every deposit from one sender
+  const [from, setFrom] = useState(params.from);
 
-  const match = (t: Transaction) => (tab === "all" || txScope(t) === tab) && (type === "any" || t.type === type) && (!cardId || t.meta?.cardId === cardId);
+  const match = (t: Transaction) =>
+    (tab === "all" || txScope(t) === tab) && (type === "any" || t.type === type) && (!cardId || t.meta?.cardId === cardId) && (!asset || t.asset === asset || t.toAsset === asset) && (!from || senderOf(t)?.key === from);
   const items = all.filter(match);
-  const filtered = type !== "any" || !!cardId;
+  const filtered = type !== "any" || !!cardId || !!asset || !!from;
   const typeLabel = TYPES.find((t) => t.value === type)?.label;
 
   const clearFilter = () => {
     setType("any");
     setCardId(undefined);
+    setAsset(undefined);
+    setFrom(undefined);
   };
   const pickType = () =>
     overlay.select({
@@ -72,8 +78,8 @@ export default function History() {
       },
     });
 
-  return (
-    <Screen>
+  const header = (
+    <>
       <Stack.Screen
         options={{
           title: "History",
@@ -90,22 +96,25 @@ export default function History() {
           <PressableScale
             onPress={clearFilter}
             accessibilityLabel="Clear filter"
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.brandSoft, borderRadius: radius.full, paddingVertical: 5, paddingLeft: spacing.smd, paddingRight: spacing.sm }}
+            style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.brandSoft, borderRadius: radius.full, paddingVertical: spacing.xs, paddingLeft: spacing.smd, paddingRight: spacing.sm }}
           >
             <Text variant="subhead" tone="brand">
-              {card && cardId ? `${card.label} •• ${card.last4}` : typeLabel}
+              {from ? `From ${params.fromName ?? "sender"}` : card && cardId ? `${card.label} •• ${card.last4}` : asset && type === "any" ? asset : typeLabel}
             </Text>
             <Icon name="close" size={10} color={c.brandText} weight="bold" />
           </PressableScale>
         </View>
       )}
-      {items.length ? (
-        <TransactionList items={items} />
-      ) : all.length === 0 ? (
-        <EmptyState icon="history" title="No transactions yet" body="Add money to get started. Sending, swapping and paying bills all show up here." action={<Button title="Deposit now" inline onPress={openAddMoneySheet} />} />
-      ) : (
-        <EmptyState icon="history" title="Nothing here yet" body={filtered ? "Nothing matches this filter. Try another type." : `No ${tab === "all" ? "" : `${tab} `}transactions yet.`} action={filtered ? <Button title="Clear filter" variant="secondary" inline onPress={clearFilter} /> : undefined} />
-      )}
-    </Screen>
+    </>
   );
+
+  const empty =
+    all.length === 0 ? (
+      <EmptyState icon="history" title="No transactions yet" body="Add money to get started. Sending, swapping and paying bills all show up here." action={<Button title="Deposit now" inline onPress={openAddMoneySheet} />} />
+    ) : (
+      <EmptyState icon="history" title="Nothing here yet" body={filtered ? "Nothing matches this filter. Try another type." : `No ${tab === "all" ? "" : `${tab} `}transactions yet.`} action={filtered ? <Button title="Clear filter" variant="secondary" inline onPress={clearFilter} /> : undefined} />
+    );
+
+  // virtualised: only the visible rows are mounted, however long the history gets
+  return <TransactionSectionList items={items} header={header} empty={empty} />;
 }
