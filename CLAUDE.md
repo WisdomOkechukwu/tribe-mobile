@@ -7,8 +7,8 @@ Expo SDK 57 · Expo Router · React Native 0.86 · Reanimated 4 · React Compile
 ## Run
 Homebrew Node on this machine is broken, so prefix every command with `export PATH=~/.nvm/versions/node/v24.19.0/bin:$PATH`.
 ```sh
-npx expo start            # Expo Go (QoreID falls back to the mock flow)
-npx expo run:ios          # native dev build: needed for the real QoreID SDK
+npx expo start            # Expo Go
+npx expo run:ios          # native dev build
 npm run check            # tsc + expo lint + SF Symbols guard (scripts/check-symbols.mjs)
 npm run flags            # re-rasterise assets/flags/*.png from flag-icons (needs the root's sharp)
 ```
@@ -105,12 +105,9 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - `Appearance.setColorScheme` doesn't exist on web; keep the guard in the root layout.
 - Static `boxShadow` strings and `borderCurve: "continuous"` are fine. Don't use Tailwind or NativeWind here.
 
-## Identity verification (QoreID)
-- **Client-only.** `src/services/kyc.ts` asks **Tribe's backend** for a session token at `EXPO_PUBLIC_KYC_SESSION_URL`, then launches `QoreIdSdk.launch(...)`.
-- QoreID client credentials must never be in this app. The backend mints `POST https://api.qoreid.com/v1/sessions` and owns the webhook, which is the only trustworthy result.
-- **The mock flow** runs automatically in Expo Go, when `EXPO_PUBLIC_KYC_SESSION_URL` is unset, or with `EXPO_PUBLIC_KYC_PROVIDER=mock`.
-- The SDK module is `require`d lazily inside the native branch, because a static import crashes Expo Go.
-- Product codes, the auth header and webhook handling are `TODO(kyc)`.
+## Identity verification
+- `setup/bvn` and `VerifyFlow` collect a tier's details, show **processing** for a beat, then mark the tier verified (`setKyc({ tier, status: "approved", reference })`, with a `KYC-…` reference). `src/services/kyc.ts` holds the tier data (`TIER_INFO`).
+- No identity provider is wired up. Sending the details to Tribe's backend is `TODO(kyc)`.
 
 ## Demo values (never shown in the UI)
 - **Transaction PIN:** created on the first payment (or in Finish setup). `dev?action=onboard` / `showcase` set `1234` (and mark the phone verified).

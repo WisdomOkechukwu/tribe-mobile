@@ -58,7 +58,7 @@ export default function VerifyCentre() {
         })}
       </ListSection>
 
-      <Note icon="shield">Identity checks are run by QoreID, our licensed verification partner. Your documents are encrypted and never sold.</Note>
+      <Note icon="shield">Your identity details are checked against official records. Your documents are encrypted and never sold.</Note>
     </Screen>
   );
 }

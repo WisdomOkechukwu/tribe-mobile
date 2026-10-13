@@ -10,7 +10,7 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { TierUnlockedArt } from "@/components/verified-art";
 import { Perks } from "@/screens/onboarding/shell";
-import { kycProvider, TIER_INFO, verifyWithQoreId, type KycOutcome } from "@/services/kyc";
+import { newKycReference, TIER_INFO, type KycOutcome } from "@/services/kyc";
 import { TIER_LIMITS, useSessionStore, type KycTier } from "@/stores/use-session-store";
 import { palette, radius, spacing, useColors } from "@/theme";
 
@@ -147,15 +147,13 @@ function TierUnlocked({ tier, onDone }: { tier: Exclude<KycTier, 0>; onDone: () 
 }
 
 /**
- * One verification run for a tier. Native builds hand off to QoreID; Expo Go runs a branded
- * stand-in (same steps, no real check) so the whole app stays demoable.
+ * One verification run for a tier: collect the details, show "processing" for a beat, then the
+ * tier is verified.
  */
 export function VerifyFlow({ tier, onFinished, onSkip }: { tier: Exclude<KycTier, 0>; onFinished: (outcome: KycOutcome) => void; onSkip?: () => void }) {
   const c = useColors();
   const info = TIER_INFO[tier];
-  const user = useSessionStore((s) => s.user);
   const setKyc = useSessionStore((s) => s.setKyc);
-  const provider = kycProvider();
   const [step, setStep] = useState<Step>("intro");
   const [consent, setConsent] = useState(false);
   const [idNumber, setIdNumber] = useState("");
@@ -164,32 +162,22 @@ export function VerifyFlow({ tier, onFinished, onSkip }: { tier: Exclude<KycTier
   const finish = (o: KycOutcome) => {
     setOutcome(o);
     setStep("result");
-    if (o.status === "approved") setKyc({ tier, status: "approved", reference: o.reference });
-    else if (o.status === "pending") setKyc({ status: "pending", reference: o.reference });
-    else if (o.status === "failed") setKyc({ status: "failed", reference: o.reference });
     Haptics.notificationAsync(o.status === "failed" ? Haptics.NotificationFeedbackType.Error : Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
 
-  const start = async () => {
-    if (provider === "mock") {
-      setStep(info.idLength ? "id" : tier >= 2 ? "selfie" : "processing");
-      return;
-    }
-    setStep("processing");
-    try {
-      finish(await verifyWithQoreId({ tier, subjectRef: user.tag, applicant: { firstName: user.firstName, lastName: user.lastName, phoneNumber: user.phone, email: user.email } }));
-    } catch (e) {
-      finish({ status: "failed", reference: null, message: e instanceof Error ? e.message : "Verification is unavailable right now." });
-    }
-  };
+  const start = () => setStep(info.idLength ? "id" : tier >= 2 ? "selfie" : "processing");
 
-  // Mock: after the capture steps, "process" for a beat then approve.
+  // After the capture steps, "process" for a beat, then the tier is verified. TODO(kyc): backend.
   useEffect(() => {
-    if (provider !== "mock" || step !== "processing") return;
-    const t = setTimeout(() => finish({ status: "approved", reference: `mock-${Date.now().toString(36)}` }), 2200);
+    if (step !== "processing") return;
+    const t = setTimeout(() => {
+      const reference = newKycReference();
+      setKyc({ tier, status: "approved", reference });
+      finish({ status: "approved", reference });
+    }, 2200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, provider]);
+  }, [step]);
 
   if (step === "intro") {
     return (
@@ -212,7 +200,7 @@ export function VerifyFlow({ tier, onFinished, onSkip }: { tier: Exclude<KycTier
             [
               ["verified", info.unlocks],
               ["shield", `New daily limit: ${TIER_LIMITS[tier].daily}`],
-              ["lock", "Checked securely by QoreID, our licensed identity partner. We never sell your data."],
+              ["lock", "Checked securely against official records. We never sell your data."],
             ] as [IconName, string][]
           ).map(([icon, text]) => (
             <View key={text} style={{ flexDirection: "row", gap: spacing.smd, alignItems: "center" }}>
@@ -235,7 +223,7 @@ export function VerifyFlow({ tier, onFinished, onSkip }: { tier: Exclude<KycTier
         )}
         <View style={{ flex: 1 }} />
         <Checkbox checked={consent} onChange={setConsent}>
-          I agree to Tribe and QoreID checking my identity details against official records for this verification.
+          I agree to Tribe checking my identity details against official records for this verification.
         </Checkbox>
         <Button title="Start verification" disabled={!consent} onPress={start} />
         {onSkip && <Button title="Skip for now" variant="ghost" onPress={onSkip} />}
@@ -265,11 +253,9 @@ export function VerifyFlow({ tier, onFinished, onSkip }: { tier: Exclude<KycTier
           Position your face in the frame and hold still.
         </Text>
         <SelfieFrame />
-        {provider === "mock" && (
-          <Text variant="caption" tone="subtle" align="center">
-            Demo mode: no photo is taken in Expo Go.
-          </Text>
-        )}
+        <Text variant="caption" tone="subtle" align="center">
+          Demo mode: no photo is taken.
+        </Text>
         <View style={{ flex: 1 }} />
         <Button title="Capture" icon="camera" onPress={() => setStep("processing")} />
       </View>
@@ -280,9 +266,9 @@ export function VerifyFlow({ tier, onFinished, onSkip }: { tier: Exclude<KycTier
     return (
       <Animated.View entering={FadeIn} style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md }}>
         <ActivityIndicator size="large" color={c.brand} />
-        <Text variant="heading">Checking your details…</Text>
+        <Text variant="heading">Processing…</Text>
         <Text variant="body" tone="muted" align="center">
-          This usually takes a few seconds.
+          We&apos;re verifying your details. This only takes a moment.
         </Text>
       </Animated.View>
     );

@@ -42,5 +42,5 @@ example
 /ios
 /android
 
-# secrets — QoreID credentials must never be committed
+# secrets
 .env

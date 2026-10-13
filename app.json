@@ -52,7 +52,6 @@
         }
       ],
       "expo-font",
-      "@qore-id/react-native-qoreid-sdk/plugin",
       [
         "expo-image-picker",
         {
