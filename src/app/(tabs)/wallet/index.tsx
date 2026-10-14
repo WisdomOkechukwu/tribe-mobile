@@ -91,11 +91,6 @@ export default function Wallet() {
           ))}
         </ListSection>
       )}
-
-      <ListSection>
-        <ListRow icon="globe" iconTint={c.brandText} iconBg={c.brandSoft} title="Add a currency" subtitle="Hold, receive and swap in more currencies" onPress={() => guardWalletOpen(() => router.push("/add-currency"))} />
-        <ListRow icon="swap" iconTint={c.brandText} iconBg={c.brandSoft} title="Swap" subtitle="Anything for anything, at one clear rate" onPress={() => router.push("/swap")} />
-      </ListSection>
     </Screen>
   );
 }

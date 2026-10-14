@@ -3,9 +3,9 @@ import { useState } from "react";
 import { View } from "react-native";
 import { EmptyState } from "@/components/bits";
 import { Button } from "@/components/button";
-import { Icon } from "@/components/icon";
+import { Icon, type IconName } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
-import { Segmented } from "@/components/segmented";
+import { ChipRow, useChipText } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { TransactionSectionList } from "@/components/transaction-row";
 import type { AssetCode } from "@/data/assets";
@@ -17,65 +17,77 @@ import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { senderOf, txScope, type TxScope } from "@/utils/tx";
 
-type Tab = "all" | TxScope;
-const TABS: { value: Tab; label: string }[] = [
+/** What happened: the chips under the title. Gift cards and referrals only show under All. */
+type Category = "all" | "swap" | "utility" | "cashpoint" | "card" | "deposit" | "withdrawal";
+const CATEGORIES: { value: Category; label: string; icon?: IconName; type?: TxType }[] = [
   { value: "all", label: "All" },
-  { value: "local", label: "Local" },
-  { value: "crypto", label: "Crypto" },
-  { value: "global", label: "Global" },
+  { value: "swap", label: "Swap", icon: "swap", type: "swap" },
+  { value: "utility", label: "Utility", icon: "bill", type: "bill" },
+  { value: "cashpoint", label: "Cashpoint", icon: "cashpoint", type: "cashpoint" },
+  { value: "card", label: "Virtual cards", icon: "card", type: "card" },
+  { value: "deposit", label: "Deposits", icon: "receive", type: "receive" },
+  { value: "withdrawal", label: "Withdrawals", icon: "send", type: "send" },
 ];
+const CATEGORY_VALUES = CATEGORIES.map((k) => k.value);
+const categoryOf = (type?: TxType): Category => CATEGORIES.find((k) => k.type === type)?.value ?? "all";
 
-/** The type filter (Transaction.png's filter menu), in our own picker. */
-const TYPES: { value: "any" | TxType; label: string }[] = [
-  { value: "any", label: "All types" },
-  { value: "receive", label: "Deposits" },
-  { value: "send", label: "Sends" },
-  { value: "swap", label: "Swaps" },
-  { value: "bill", label: "Bills" },
-  { value: "giftcard", label: "Gift cards" },
-  { value: "card", label: "Cards" },
-  { value: "cashpoint", label: "Cashpoints" },
-  { value: "referral", label: "Referrals" },
+/** Which balances: the filter button in the header. */
+type Scope = "all" | TxScope;
+const SCOPES: { value: Scope; label: string }[] = [
+  { value: "all", label: "All accounts" },
+  { value: "local", label: "Local (NGN)" },
+  { value: "crypto", label: "Crypto" },
+  { value: "global", label: "Global accounts" },
 ];
 
 /**
- * History (Transaction.png): All / Local / Crypto / Global, a type filter in the header, status
- * chips on rows, and an empty state that gets you to a first deposit. `?type=card&card=c1`
- * opens it pre-filtered (Cards → All transactions).
+ * History: category chips (All · Swap · Utility · Cashpoint · Virtual cards · Deposits ·
+ * Withdrawals), an account filter in the header, status chips on rows, and an empty state that
+ * gets you to a first deposit. `?type=card&card=c1` opens it pre-filtered (Cards → All transactions).
  */
 export default function History() {
   const c = useColors();
-  const params = useLocalSearchParams<{ type?: TxType; card?: string; tab?: Tab; asset?: AssetCode; from?: string; fromName?: string }>();
+  const chipText = useChipText();
+  const params = useLocalSearchParams<{ type?: TxType; card?: string; tab?: Scope; asset?: AssetCode; from?: string; fromName?: string }>();
   const all = useWalletStore((s) => s.transactions);
   const card = useCardsStore((s) => s.cards.find((k) => k.id === params.card));
-  const [tab, setTab] = useState<Tab>(params.tab ?? "all");
-  const [type, setType] = useState<"any" | TxType>(params.type ?? "any");
+  const [category, setCategory] = useState<Category>(categoryOf(params.type));
+  const [scope, setScope] = useState<Scope>(params.tab ?? "all");
   const [cardId, setCardId] = useState(params.card);
   const [asset, setAsset] = useState(params.asset);
   // receipt → "More from…": every deposit from one sender
   const [from, setFrom] = useState(params.from);
 
+  const type = CATEGORIES.find((k) => k.value === category)?.type;
   const match = (t: Transaction) =>
-    (tab === "all" || txScope(t) === tab) && (type === "any" || t.type === type) && (!cardId || t.meta?.cardId === cardId) && (!asset || t.asset === asset || t.toAsset === asset) && (!from || senderOf(t)?.key === from);
+    (scope === "all" || txScope(t) === scope) && (!type || t.type === type) && (!cardId || t.meta?.cardId === cardId) && (!asset || t.asset === asset || t.toAsset === asset) && (!from || senderOf(t)?.key === from);
   const items = all.filter(match);
-  const filtered = type !== "any" || !!cardId || !!asset || !!from;
-  const typeLabel = TYPES.find((t) => t.value === type)?.label;
+  // narrowing beyond the chips: shown as removable pills
+  const pills = [
+    scope !== "all" && { key: "scope", label: SCOPES.find((x) => x.value === scope)?.label, clear: () => setScope("all") },
+    !!cardId && { key: "card", label: card ? `${card.label} •• ${card.last4}` : "This card", clear: () => setCardId(undefined) },
+    !!asset && { key: "asset", label: asset, clear: () => setAsset(undefined) },
+    !!from && { key: "from", label: `From ${params.fromName ?? "sender"}`, clear: () => setFrom(undefined) },
+  ].filter((x) => !!x);
+  const filtered = category !== "all" || pills.length > 0;
 
   const clearFilter = () => {
-    setType("any");
+    setCategory("all");
+    setScope("all");
     setCardId(undefined);
     setAsset(undefined);
     setFrom(undefined);
   };
-  const pickType = () =>
+  const pickCategory = (v: Category) => {
+    setCategory(v);
+    if (v !== "card") setCardId(undefined);
+  };
+  const pickScope = () =>
     overlay.select({
-      title: "Show",
-      value: type,
-      options: TYPES.map((t) => ({ value: t.value, label: t.label })),
-      onSelect: (v) => {
-        setType(v as "any" | TxType);
-        if (v !== "card") setCardId(undefined);
-      },
+      title: "Accounts",
+      value: scope,
+      options: SCOPES.map((x) => ({ value: x.value, label: x.label })),
+      onSelect: (v) => setScope(v as Scope),
     });
 
   const header = (
@@ -84,27 +96,48 @@ export default function History() {
         options={{
           title: "History",
           headerRight: () => (
-            <PressableScale onPress={pickType} hitSlop={10} accessibilityLabel={filtered ? `Filter: ${typeLabel}` : "Filter by type"} style={{ paddingHorizontal: 4 }}>
-              <Icon name="filter" size={22} color={filtered ? c.brandText : c.text} />
+            <PressableScale onPress={pickScope} hitSlop={10} accessibilityLabel={scope === "all" ? "Filter by account" : `Accounts: ${SCOPES.find((x) => x.value === scope)?.label}`} style={{ paddingHorizontal: 4 }}>
+              <Icon name="sliders" size={22} color={scope !== "all" ? c.brandText : c.text} />
             </PressableScale>
           ),
         }}
       />
-      <Segmented options={TABS} value={tab} onChange={setTab} />
-      {filtered && (
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <PressableScale
-            onPress={clearFilter}
-            accessibilityLabel="Clear filter"
-            style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.brandSoft, borderRadius: radius.full, paddingVertical: spacing.xs, paddingLeft: spacing.smd, paddingRight: spacing.sm }}
-          >
-            <Text variant="subhead" tone="brand">
-              {from ? `From ${params.fromName ?? "sender"}` : card && cardId ? `${card.label} •• ${card.last4}` : asset && type === "any" ? asset : typeLabel}
-            </Text>
-            <Icon name="close" size={10} color={c.brandText} weight="bold" />
-          </PressableScale>
-        </View>
-      )}
+      <View style={{ gap: spacing.smd }}>
+        <ChipRow
+          options={CATEGORY_VALUES}
+          value={category}
+          onChange={pickCategory}
+          bleed={spacing.md}
+          render={(v, on) => {
+            const k = CATEGORIES.find((x) => x.value === v)!;
+            return (
+              <>
+                {k.icon && <Icon name={k.icon} size={15} color={chipText(on)} />}
+                <Text variant="subhead" style={{ color: chipText(on), fontFamily: on ? "Poppins_600SemiBold" : "Poppins_500Medium" }}>
+                  {k.label}
+                </Text>
+              </>
+            );
+          }}
+        />
+        {pills.length > 0 && (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+            {pills.map((p) => (
+              <PressableScale
+                key={p.key}
+                onPress={p.clear}
+                accessibilityLabel={`Remove filter: ${p.label}`}
+                style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.brandSoft, borderRadius: radius.full, paddingVertical: spacing.xs, paddingLeft: spacing.smd, paddingRight: spacing.sm }}
+              >
+                <Text variant="caption" tone="brand">
+                  {p.label}
+                </Text>
+                <Icon name="close" size={10} color={c.brandText} weight="bold" />
+              </PressableScale>
+            ))}
+          </View>
+        )}
+      </View>
     </>
   );
 
@@ -112,7 +145,7 @@ export default function History() {
     all.length === 0 ? (
       <EmptyState icon="history" title="No transactions yet" body="Add money to get started. Sending, swapping and paying bills all show up here." action={<Button title="Deposit now" inline onPress={openAddMoneySheet} />} />
     ) : (
-      <EmptyState icon="history" title="Nothing here yet" body={filtered ? "Nothing matches this filter. Try another type." : `No ${tab === "all" ? "" : `${tab} `}transactions yet.`} action={filtered ? <Button title="Clear filter" variant="secondary" inline onPress={clearFilter} /> : undefined} />
+      <EmptyState icon="history" title="Nothing here yet" body={filtered ? "Nothing matches these filters yet. Try another category or account." : "No transactions yet."} action={filtered ? <Button title="Clear filter" variant="secondary" inline onPress={clearFilter} /> : undefined} />
     );
 
   // virtualised: only the visible rows are mounted, however long the history gets
