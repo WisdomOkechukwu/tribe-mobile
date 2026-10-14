@@ -97,12 +97,15 @@ export default function CardCreateDetails() {
 
       {/* the card as it will be, with its name on a sticker */}
       <View style={{ alignItems: "center", paddingTop: spacing.sm }}>
-        <VirtualCardFace card={{ theme, network, holder: `${user.firstName} ${user.lastName}`, number: network === "visa" ? "4532" : "5399", last4: "••••", expiry: "09/29", cvv: "", frozen: false }} width={width - spacing.mdl * 2} />
-        <Animated.View key={name} entering={FadeIn.duration(180)} style={{ position: "absolute", left: spacing.md, top: -2, transform: [{ rotate: "-5deg" }] }}>
-          <View style={{ backgroundColor: palette.white, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, boxShadow: "0 6px 14px -6px rgba(0,0,0,0.45)" }}>
-            <Text style={{ fontFamily: fonts.display, fontSize: 13, lineHeight: 16, color: palette.purple[700] }}>{name || "Name me"}</Text>
-          </View>
-        </Animated.View>
+        {/* sized to the card so the sticker stays on its corner when the card is capped (iPad) */}
+        <View>
+          <VirtualCardFace card={{ theme, network, holder: `${user.firstName} ${user.lastName}`, number: network === "visa" ? "4532" : "5399", last4: "••••", expiry: "09/29", cvv: "", frozen: false }} width={width - spacing.mdl * 2} />
+          <Animated.View key={name} entering={FadeIn.duration(180)} style={{ position: "absolute", left: spacing.md, top: -2, transform: [{ rotate: "-5deg" }] }}>
+            <View style={{ backgroundColor: palette.white, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, boxShadow: "0 6px 14px -6px rgba(0,0,0,0.45)" }}>
+              <Text style={{ fontFamily: fonts.display, fontSize: 13, lineHeight: 16, color: palette.purple[700] }}>{name || "Name me"}</Text>
+            </View>
+          </Animated.View>
+        </View>
         <Text variant="caption" tone="muted" style={{ marginTop: spacing.sm }}>
           {CARD_THEMES[theme].name} · {network === "visa" ? "Visa" : "Mastercard"} · USD
         </Text>

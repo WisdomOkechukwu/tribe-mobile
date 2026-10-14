@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { EmptyState, Note } from "@/components/bits";
 import { Avatar } from "@/components/avatar";
@@ -256,9 +256,20 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
   }
 }
 
+/**
+ * The flow's pending action, kept after approval clears it: this screen sits under /pin and the
+ * result card until they all close, and re-rendering empty flashed "Nothing to review".
+ */
+export function useKeptPending() {
+  const live = useFlowStore((s) => s.pending);
+  const [kept, setKept] = useState(live);
+  if (live && live !== kept) setKept(live);
+  return live ?? kept;
+}
+
 /** Shared review step for every money flow → /pin → /success. */
 export function ReviewScreen({ step }: { step?: string }) {
-  const pending = useFlowStore((s) => s.pending);
+  const pending = useKeptPending();
   // re-renders when the 30-second quote window rolls over, and the rows re-price with it
   const tick = useQuoteTick();
   const isSwap = pending?.kind === "swap";

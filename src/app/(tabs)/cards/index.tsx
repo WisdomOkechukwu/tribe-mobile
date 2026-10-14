@@ -352,7 +352,7 @@ export default function Cards() {
           </View>
         </View>
 
-        <Animated.View key={card.id} entering={FadeIn.duration(220)}>
+        <Animated.View key={card.id} entering={FadeIn.duration(220)} style={{ alignItems: "center" }}>
           <PressableScale scaleTo={0.98} onPress={() => router.push({ pathname: "/cards/details", params: { id: card.id } })} accessibilityLabel={`${t.name} card ending ${card.last4}. Open card details`}>
             <VirtualCardFace card={card} width={width - spacing.md * 2} />
           </PressableScale>

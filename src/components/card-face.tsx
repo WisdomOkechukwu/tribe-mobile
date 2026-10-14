@@ -119,13 +119,18 @@ function Wordmark({ color, size = 15 }: { color: string; size?: number }) {
   );
 }
 
+/** Real cards are ~86mm wide; past this the face reads as a poster (iPad, wide sheets), so callers' widths are capped. */
+export const MAX_FACE_W = 400;
+
 type FaceCard = Pick<VirtualCard, "theme" | "network" | "number" | "last4" | "expiry" | "cvv" | "frozen" | "holder"> & { label?: string };
 
 /** Landscape card (Cards tab, reviews): wordmark + network on top, masked number + holder below. */
-export function VirtualCardFace({ card, revealed = false, width = 340, style }: { card: FaceCard; revealed?: boolean; width?: number; style?: StyleProp<ViewStyle> }) {
+export function VirtualCardFace({ card, revealed = false, width: requested = 340, style }: { card: FaceCard; revealed?: boolean; width?: number; style?: StyleProp<ViewStyle> }) {
   const t = CARD_THEMES[card.theme];
+  const width = Math.min(requested, MAX_FACE_W);
   const h = width / 1.586;
-  const masked = `${card.number.slice(0, 4) || "5399"}  ****  ****  ${card.last4}`;
+  const numberSize = width * 0.05;
+  const masked = `${card.number.slice(0, 4) || "5399"}  ••••  ••••  ${card.last4}`;
   return (
     <View
       accessible
@@ -138,7 +143,7 @@ export function VirtualCardFace({ card, revealed = false, width = 340, style }: 
         <NetworkMark network={card.network} color={t.fg} />
       </View>
       <View style={{ gap: spacing.sm }}>
-        <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: width * 0.05, letterSpacing: 1.6, color: t.fg, fontVariant: ["tabular-nums"] }}>{revealed ? card.number : masked}</Text>
+        <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: numberSize, lineHeight: Math.round(numberSize * 1.4), letterSpacing: 1.6, color: t.fg, fontVariant: ["tabular-nums"] }}>{revealed ? card.number : masked}</Text>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
           <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, letterSpacing: 1, color: t.sub }}>{(card.holder || "Card holder").toUpperCase()}</Text>
           <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, letterSpacing: 1, color: t.sub }}>{revealed ? `${card.expiry} · CVV ${card.cvv}` : card.expiry}</Text>

@@ -206,7 +206,9 @@ function closeAll() {
 export default function Success() {
   const c = useColors();
   const reduce = useReducedMotion();
-  const result = useFlowStore((s) => s.result);
+  // captured once: Done / Make another clear the store while this card is still animating out,
+  // and re-rendering then flashed an empty "Nothing to show here" card
+  const [result] = useState(() => useFlowStore.getState().result);
   const origin = useFlowStore((s) => s.origin);
   const clear = useFlowStore((s) => s.clear);
   const addBeneficiary = useBeneficiariesStore((s) => s.add);
@@ -249,18 +251,11 @@ export default function Success() {
     return () => sub.remove();
   }, [clear]);
 
-  if (!result) {
-    return (
-      <ResultCard>
-        <View style={{ padding: spacing.lg, gap: spacing.md, alignItems: "center" }}>
-          <Text variant="body" tone="muted">
-            Nothing to show here.
-          </Text>
-          <Button title="Back to Tribe" inline onPress={done} />
-        </View>
-      </ResultCard>
-    );
-  }
+  // opened with no result (stale deep link, reload): quietly go home instead of an empty card
+  useEffect(() => {
+    if (!result) closeAll();
+  }, [result]);
+  if (!result) return null;
 
   const { tx, headline, detail, extra, recurringOffer, beneficiary } = result;
   const cashpoint = tx?.type === "cashpoint" && tx.direction === "out" && !!tx.meta?.code;
