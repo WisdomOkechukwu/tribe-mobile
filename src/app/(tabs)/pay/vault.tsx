@@ -1,8 +1,9 @@
 import { router } from "expo-router";
-import { Pressable, View } from "react-native";
+import { Pressable, Text as RNText, useWindowDimensions, View } from "react-native";
 import { copyToClipboard, EmptyState } from "@/components/bits";
 import { BillerThumb } from "@/components/brand-tiles";
 import { Button } from "@/components/button";
+import { CoinIcon } from "@/components/coin-icon";
 import { Icon, type IconName } from "@/components/icon";
 import { ListSection } from "@/components/list";
 import { PrivacyGuard } from "@/components/privacy-guard";
@@ -12,8 +13,10 @@ import { Text } from "@/components/text";
 import { billerById } from "@/data/catalog";
 import type { VaultToken } from "@/data/seed";
 import { useVaultStore } from "@/stores/use-vault-store";
+import { useVaultTokens } from "@/api/queries";
+import { QueryError, Skeleton } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
-import { relativeDate } from "@/utils/format";
+import { formatAsset, relativeDate } from "@/utils/format";
 
 const PHED = billerById("phed");
 const NOTCH = 18;
@@ -77,13 +80,20 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
 
 /**
  * A token still to be typed into the meter, as a prepaid ticket: who/what on top, a tear line,
- * then the digits in big 4-digit chunks (easy to read off while typing). Tap the digits or Copy;
+ * then the digits on one line in five boxes of four (easy to read off while typing). Tap them to copy;
  * "I've loaded it" files it under Loaded. Static on purpose — no press or layout animation.
  */
-function TokenTicket({ t, next }: { t: VaultToken; next: boolean }) {
+function TokenTicket({ t }: { t: VaultToken }) {
   const c = useColors();
   const toggle = useVaultStore((s) => s.toggleLoaded);
   const copy = () => copyToClipboard(t.token.replace(/\s/g, ""), "Token copied");
+  const paidWith = t.paidWith ?? "NGN";
+  const naira = `₦${t.amount.toLocaleString()}`;
+  // five boxes of four digits on one line, sized to the phone (web can't auto-shrink text)
+  const { width } = useWindowDimensions();
+  const BOX_GAP = 6;
+  const boxW = (Math.min(width, 520) - 64 - 4 * BOX_GAP) / 5;
+  const digitSize = Math.max(13, Math.min(22, ((boxW - 10) / 4 / 0.66) * 0.95));
   return (
     <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, padding: spacing.md }}>
@@ -99,13 +109,20 @@ function TokenTicket({ t, next }: { t: VaultToken; next: boolean }) {
             Bought {when(t.bought)}
           </Text>
         </View>
-        <View style={{ alignItems: "flex-end" }}>
+        {/* what it bought, and what it cost: in the balance that paid, with the naira beside it */}
+        <View style={{ alignItems: "flex-end", gap: 2 }}>
           <Text variant="amount" style={{ fontSize: 20, lineHeight: 24 }}>
             {t.kwh} kWh
           </Text>
-          <Text variant="caption" tone="muted">
-            ₦{t.amount.toLocaleString()}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+            <CoinIcon code={paidWith} size={14} />
+            <Text variant="subhead">{paidWith === "NGN" ? naira : formatAsset(t.paid ?? t.amount, paidWith)}</Text>
+          </View>
+          {paidWith !== "NGN" && (
+            <Text variant="caption" tone="muted">
+              ≈ {naira}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -116,45 +133,40 @@ function TokenTicket({ t, next }: { t: VaultToken; next: boolean }) {
         <View style={{ position: "absolute", right: -NOTCH / 2, width: NOTCH, height: NOTCH, borderRadius: NOTCH / 2, backgroundColor: c.bg }} />
       </View>
 
-      <View style={{ padding: spacing.md, paddingTop: spacing.sm, gap: spacing.smd }}>
-        <Text variant="overline" align="center" style={{ color: next ? c.accentText : c.textSubtle }}>
-          {next ? "Load this one next · tap to copy" : "Token · tap to copy"}
-        </Text>
+      <View style={{ padding: spacing.md, paddingTop: spacing.xs, gap: spacing.smd }}>
+        {/* the token: five boxes of four on one line; tap anywhere on them to copy all 20 digits */}
         <Pressable onPress={copy} accessibilityRole="button" accessibilityLabel={`Token ${t.token}. Tap to copy`}>
           {({ pressed }) => (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm, opacity: pressed ? 0.6 : 1 }}>
-              {chunks(t.token).map((g, i) => (
-                // fixed width → a deliberate 3 + 2 grid for the 20 digits
-                <View key={`${g}-${i}`} style={{ width: "30%", alignItems: "center", backgroundColor: c.sunken, borderRadius: radius.xs, borderCurve: "continuous", paddingVertical: 7 }}>
-                  <Text variant="mono" selectable style={{ fontSize: 19, letterSpacing: 2 }}>
-                    {g}
-                  </Text>
-                </View>
-              ))}
+            <View style={{ gap: spacing.sm, alignItems: "center", opacity: pressed ? 0.6 : 1 }}>
+              <View style={{ flexDirection: "row", gap: BOX_GAP }}>
+                {chunks(t.token).map((g, i) => (
+                  <View key={`${g}-${i}`} style={{ width: boxW, alignItems: "center", justifyContent: "center", paddingVertical: spacing.smd, backgroundColor: c.sunken, borderRadius: radius.xs, borderCurve: "continuous", borderWidth: 1, borderColor: c.border }}>
+                    <RNText selectable numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: digitSize, lineHeight: Math.round(digitSize * 1.3), letterSpacing: digitSize * 0.04, color: c.text, fontVariant: ["tabular-nums"] }}>
+                      {g}
+                    </RNText>
+                  </View>
+                ))}
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                <Icon name="copy" size={11} color={c.textMuted} />
+                <Text variant="caption" tone="muted">
+                  Tap to copy
+                </Text>
+              </View>
             </View>
           )}
         </Pressable>
 
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <Pressable style={{ flex: 1 }} onPress={copy} accessibilityRole="button" accessibilityLabel={`Copy token ${t.token}`}>
-            {({ pressed }) => (
-              <View style={{ height: 48, borderRadius: radius.full, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: spacing.sm, backgroundColor: pressed ? c.border : c.surfaceAlt }}>
-                <Icon name="copy" size={15} color={c.text} />
-                <Text variant="bodyStrong">Copy</Text>
-              </View>
-            )}
-          </Pressable>
-          <Pressable style={{ flex: 1.6 }} onPress={() => toggle(t.id)} accessibilityRole="button" accessibilityLabel={`Mark ${t.kwh} kWh token as loaded`}>
-            {({ pressed }) => (
-              <View style={{ height: 48, borderRadius: radius.full, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: spacing.sm, backgroundColor: c.brand, opacity: pressed ? 0.85 : 1 }}>
-                <Icon name="check" size={15} color={c.onBrand} weight="bold" />
-                <Text variant="bodyStrong" style={{ color: c.onBrand }}>
-                  I&apos;ve loaded it
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
+        <Pressable onPress={() => toggle(t.id)} accessibilityRole="button" accessibilityLabel={`Mark ${t.kwh} kWh token as loaded`}>
+          {({ pressed }) => (
+            <View style={{ height: 48, borderRadius: radius.full, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: spacing.sm, backgroundColor: c.brand, opacity: pressed ? 0.85 : 1 }}>
+              <Icon name="check" size={15} color={c.onBrand} weight="bold" />
+              <Text variant="bodyStrong" style={{ color: c.onBrand }}>
+                I&apos;ve loaded it
+              </Text>
+            </View>
+          )}
+        </Pressable>
       </View>
     </View>
   );
@@ -199,12 +211,31 @@ function LoadedToken({ t }: { t: VaultToken }) {
  */
 export default function Vault() {
   const c = useColors();
-  const tokens = useVaultStore((s) => s.tokens);
+  const query = useVaultTokens();
+  const tokens = query.data ?? [];
   const waiting = tokens.filter((t) => !t.loadedOn).sort((a, b) => a.bought.localeCompare(b.bought));
   const loaded = tokens.filter((t) => !!t.loadedOn).sort((a, b) => b.loadedOn!.localeCompare(a.loadedOn!));
   const kwh = waiting.reduce((s, t) => s + t.kwh, 0);
   const loadedKwh = loaded.reduce((s, t) => s + t.kwh, 0);
   const buy = () => router.push({ pathname: "/bill/[id]", params: { id: PHED.id } });
+
+  // static like the rest of the vault: plain blocks where the summary and tickets go
+  if (!query.data) {
+    return (
+      <Screen>
+        {query.isError ? (
+          <QueryError onRetry={() => query.refetch()} />
+        ) : (
+          <>
+            <Skeleton width="100%" height={120} radius={radius.card} />
+            <Skeleton width={90} height={18} />
+            <Skeleton width="100%" height={150} radius={radius.card} />
+            <Skeleton width="100%" height={150} radius={radius.card} />
+          </>
+        )}
+      </Screen>
+    );
+  }
 
   if (!tokens.length) {
     return (
@@ -228,7 +259,7 @@ export default function Vault() {
             </Text>
           </View>
           {waiting.map((t, i) => (
-            <TokenTicket key={t.id} t={t} next={i === 0 && waiting.length > 1} />
+            <TokenTicket key={t.id} t={t} />
           ))}
         </View>
       )}

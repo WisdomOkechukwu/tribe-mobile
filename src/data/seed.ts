@@ -29,6 +29,11 @@ export type Transaction = {
     network?: string;
     /** what was bought or sold, in its own terms — "₦15,000" token, "$50 Steam card" */
     face?: string;
+    /** bills: the full phone / meter / smartcard number paid for, and which kind of bill */
+    target?: string;
+    billCategory?: "airtime" | "data" | "tv" | "electricity";
+    /** electricity: prepaid gets a token; postpaid pays the account */
+    meterType?: "prepaid" | "postpaid";
     /** recurring schedule that created this payment */
     recurringId?: string;
     /** sends: who, how and where */
@@ -134,15 +139,23 @@ export function seedTransactions(): Transaction[] {
   ] as Transaction[]).sort((a, b) => b.date.localeCompare(a.date));
 }
 
-/** Card finishes (Virtual Card.png themes, in Tribe colours). */
+/** Tribe's seven preset finishes (Virtual Card.png themes, in Tribe colours). */
 export type CardTheme = "midnight" | "sunset" | "onyx" | "cream" | "lime" | "forest" | "sky";
+/** The patterns a finish can carry (Midnight keeps the logo's own stripes). */
+export type CardPattern = "plain" | "lines" | "waves" | "dots" | "rings" | "stripes" | "grid" | "diamonds" | "orbits" | "contours";
+/**
+ * How a card looks: a preset ("sunset"), a preset wearing another pattern ("sunset:dots"), or
+ * one made in "Make your own" ("custom:RRGGBB:pattern"). A plain string, so it travels as a
+ * route param and persists as-is. Read it with `cardLook()`.
+ */
+export type CardFinish = CardTheme | `${CardTheme}:${CardPattern}` | `custom:${string}:${CardPattern}`;
 export type CardNetwork = "mastercard" | "visa";
 export type CardAddress = { street: string; city: string; state: string; postal: string };
 
 export type VirtualCard = {
   id: string;
   label: string;
-  theme: CardTheme;
+  theme: CardFinish;
   network: CardNetwork;
   holder: string;
   /** online & international payments allowed */
@@ -157,10 +170,14 @@ export type VirtualCard = {
   monthlyLimit: number;
   spentThisMonth: number;
   address: CardAddress;
+  /** added to Apple Pay / Google Pay on this phone (simulated: Cards › Wallet & payments) */
+  inWallet?: boolean;
 };
 
 export const CARD_ADDRESS: CardAddress = { street: "16 Admiralty Way, Lekki Phase 1", city: "Lekki", state: "Lagos", postal: "106104" };
 export const CARD_FEE_USD = 1;
+/** A new card must be funded: the first top-up is at least this much. */
+export const CARD_MIN_TOPUP_USD = 5;
 /** Funding fee on card top-ups (illustrative): 1%, at least $0.50. Withdrawals are free. */
 export const cardFundingFee = (usd: number) => (usd > 0 ? Math.max(0.5, Math.round(usd * 1) / 100) : 0);
 
@@ -177,10 +194,13 @@ export type VaultToken = {
   token: string;
   bought: string;
   loadedOn: string | null;
+  /** the balance that paid, and how much of it (absent on older tokens = paid in naira) */
+  paidWith?: AssetCode;
+  paid?: number;
 };
 
 export const SEED_TOKENS: VaultToken[] = [
-  { id: "v1", provider: "PHED Prepaid", meter: "4502 •••• 19", amount: 15_000, kwh: 34.2, token: "4821 0937 5512 8846 3307", bought: ago(95), loadedOn: null },
-  { id: "v2", provider: "PHED Prepaid", meter: "4502 •••• 19", amount: 10_000, kwh: 22.8, token: "1176 4420 9083 5531 0648", bought: ago(60 * 70), loadedOn: null },
+  { id: "v1", provider: "PHED Prepaid", meter: "4502 •••• 19", amount: 15_000, kwh: 34.2, token: "4821 0937 5512 8846 3307", bought: ago(95), loadedOn: null, paidWith: "NGN", paid: 15_000 },
+  { id: "v2", provider: "PHED Prepaid", meter: "4502 •••• 19", amount: 10_000, kwh: 22.8, token: "1176 4420 9083 5531 0648", bought: ago(60 * 70), loadedOn: null, paidWith: "USDT", paid: 6.49 },
   { id: "v3", provider: "PHED · Mum's house", meter: "0137 •••• 82", amount: 20_000, kwh: 45.6, token: "6630 2814 7759 0412 9925", bought: ago(60 * 24 * 12), loadedOn: ago(60 * 24 * 11) },
 ];

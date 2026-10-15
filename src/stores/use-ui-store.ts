@@ -1,3 +1,4 @@
+import { DEMO_MS } from "@/utils/demo";
 import * as Haptics from "expo-haptics";
 import { create } from "zustand";
 
@@ -36,7 +37,7 @@ export const toast = (message: string, tone?: ToastTone) => useUiStore.getState(
  * Shows the Tribe loader while a request is "in flight" (devnote: one loader across the app),
  * then runs `fn`. The prototype has no backend, so `ms` stands in for the network.
  */
-export function withLoader<T>(label: string, fn: () => T, ms = 900): Promise<T> {
+export function withLoader<T>(label: string, fn: () => T, ms: number = DEMO_MS.loader): Promise<T> {
   useUiStore.getState().setLoading(label);
   return new Promise((resolve, reject) =>
     setTimeout(() => {

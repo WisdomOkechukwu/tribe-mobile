@@ -7,7 +7,9 @@ import { headerTitle } from "./header-title";
  * scrolls "into" a see-through bar. Pushed screens keep the title inline, on the same row as the
  * back button; only a tab's root screen opts into a large title (see `TAB_ROOT`).
  */
-export const TAB_ROOT = { headerLargeTitleEnabled: Platform.OS === "ios" } as const;
+// iOS keeps a custom `headerTitle` view on the bar even under the large title, so the roots use the
+// native title text instead: it stays hidden until the large title scrolls away.
+export const TAB_ROOT = Platform.OS === "ios" ? ({ headerLargeTitleEnabled: true, headerTitle: undefined } as const) : ({ headerLargeTitleEnabled: false } as const);
 
 export function useTabStackOptions() {
   const c = useColors();

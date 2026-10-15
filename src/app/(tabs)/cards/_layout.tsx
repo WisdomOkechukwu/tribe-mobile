@@ -12,6 +12,7 @@ export default function Layout() {
       <Stack.Screen name="index" options={{ title: "Cards", ...TAB_ROOT }} />
       <Stack.Screen name="details" options={{ title: "Card details" }} />
       <Stack.Screen name="all" options={{ title: "My cards" }} />
+      <Stack.Screen name="wallet" options={{ title: "Wallet & payments" }} />
     </Stack>
   );
 }

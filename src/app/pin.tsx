@@ -1,5 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { DEMO_MS } from "@/utils/demo";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -99,7 +100,7 @@ export default function Pin() {
         setValue("");
         setError(null);
       }, 600);
-    }, 150);
+    }, DEMO_MS.pinBeat);
     return () => clearTimeout(t);
     // approve() reads the store directly; only a full PIN should trigger this
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,7 +128,8 @@ export default function Pin() {
 
       {/* what you're approving, compact */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, marginTop: spacing.lg, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.smd }}>
-        <View style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>{summary.badge ?? <View style={{ transform: [{ scale: 0.72 }] }}>{summary.icon}</View>}</View>
+        {/* the small art: what pays at the back, what it becomes in front (pairs are wider than 44) */}
+        <View style={{ minWidth: 44, height: 44, alignItems: "center", justifyContent: "center" }}>{summary.badge}</View>
         <View style={{ flex: 1, gap: spacing.xxs }}>
           <Text variant="bodyStrong" numberOfLines={1}>
             {summary.amount}
@@ -143,7 +145,7 @@ export default function Pin() {
           <Icon name="lock" size={22} color={c.brandText} />
         </View>
         <Text variant="title" align="center">
-          {mode === "enter" ? "Approve this transaction" : mode === "create" ? "Create your payment PIN" : "Confirm your PIN"}
+          {mode === "enter" ? (summary.approve ?? "Approve this transaction") : mode === "create" ? "Create your payment PIN" : "Confirm your PIN"}
         </Text>
         <Text variant="body" tone="muted" align="center">
           {mode === "enter" ? "Enter your 4-digit transaction PIN" : mode === "create" ? "First payment! Pick 4 digits. You'll use them to approve every payment." : "Enter it once more and we'll approve this payment."}

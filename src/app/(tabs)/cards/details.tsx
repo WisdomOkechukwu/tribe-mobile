@@ -3,18 +3,20 @@ import { useState } from "react";
 import { useWindowDimensions, View } from "react-native";
 import { CopyField, EmptyState, Note } from "@/components/bits";
 import { Button } from "@/components/button";
-import { CARD_THEMES, NetworkMark, useCardPalette, VirtualCardFace } from "@/components/card-face";
+import { CardBadge, cardLook, useCardPalette, VirtualCardFace } from "@/components/card-face";
 import { ListSection } from "@/components/list";
 import { PrivacyGuard } from "@/components/privacy-guard";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { useCardsStore } from "@/stores/use-cards-store";
-import { spacing, useColors } from "@/theme";
+import { spacing } from "@/theme";
 import { openCardCreation } from "@/utils/verification";
 
-/** Card details: everything needed to pay online, each copyable; plus the billing address. */
+/**
+ * Card details: the only place the card number and CVV are shown (on the face once revealed, and
+ * as copyable fields), plus the billing address. Screenshots are blocked here.
+ */
 export default function CardDetails() {
-  const c = useColors();
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const card = useCardsStore((s) => s.cards.find((k) => k.id === id) ?? s.cards[0]);
@@ -22,7 +24,8 @@ export default function CardDetails() {
   const tint = useCardPalette(card?.theme ?? "midnight");
 
   if (!card) return <EmptyState icon="card" title="No card yet" body="Create your virtual card first. It takes about a minute." action={<Button title="Get your card" inline onPress={() => openCardCreation()} />} />;
-  const t = CARD_THEMES[card.theme];
+  const look = cardLook(card.theme);
+  const copyTint = { bg: tint.soft, fg: tint.accent };
 
   return (
     <Screen background={tint.page}>
@@ -35,28 +38,26 @@ export default function CardDetails() {
 
       <ListSection title="Card details" inset={spacing.md}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, padding: spacing.md }}>
-          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.bg, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border }}>
-            <NetworkMark network={card.network} color={t.fg} size={20} />
-          </View>
+          <CardBadge theme={card.theme} network={card.network} size={40} />
           <View>
             <Text variant="bodyStrong">{card.label}</Text>
             <Text variant="caption" tone="muted">
-              {t.name} · {card.frozen ? "Frozen" : "Active"}
+              {look.name} · {card.frozen ? "Frozen" : "Active"}
             </Text>
           </View>
         </View>
-        <CopyField label="Card name" value={card.holder} />
-        <CopyField label="Card number" value={shown ? card.number : `•••• •••• •••• ${card.last4}`} copyValue={card.number.replace(/\s/g, "")} mono />
-        <CopyField label="CVV" value={shown ? card.cvv : "•••"} copyValue={card.cvv} mono />
-        <CopyField label="Expiry date" value={card.expiry} />
-        <CopyField label="Card type" value={`${card.network === "visa" ? "Visa" : "Mastercard"} · Virtual · USD`} />
+        <CopyField tint={copyTint} label="Card name" value={card.holder} />
+        <CopyField tint={copyTint} label="Card number" value={shown ? card.number : `•••• •••• •••• ${card.last4}`} copyValue={card.number.replace(/\s/g, "")} mono />
+        <CopyField tint={copyTint} label="CVV" value={shown ? card.cvv : "•••"} copyValue={card.cvv} mono />
+        <CopyField tint={copyTint} label="Expiry date" value={card.expiry} />
+        <CopyField tint={copyTint} label="Card type" value={`${card.network === "visa" ? "Visa" : "Mastercard"} · Virtual · USD`} />
       </ListSection>
 
       <ListSection title="Card address" inset={spacing.md} footer="Use this as the billing address when a site asks for one.">
-        <CopyField label="Street" value={card.address.street} />
-        <CopyField label="City" value={card.address.city} />
-        <CopyField label="State" value={card.address.state} />
-        <CopyField label="Postal code" value={card.address.postal} />
+        <CopyField tint={copyTint} label="Street" value={card.address.street} />
+        <CopyField tint={copyTint} label="City" value={card.address.city} />
+        <CopyField tint={copyTint} label="State" value={card.address.state} />
+        <CopyField tint={copyTint} label="Postal code" value={card.address.postal} />
       </ListSection>
       <Note icon="shield">Never share your CVV. Tribe will never ask for it.</Note>
     </Screen>

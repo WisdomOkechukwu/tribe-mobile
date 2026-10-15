@@ -1,7 +1,6 @@
 import * as Clipboard from "expo-clipboard";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import type { TxStatus } from "@/data/seed";
 import { toast } from "@/stores/use-ui-store";
 import { radius, spacing, useColors, type ThemeColors } from "@/theme";
@@ -72,7 +71,7 @@ export function Note({ icon = "info", children, tone = "muted" }: { icon?: IconN
 }
 
 /** Tap-to-copy row for account numbers, addresses, codes. Confirms with a toast. */
-export function CopyField({ label, value, mono, copyValue }: { label: string; value: string; mono?: boolean; copyValue?: string }) {
+export function CopyField({ label, value, mono, copyValue, tint }: { label: string; value: string; mono?: boolean; copyValue?: string; /** page accent (card pages follow the card's colour) */ tint?: { bg: string; fg: string } }) {
   const c = useColors();
   return (
     <PressableScale
@@ -89,23 +88,11 @@ export function CopyField({ label, value, mono, copyValue }: { label: string; va
           {value}
         </Text>
       </View>
-      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
-        <Icon name="copy" size={15} color={c.brandText} />
+      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: tint?.bg ?? c.brandSoft, alignItems: "center", justifyContent: "center" }}>
+        <Icon name="copy" size={15} color={tint?.fg ?? c.brandText} />
       </View>
     </PressableScale>
   );
-}
-
-/** Shimmer block for first-load states. */
-export function Skeleton({ width, height, radius: r = radius.xs, style }: { width: number | `${number}%`; height: number; radius?: number; style?: StyleProp<ViewStyle> }) {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  const o = useSharedValue(0.55);
-  useEffect(() => {
-    if (!reduce) o.set(withRepeat(withTiming(1, { duration: 750 }), -1, true));
-  }, [o, reduce]);
-  const anim = useAnimatedStyle(() => ({ opacity: o.value }));
-  return <Animated.View style={[{ width, height, borderRadius: r, backgroundColor: c.sunken }, anim, style]} />;
 }
 
 export function EmptyState({ icon, title, body, action }: { icon: IconName; title: string; body: string; action?: ReactNode }) {
@@ -127,13 +114,13 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
 }
 
 /** Section title row for non-list content (carousels, grids). Lists use ListSection's title. */
-export function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+export function SectionHeader({ title, action, onAction, actionColor }: { title: string; action?: string; onAction?: () => void; actionColor?: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: spacing.xs }}>
       <Text variant="headline">{title}</Text>
       {action && (
         <PressableScale onPress={onAction} hitSlop={10}>
-          <Text variant="subhead" tone="brand">
+          <Text variant="subhead" tone="brand" style={actionColor ? { color: actionColor } : undefined}>
             {action}
           </Text>
         </PressableScale>

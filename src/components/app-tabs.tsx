@@ -1,6 +1,5 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { useUnreadCount } from "@/stores/use-inbox-store";
 import { useColors } from "@/theme";
 import { GlassTabs, useTabBarHidden } from "./glass-tab-bar";
 
@@ -13,7 +12,6 @@ const NATIVE_GLASS = isLiquidGlassAvailable();
  */
 export default function AppTabs() {
   const c = useColors();
-  const unread = useUnreadCount();
   const hidden = useTabBarHidden();
   if (!NATIVE_GLASS) return <GlassTabs />;
   return (
@@ -21,7 +19,6 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} md="home" />
-        {unread > 0 && <NativeTabs.Trigger.Badge />}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="wallet">
         <NativeTabs.Trigger.Label>Wallet</NativeTabs.Trigger.Label>

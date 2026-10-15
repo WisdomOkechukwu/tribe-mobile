@@ -1,20 +1,21 @@
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ScrollView, Share, View } from "react-native";
+import * as Haptics from "expo-haptics";
+import { Pressable, Share, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { copyToClipboard, CopyField, Note } from "@/components/bits";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
 import { Dropdown } from "@/components/dropdown";
 import { FlowScreen } from "@/components/flow-screen";
+import { Icon } from "@/components/icon";
 import { RowIcon, ListSection } from "@/components/list";
 import { Text } from "@/components/text";
 import { assetByCode, ASSETS_FIAT_FIRST, DEPOSIT_ADDRESSES, railsFor, type AssetCode } from "@/data/assets";
-import { PressableScale } from "@/components/pressable-scale";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
-import { fonts, palette, radius, spacing, useColors } from "@/theme";
+import { palette, radius, spacing, useColors } from "@/theme";
 
 /**
  * Receive: pick the currency, then how it's coming in — the network for crypto, the payment rail
@@ -96,27 +97,47 @@ export default function Receive() {
         </>
       ) : (
         <>
-          {/* how it's coming in: one chip per payment rail */}
-          <View style={{ gap: spacing.sm }}>
-            <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
-              How it&apos;s coming in
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} style={{ marginHorizontal: -spacing.mdl }} contentContainerStyle={{ paddingHorizontal: spacing.mdl, gap: spacing.sm }}>
-              {rails.map((r) => {
-                const on = r.id === rail?.id;
-                return (
-                  <PressableScale key={r.id} onPress={() => setRailId(r.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${r.name}, arrives ${r.eta}`} style={{ minWidth: 118, backgroundColor: on ? c.brand : c.surface, borderRadius: radius.group, borderCurve: "continuous", paddingHorizontal: spacing.md, paddingVertical: spacing.smd, gap: spacing.xxs }}>
-                    <Text style={{ fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: on ? c.onBrand : c.text }}>{r.name}</Text>
-                    <Text variant="caption" style={{ color: on ? "rgba(255,255,255,0.8)" : c.textMuted }}>
-                      {r.eta}
-                    </Text>
-                  </PressableScale>
-                );
-              })}
-            </ScrollView>
-          </View>
+          {/* how it's coming in: every rail with its speed and fee, pick one */}
+          <ListSection title="How it's coming in" inset={spacing.md + 22 + spacing.smd}>
+            {rails.map((r) => {
+              const on = r.id === rail?.id;
+              const single = rails.length === 1;
+              return (
+                <Pressable
+                  key={r.id}
+                  disabled={single}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setRailId(r.id);
+                  }}
+                  accessibilityRole={single ? undefined : "radio"}
+                  accessibilityState={single ? undefined : { selected: on }}
+                  accessibilityLabel={`${r.name}, arrives ${r.eta}, ${r.fee === "Free" ? "free to receive" : r.fee}`}
+                >
+                  {({ pressed }) => (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
+                      {single ? (
+                        <Icon name="bank" size={20} color={c.text} />
+                      ) : (
+                        <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: on ? 7 : 1.5, borderColor: on ? c.brand : c.borderStrong, backgroundColor: c.surface }} />
+                      )}
+                      <View style={{ flex: 1, gap: spacing.xxs }}>
+                        <Text variant="bodyStrong">{r.name}</Text>
+                        <Text variant="caption" tone="muted">
+                          {r.eta}
+                        </Text>
+                      </View>
+                      <Text variant="subhead" tone={r.fee === "Free" ? "success" : "muted"} style={{ flexShrink: 1, textAlign: "right" }} numberOfLines={2}>
+                        {r.fee}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ListSection>
           {rail && (
-            <ListSection inset={spacing.md} title={`${rail.name} details`} footer={`Arrives ${rail.eta.toLowerCase()} · ${rail.fee === "Free" ? "free to receive" : rail.fee.toLowerCase()}`}>
+            <ListSection inset={spacing.md} title={`${rail.name} details`}>
               {rail.fields.map((f) => (
                 <CopyField key={f.label} label={f.label} value={f.value} />
               ))}

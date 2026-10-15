@@ -58,7 +58,10 @@ export default function NewRecurring() {
   const [billerId, setBillerId] = useState(params.biller ?? "mtn");
   const b = billerById(billerId);
   const field = BILL_FIELD[b.field];
-  const plansOn = showsPlans(b, b.category);
+  // phone networks do both: airtime (an amount) or a data bundle
+  const [phoneKind, setPhoneKind] = useState<"airtime" | "data">(b.category === "airtime" ? "airtime" : "data");
+  const cat = b.field === "phone" ? phoneKind : b.category;
+  const plansOn = showsPlans(b, cat);
   const [target, setTarget] = useState(b.field === "phone" ? localPhone(phone) : "");
   const [planId, setPlanId] = useState<string | null>(plansOn ? (b.plans?.[0]?.id ?? null) : null);
   const [amount, setAmount] = useState("");
@@ -76,7 +79,7 @@ export default function NewRecurring() {
   const chooseBiller = (id: string) => {
     const next = billerById(id);
     setBillerId(id);
-    setPlanId(showsPlans(next, next.category) ? (next.plans?.[0]?.id ?? null) : null);
+    setPlanId(showsPlans(next, next.field === "phone" ? phoneKind : next.category) ? (next.plans?.[0]?.id ?? null) : null);
     setTarget(next.field === "phone" ? localPhone(phone) : "");
     setAmount("");
     setActive(next.field === "phone" ? null : "target");
@@ -154,6 +157,20 @@ export default function NewRecurring() {
           })}
         </ScrollView>
       </View>
+
+      {b.field === "phone" && (
+        <Segmented<"airtime" | "data">
+          value={phoneKind}
+          onChange={(v) => {
+            setPhoneKind(v);
+            setPlanId(v === "data" ? (b.plans?.[0]?.id ?? null) : null);
+          }}
+          options={[
+            { value: "airtime", label: "Airtime" },
+            { value: "data", label: "Data" },
+          ]}
+        />
+      )}
 
       <KeyField label={field.label} value={target} placeholder={field.placeholder} groups={[...field.groups]} active={active === "target"} onPress={() => setActive("target")} />
 

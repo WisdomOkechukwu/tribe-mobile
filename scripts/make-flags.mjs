@@ -9,7 +9,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
 const require = createRequire(path.join(root, "package.json"));
 const sharp = require("sharp");
-const CODES = ["ng", "us", "gb", "eu", "ke", "gh", "ca"];
+// currency flags (CoinIcon) + the euro countries' own flags (CountryFlag on Global send)
+const CODES = ["ng", "us", "gb", "eu", "ke", "gh", "ca", "de", "fr", "ie", "nl", "es"];
 
 for (const cc of CODES) {
   const src = path.join(root, "node_modules/flag-icons/flags/1x1", `${cc}.svg`);

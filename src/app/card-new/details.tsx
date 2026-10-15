@@ -4,7 +4,7 @@ import { Platform, Pressable, TextInput, useWindowDimensions, View } from "react
 import Animated, { FadeIn } from "react-native-reanimated";
 import { pushDigit } from "@/components/amount-entry";
 import { Button } from "@/components/button";
-import { CARD_THEMES, useCardPalette, VirtualCardFace } from "@/components/card-face";
+import { cardLook, useCardPalette, VirtualCardFace } from "@/components/card-face";
 import { CoinIcon } from "@/components/coin-icon";
 import { CARD_STEPS, FlowProgress } from "@/components/flow-progress";
 import { FlowScreen } from "@/components/flow-screen";
@@ -13,13 +13,14 @@ import { KeypadDock } from "@/components/keypad-field";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { assetByCode, ASSETS_FIAT_FIRST, NGN_PER_USD, type AssetCode } from "@/data/assets";
-import { CARD_FEE_USD, cardFundingFee, type CardNetwork, type CardTheme } from "@/data/seed";
+import { CARD_FEE_USD, CARD_MIN_TOPUP_USD, cardFundingFee, type CardNetwork } from "@/data/seed";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
+import { parseFinish } from "@/utils/card-finish";
 import { formatAsset } from "@/utils/format";
 
 const NAMES = ["Everyday", "Subscriptions", "Shopping", "Travel", "Education"];
@@ -36,14 +37,14 @@ function Label({ children }: { children: string }) {
 
 /**
  * New card · Details ("Make it yours"): the card as it will look, its name, where the money
- * comes from, an optional first top-up (our keypad, quick amounts), and a receipt-style summary
- * of exactly what leaves your wallet and what lands on the card.
+ * comes from, the first top-up (required, at least CARD_MIN_TOPUP_USD — our keypad, quick
+ * amounts), and a receipt-style summary of exactly what leaves your wallet and what lands on the card.
  */
 export default function CardCreateDetails() {
   const c = useColors();
   const { width } = useWindowDimensions();
-  const params = useLocalSearchParams<{ theme?: CardTheme; network?: CardNetwork }>();
-  const theme = (params.theme ?? "midnight") as CardTheme;
+  const params = useLocalSearchParams<{ theme?: string; network?: CardNetwork }>();
+  const theme = parseFinish(params.theme);
   const network = (params.network ?? "mastercard") as CardNetwork;
   const tint = useCardPalette(theme);
   const user = useSessionStore((s) => s.user);
@@ -61,6 +62,7 @@ export default function CardCreateDetails() {
   const total = usd + CARD_FEE_USD + fundingFee;
   const cost = total / assetByCode(from).usd;
   const over = cost > balances[from] + 1e-9;
+  const short = usd < CARD_MIN_TOPUP_USD;
   const name = label.trim();
   const rate = from === "USD" ? null : from === "NGN" ? `$1 = ₦${NGN_PER_USD.toLocaleString()}` : `$1 = ${formatAsset(1 / assetByCode(from).usd, from)}`;
 
@@ -82,11 +84,11 @@ export default function CardCreateDetails() {
         <>
           {typing && <KeypadDock label="First top-up" onKey={(d) => setAmount((v) => pushDigit(v, d, 0))} onDelete={() => setAmount((v) => v.slice(0, -1))} onDone={() => setTyping(false)} />}
           <Button
-            colors={over ? undefined : { bg: tint.accent, fg: tint.accentFg }}
-            title={over ? `Not enough in your ${assetByCode(from).name} wallet` : `Review · ${formatAsset(cost, from)}`}
-            disabled={!name || over}
+            colors={over || short ? undefined : { bg: tint.accent, fg: tint.accentFg }}
+            title={short ? `Add at least $${CARD_MIN_TOPUP_USD} to continue` : over ? `Not enough in your ${assetByCode(from).name} wallet` : `Review · ${formatAsset(cost, from)}`}
+            disabled={!name || over || short}
             onPress={() => {
-              begin({ kind: "card-create", label: name, theme, network, usd, from }, "/card-new");
+              begin({ kind: "card-create", label: name, theme, network, usd, from });
               router.push("/card-new/review");
             }}
           />
@@ -99,7 +101,7 @@ export default function CardCreateDetails() {
       <View style={{ alignItems: "center", paddingTop: spacing.sm }}>
         {/* sized to the card so the sticker stays on its corner when the card is capped (iPad) */}
         <View>
-          <VirtualCardFace card={{ theme, network, holder: `${user.firstName} ${user.lastName}`, number: network === "visa" ? "4532" : "5399", last4: "••••", expiry: "09/29", cvv: "", frozen: false }} width={width - spacing.mdl * 2} />
+          <VirtualCardFace card={{ theme, network, holder: `${user.firstName} ${user.lastName}` }} width={width - spacing.mdl * 2} />
           <Animated.View key={name} entering={FadeIn.duration(180)} style={{ position: "absolute", left: spacing.md, top: -2, transform: [{ rotate: "-5deg" }] }}>
             <View style={{ backgroundColor: palette.white, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, boxShadow: "0 6px 14px -6px rgba(0,0,0,0.45)" }}>
               <Text style={{ fontFamily: fonts.display, fontSize: 13, lineHeight: 16, color: palette.purple[700] }}>{name || "Name me"}</Text>
@@ -107,7 +109,7 @@ export default function CardCreateDetails() {
           </Animated.View>
         </View>
         <Text variant="caption" tone="muted" style={{ marginTop: spacing.sm }}>
-          {CARD_THEMES[theme].name} · {network === "visa" ? "Visa" : "Mastercard"} · USD
+          {cardLook(theme).name} · {network === "visa" ? "Visa" : "Mastercard"} · USD
         </Text>
       </View>
 
@@ -177,10 +179,10 @@ export default function CardCreateDetails() {
           </Pressable>
           <View style={{ height: 1, backgroundColor: c.border, marginHorizontal: spacing.md }} />
           <View style={{ padding: spacing.md, gap: spacing.md }}>
-            <Pressable onPress={() => setTyping(true)} accessibilityRole="button" accessibilityLabel={`First top-up: ${usd} dollars`} accessibilityHint="Opens the keypad" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Pressable onPress={() => setTyping(true)} accessibilityRole="button" accessibilityLabel={`First top-up: ${usd} dollars, at least ${CARD_MIN_TOPUP_USD}`} accessibilityHint="Opens the keypad" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ gap: spacing.xxs }}>
-                <Text variant="caption" tone="muted">
-                  First top-up (optional)
+                <Text variant="caption" tone={usd && short ? "danger" : "muted"}>
+                  First top-up · min ${CARD_MIN_TOPUP_USD}
                 </Text>
                 <Text style={{ fontFamily: fonts.display, fontSize: 34, lineHeight: 40, color: usd ? c.text : c.textSubtle }}>${usd.toLocaleString()}</Text>
               </View>
@@ -213,8 +215,8 @@ export default function CardCreateDetails() {
           {(
             [
               ["Card creation", `$${CARD_FEE_USD.toFixed(2)}`],
-              ["First top-up", usd ? `$${usd.toFixed(2)}` : "None"],
-              ["Funding fee", usd ? `$${fundingFee.toFixed(2)}` : "Free"],
+              ["First top-up", usd ? `$${usd.toFixed(2)}` : "Required"],
+              ["Funding fee", usd ? `$${fundingFee.toFixed(2)}` : "1% (min $0.50)"],
             ] as const
           ).map(([k, v]) => (
             <View key={k} style={{ flexDirection: "row", justifyContent: "space-between" }}>

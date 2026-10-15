@@ -1,4 +1,6 @@
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
+import { DEMO_MS } from "@/utils/demo";
+import { canRestart, leaveFlow, restartFlow } from "@/utils/flow-exit";
 import { useEffect, useState, type ReactNode } from "react";
 import { BackHandler, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeInDown, FlipInEasyX, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
@@ -23,7 +25,9 @@ import { billerById } from "@/data/catalog";
 import type { Transaction } from "@/data/seed";
 import { useBeneficiariesStore } from "@/stores/use-beneficiaries-store";
 import { useCardsStore } from "@/stores/use-cards-store";
-import { useFlowStore, type RecurringOffer } from "@/stores/use-flow-store";
+import { useFlowStore, type FlowResult, type RecurringOffer } from "@/stores/use-flow-store";
+import { PAY } from "@/utils/pay-platform";
+import { PayMark } from "@/components/pay-mark";
 import { useInboxStore } from "@/stores/use-inbox-store";
 import { FREQUENCY_LABEL, nextDate, useRecurringStore, type Frequency } from "@/stores/use-recurring-store";
 import { toast } from "@/stores/use-ui-store";
@@ -111,7 +115,7 @@ function useLegs(tx: Transaction | undefined): { from: Leg; to: Leg } | null {
 }
 
 /** How long the card shows "Processing" before it settles (the PIN already approved it). */
-const PROCESSING_MS = 900;
+const PROCESSING_MS = DEMO_MS.processing;
 
 /** The settled icon: what kind of thing just happened. */
 /** A new card: the card itself flips in, with a green tick on its corner. */
@@ -127,6 +131,22 @@ function NewCardReveal({ cardId }: { cardId: string }) {
       </View>
       <View style={{ position: "absolute", right: -8, bottom: -8, width: 36, height: 36, borderRadius: 18, backgroundColor: c.success, borderWidth: 3, borderColor: c.bg, alignItems: "center", justifyContent: "center" }}>
         <Icon name="check" size={15} color="#fff" weight="bold" />
+      </View>
+    </Animated.View>
+  );
+}
+
+/** A deleted card: the card itself, faded and tilted away, with a trash badge on its corner. */
+function RetiredCard({ card }: { card: NonNullable<FlowResult["retiredCard"]> }) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  return (
+    <Animated.View entering={reduce ? undefined : FadeIn.duration(260)}>
+      <View style={{ transform: [{ rotate: "-4deg" }], opacity: 0.45 }}>
+        <VirtualCardFace card={card} width={220} pill={false} />
+      </View>
+      <View style={{ position: "absolute", right: -8, bottom: -8, width: 36, height: 36, borderRadius: 18, backgroundColor: c.danger, borderWidth: 3, borderColor: c.bg, alignItems: "center", justifyContent: "center" }}>
+        <Icon name="trash" size={15} color="#fff" />
       </View>
     </Animated.View>
   );
@@ -179,23 +199,15 @@ function ResultCard({ children }: { children: ReactNode }) {
   }, [back, reduce]);
   const dim = useAnimatedStyle(() => ({ opacity: back.get() }));
   return (
-    <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: spacing.md, paddingTop: insets.top + spacing.md, paddingBottom: Math.max(insets.bottom, spacing.md) }}>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md, paddingTop: insets.top + spacing.md, paddingBottom: Math.max(insets.bottom, spacing.md) }}>
       <Animated.View pointerEvents="none" style={[{ position: "absolute", inset: 0, backgroundColor: c.overlay }, dim]} />
-      <Animated.View accessibilityViewIsModal style={[{ maxHeight: height - insets.top - insets.bottom - spacing.xl, backgroundColor: c.bg, borderRadius: radius.panel, borderCurve: "continuous", overflow: "hidden", boxShadow: "0 30px 60px -20px rgba(20,0,40,0.45)" }, card]}>
+      <Animated.View accessibilityViewIsModal style={[{ width: "100%", maxWidth: 440, maxHeight: height - insets.top - insets.bottom - spacing.xl, backgroundColor: c.bg, borderRadius: radius.panel, borderCurve: "continuous", overflow: "hidden", boxShadow: "0 30px 60px -20px rgba(20,0,40,0.45)" }, card]}>
         {children}
       </Animated.View>
     </View>
   );
 }
 
-/**
- * Pop everything above the first page in one go: the flow's modal, /pin and the result card.
- * (dismissAll stopped at the flow's modal, so closing a receipt reopened the review screen.)
- */
-function closeAll() {
-  if (router.canDismiss()) router.dismissTo("/");
-  else router.replace("/");
-}
 
 /**
  * The payoff after every money flow (Swap.png, Send boards, Virtual Card.png): a card over the
@@ -209,8 +221,10 @@ export default function Success() {
   // captured once: Done / Make another clear the store while this card is still animating out,
   // and re-rendering then flashed an empty "Nothing to show here" card
   const [result] = useState(() => useFlowStore.getState().result);
-  const origin = useFlowStore((s) => s.origin);
   const clear = useFlowStore((s) => s.clear);
+  // the root stack: it knows which screen the flow started from
+  const nav = useNavigation();
+  const [another] = useState(() => canRestart(nav));
   const addBeneficiary = useBeneficiariesStore((s) => s.add);
   const legs = useLegs(result?.tx);
   const [settled, setSettled] = useState(reduce);
@@ -228,36 +242,44 @@ export default function Success() {
       toast(`${result.beneficiary.name} saved to beneficiaries`, "success");
     }
   };
+  // bills: Done also goes back to the bill screen, cleared, ready for the next one
+  const billAgain = result?.tx?.type === "bill" && another;
   const done = () => {
     keepBeneficiary();
     clear();
-    closeAll();
+    if (billAgain) restartFlow(nav);
+    else leaveFlow(nav);
   };
+  // the same flow again, from its first screen (same mode/category), without leaving the modal
   const again = () => {
     keepBeneficiary();
-    const href = origin;
     clear();
-    closeAll();
-    if (href) setTimeout(() => router.push(href as never), 60);
+    restartFlow(nav);
   };
 
   // Android back = Done (never back into the PIN pad)
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       clear();
-      closeAll();
+      leaveFlow(nav);
       return true;
     });
     return () => sub.remove();
-  }, [clear]);
+  }, [clear, nav]);
 
   // opened with no result (stale deep link, reload): quietly go home instead of an empty card
   useEffect(() => {
-    if (!result) closeAll();
-  }, [result]);
+    if (!result) leaveFlow(nav);
+  }, [result, nav]);
   if (!result) return null;
 
-  const { tx, headline, detail, extra, recurringOffer, beneficiary } = result;
+  const { tx, headline, detail, extra, recurringOffer, beneficiary, retiredCard, walletCardId } = result;
+  // a new card: straight to adding it to Apple Pay / Google Pay (Cards › Wallet & payments)
+  const addToWallet = () => {
+    clear();
+    leaveFlow(nav);
+    requestAnimationFrame(() => router.push({ pathname: "/cards/wallet", params: { id: walletCardId } }, { withAnchor: true }));
+  };
   const cashpoint = tx?.type === "cashpoint" && tx.direction === "out" && !!tx.meta?.code;
   const pending = !!tx && tx.status === "pending" && !cashpoint;
   const amount = tx && !cashpoint ? headlineAmount(tx) : null;
@@ -270,8 +292,8 @@ export default function Success() {
     if (!tx) return;
     keepBeneficiary();
     clear();
-    closeAll();
-    setTimeout(() => router.push({ pathname: "/transaction/[id]", params: { id: tx.id } }), 60);
+    leaveFlow(nav);
+    requestAnimationFrame(() => router.push({ pathname: "/transaction/[id]", params: { id: tx.id } }));
   };
 
   if (!settled) {
@@ -295,9 +317,14 @@ export default function Success() {
       {(cashpoint || extra) && <PrivacyGuard />}
       <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} bounces={false} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         <View style={{ alignItems: "center", gap: spacing.sm }} accessibilityLiveRegion="polite">
-          <ResultIcon tx={tx} pending={pending} />
+          {retiredCard ? <RetiredCard card={retiredCard} /> : <ResultIcon tx={tx} pending={pending} />}
           <Animated.View entering={reduce ? undefined : FadeInDown.delay(80).duration(320)} style={{ alignItems: "center", gap: spacing.sm, marginTop: spacing.xs }}>
-            {pending && <Pill label="Processing" tone="warning" icon="clock" />}
+            {/* wrapped: Pill pins itself to flex-start; the wrapper is what the column centres */}
+            {pending && (
+              <View>
+                <Pill label="Processing" tone="warning" icon="clock" />
+              </View>
+            )}
             <Text variant="title" align="center">
               {headline}
             </Text>
@@ -329,8 +356,16 @@ export default function Success() {
         {beneficiary && <Check on={save} onToggle={() => setSave((v) => !v)} label={`Save ${beneficiary.name.split(" ")[0]} to beneficiaries`} />}
 
         <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
-          {tx ? <Button title="View details" onPress={openReceipt} /> : <Button title="Done" onPress={done} />}
-          {origin && <Button title="Make another transaction" variant="secondary" onPress={again} />}
+          {walletCardId && (
+            <PressableScale onPress={addToWallet} accessibilityRole="button" accessibilityLabel={`Add to ${PAY.name}`} style={{ height: 54, borderRadius: radius.full, backgroundColor: c.text, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm }}>
+              <Text variant="bodyStrong" style={{ color: c.bg }}>
+                Add to
+              </Text>
+              <PayMark color={c.bg} height={18} />
+            </PressableScale>
+          )}
+          {tx ? <Button title="View details" variant={walletCardId ? "secondary" : "primary"} onPress={openReceipt} /> : <Button title="Done" onPress={done} />}
+          {another && <Button title="Make another transaction" variant="secondary" onPress={again} />}
           {tx && <Button title="Done" variant="tertiary" size="md" onPress={done} />}
         </View>
       </ScrollView>

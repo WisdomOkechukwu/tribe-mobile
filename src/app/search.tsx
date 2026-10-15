@@ -75,7 +75,7 @@ export default function Search() {
           {(billers.length > 0 || gifts.length > 0) && (
             <ListSection title="Pay">
               {billers.map((b) => (
-                <ListRow key={b.id} icon="bolt" iconBg={c.warningSoft} title={`Pay ${b.name}`} onPress={() => go({ pathname: "/bill/[id]", params: { id: b.id } })} />
+                <ListRow key={b.id} icon="bolt" iconBg={c.warningSoft} title={`Pay ${b.name}`} onPress={() => go({ pathname: "/bill/[id]", params: { id: b.id, category: b.category } })} />
               ))}
               {gifts.map((g) => (
                 <ListRow key={g.id} icon="gift" iconBg={c.brandSoft} iconTint={c.brandText} title={`${g.name} gift card`} onPress={() => go({ pathname: "/gift/[id]", params: { id: g.id } })} />

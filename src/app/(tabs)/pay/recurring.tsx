@@ -12,6 +12,8 @@ import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { FREQUENCY_LABEL, useRecurringStore, type Frequency, type Schedule } from "@/stores/use-recurring-store";
 import { toast } from "@/stores/use-ui-store";
+import { useRecurring } from "@/api/queries";
+import { QueryError, Skeleton, SkeletonList } from "@/components/skeletons";
 import { radius, spacing, useColors } from "@/theme";
 
 const when = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -65,14 +67,24 @@ function manage(s: Schedule, c: ReturnType<typeof useColors>) {
 /** Pay › Recurring: every bill that renews itself. */
 export default function Recurring() {
   const c = useColors();
-  const schedules = useRecurringStore((s) => s.schedules);
+  const query = useRecurring();
+  const schedules = query.data ?? [];
   const toggle = useRecurringStore((s) => s.toggle);
   const active = schedules.filter((s) => s.active);
   const monthly = active.reduce((sum, s) => sum + s.amountNgn * (s.frequency === "weekly" ? 4.33 : s.frequency === "biweekly" ? 2.17 : 1), 0);
 
   return (
     <Screen footer={<Button title="Add a recurring bill" icon="add" onPress={() => router.push("/recurring/new")} />}>
-      {schedules.length === 0 ? (
+      {!query.data ? (
+        query.isError ? (
+          <QueryError onRetry={() => query.refetch()} />
+        ) : (
+          <>
+            <Skeleton width="100%" height={82} radius={radius.group} />
+            <SkeletonList title="Your schedules" rows={3} />
+          </>
+        )
+      ) : schedules.length === 0 ? (
         <EmptyState icon="repeat" title="Nothing renewing yet" body="Set data, TV and light to renew themselves, so you never get cut off." />
       ) : (
         <>

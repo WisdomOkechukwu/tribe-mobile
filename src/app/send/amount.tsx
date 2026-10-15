@@ -6,6 +6,7 @@ import { openAssetPicker } from "@/components/asset-picker";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
+import { CountryFlag } from "@/components/country-flag";
 import { EmptyState } from "@/components/bits";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
@@ -30,9 +31,9 @@ function defaultDebit(receive: AssetCode, balances: Record<AssetCode, number>, o
 }
 
 /**
- * How much (Send boards' amount step): who it's for (with "Change recipient?"), your available
- * balance, the asset to debit with the rate, the amount and fee, and what they'll receive (with
- * "Change receive currency?"). Pay with any balance; we convert on the way.
+ * How much (Send boards' amount step), laid out like Swap: who it's for (with "Change"), what you
+ * send (any balance, with your balance beside it), the fee and total on the card's own line, the
+ * rate on the seam, and what they receive and when (tap to change currency). We convert on the way.
  */
 export default function SendAmount() {
   const c = useColors();
@@ -118,114 +119,125 @@ export default function SendAmount() {
         details: recipient.details,
         beneficiaryId: recipient.beneficiaryId,
       },
-      "/send",
     );
     router.push("/send/review");
   };
 
-  return (
-    <FlowScreen title={scope === "crypto" ? "Send crypto" : scope === "global" ? "Global send" : "Send Naira"} cancel="back" scroll={false} footer={<Button title="Continue" disabled={!value} onPress={review} />}>
-      {/* recipient's details */}
-      <View style={{ gap: spacing.xs }}>
-        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: c.brandSoft, borderRadius: radius.group, borderCurve: "continuous", borderWidth: 1, borderColor: c.brand, overflow: "hidden" }}>
-          <PressableScale onPress={changeCurrency} accessibilityLabel={`Receive currency ${receive}, change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.smd, borderRightWidth: 1, borderRightColor: c.border }}>
-            <CoinIcon code={receive} size={28} />
-            <View>
-              <Text variant="subhead">{receive}</Text>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
-                {scope === "crypto" ? r.name : "Receives"}
-              </Text>
-            </View>
-          </PressableScale>
-          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.smd }}>
-            <Avatar size={28} name={recipient.name} />
-            <View style={{ flex: 1, gap: spacing.xxs }}>
-              <Text variant="subhead" numberOfLines={1}>
-                {recipient.name}
-              </Text>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
-                {recipient.handle}
-              </Text>
+  const debitCard = (
+    <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.smd }}>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.sm }}>
+        <PressableScale onPress={() => openAssetPicker({ title: "Pay with", value: debit, onSelect: setDebit })} accessibilityLabel={`You send ${d.name}. Change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+          <CoinIcon code={debit} size={36} />
+          <View>
+            <Text variant="caption" tone="muted">
+              You send
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+              <Text variant="bodyStrong">{debit}</Text>
+              <Icon name="chevron" size={10} color={c.textMuted} weight="bold" />
             </View>
           </View>
+        </PressableScale>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text variant="caption" tone="muted">
+            Balance
+          </Text>
+          <Text variant="subhead" numberOfLines={1}>
+            {formatAsset(balances[debit], debit)}
+          </Text>
         </View>
-        <PressableScale onPress={changeRecipient} hitSlop={8} style={{ alignSelf: "flex-end" }} accessibilityRole="button">
-          <Text variant="caption" tone="brand">
-            Change recipient
+      </View>
+      <View style={{ alignItems: "center", gap: spacing.xxs }}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm, maxWidth: "100%" }}>
+          <Text variant="balance" style={{ color: over ? c.danger : value ? c.text : c.textSubtle, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit>
+            {groupAmount(amount)}
+          </Text>
+          <Text variant="headline" tone="muted">
+            {debit}
+          </Text>
+        </View>
+        {over && (
+          <Text variant="caption" tone="danger">
+            More than your balance
+          </Text>
+        )}
+      </View>
+      {/* fee and total on one line, on the card's own grid */}
+      <View style={{ height: 1, backgroundColor: c.border }} />
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text variant="caption" tone="muted">
+          Fee <Text variant="caption" tone={fee ? "text" : "success"}>{fee ? formatAsset(fee, debit) : "Free"}</Text>
+        </Text>
+        <Text variant="caption" tone="muted">
+          Total <Text variant="caption" tone="text">{formatAsset(value + fee, debit)}</Text>
+        </Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <FlowScreen title={scope === "crypto" ? "Send crypto" : scope === "global" ? "Global send" : "Send Naira"} cancel="back" scroll={false} footer={<Button title="Continue" disabled={!value} onPress={review} />}>
+      {/* who it's for: their currency flag on their avatar, and one way to change them */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", paddingHorizontal: spacing.md, paddingVertical: spacing.smd }}>
+        <View>
+          <Avatar size={40} name={recipient.name} />
+          <View style={{ position: "absolute", right: -4, bottom: -3, borderRadius: 11, borderWidth: 2, borderColor: c.surface }}>
+            {country ? <CountryFlag iso={country} size={18} /> : <CoinIcon code={receive} size={18} />}
+          </View>
+        </View>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
+          <Text variant="bodyStrong" numberOfLines={1}>
+            {recipient.name}
+          </Text>
+          <Text variant="caption" tone="muted" numberOfLines={1}>
+            {recipient.handle}
+          </Text>
+        </View>
+        <PressableScale onPress={changeRecipient} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change recipient" style={{ backgroundColor: c.brandSoft, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs + 2 }}>
+          <Text variant="subhead" tone="brand">
+            Change
           </Text>
         </PressableScale>
       </View>
 
+      {/* you send → they receive, with the rate on the seam */}
       <View>
-        <Text variant="subhead" tone="muted" style={{ marginBottom: spacing.sm }}>
-          Available bal.: <Text variant="subhead">{formatAsset(balances[debit], debit)}</Text>
-        </Text>
-        {/* asset to debit */}
-        <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.sm }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
-            <PressableScale onPress={() => openAssetPicker({ title: "Asset to debit", value: debit, onSelect: setDebit })} accessibilityLabel={`Pay with ${d.name}, change`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-              <CoinIcon code={debit} size={34} />
-              <View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                  <Text variant="bodyStrong">{debit}</Text>
-                  <Icon name="chevron" size={10} color={c.textMuted} weight="bold" />
-                </View>
-                <Text variant="caption" tone="muted">
-                  Asset to debit
-                </Text>
-              </View>
-            </PressableScale>
-            <View style={{ alignItems: "flex-end", flexShrink: 1 }}>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
-                Total: <Text variant="caption">{formatAsset(value + fee, debit)}</Text>
+        {debitCard}
+        <View style={{ alignItems: "center", marginVertical: -16, zIndex: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, height: 36, minWidth: 36, paddingHorizontal: same ? 0 : spacing.smd, justifyContent: "center", borderRadius: 18, backgroundColor: c.surface, borderWidth: 4, borderColor: c.bg }}>
+            <Icon name="arrowDown" size={12} color={c.textMuted} weight="bold" />
+            {!same && (
+              <Text variant="caption" numberOfLines={1}>
+                {rateText}
               </Text>
-              {!same && (
-                <Text variant="caption" tone="muted" numberOfLines={1}>
-                  {rateText}
-                </Text>
-              )}
-            </View>
-          </View>
-          <View style={{ alignItems: "center", paddingVertical: spacing.xs }}>
-            <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm, maxWidth: "100%" }}>
-              <Text variant="balance" style={{ color: over ? c.danger : value ? c.text : c.textSubtle, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit>
-                {groupAmount(amount)}
-              </Text>
-              <Text variant="headline" tone="muted">
-                {debit}
-              </Text>
-            </View>
-            <Text variant="caption" tone={over ? "danger" : "muted"}>
-              {over ? "More than your balance" : <>Send fee: <Text variant="caption" tone={fee ? "brand" : "success"}>{fee ? formatAsset(fee, debit) : "Free"}</Text></>}
-            </Text>
+            )}
           </View>
         </View>
-        <View style={{ alignItems: "center", marginVertical: -10, zIndex: 2 }}>
-          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }}>
-            <Icon name="arrowDown" size={13} color={c.textMuted} weight="bold" />
-          </View>
-        </View>
-        {/* to receive */}
-        <PressableScale onPress={changeCurrency} scaleTo={0.99} accessibilityLabel={`They receive ${formatAsset(toAmount, receive)}`} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md }}>
+        <PressableScale onPress={changeCurrency} scaleTo={0.99} accessibilityLabel={`They receive ${formatAsset(toAmount, receive)}. Change currency`} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-            <CoinIcon code={receive} size={34} />
+            <CoinIcon code={receive} size={36} />
             <View>
+              <Text variant="caption" tone="muted">
+                They receive
+              </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
                 <Text variant="bodyStrong">{receive}</Text>
                 <Icon name="chevron" size={10} color={c.textMuted} weight="bold" />
               </View>
-              <Text variant="caption" tone="muted">
-                To receive · {eta.toLowerCase()}
-              </Text>
             </View>
           </View>
-          <Text variant="amount" style={{ color: value && !over ? c.success : c.textSubtle, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit>
-            {formatAsset(toAmount, receive)}
-          </Text>
+          <View style={{ alignItems: "flex-end", flexShrink: 1 }}>
+            <Text variant="amount" style={{ color: value && !over ? c.success : c.textSubtle }} numberOfLines={1} adjustsFontSizeToFit>
+              {formatAsset(toAmount, receive)}
+            </Text>
+            <Text variant="caption" tone="muted" numberOfLines={1}>
+              Arrives {eta.toLowerCase()}
+            </Text>
+          </View>
         </PressableScale>
       </View>
 
-      <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: spacing.sm }}>
+      <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: spacing.xs }}>
         <AmountEntry value={amount} onChange={setAmount} decimals={Math.min(d.decimals, 6)} showDisplay={false} />
       </View>
     </FlowScreen>

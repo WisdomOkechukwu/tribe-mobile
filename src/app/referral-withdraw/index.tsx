@@ -59,7 +59,7 @@ export default function ReferralWithdraw() {
           title="Continue"
           disabled={!value || over || under}
           onPress={() => {
-            begin({ kind: "referral-withdraw", amountNgn: value, to }, "/referral-withdraw");
+            begin({ kind: "referral-withdraw", amountNgn: value, to });
             router.push("/referral-withdraw/review");
           }}
         />

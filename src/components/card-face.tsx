@@ -1,45 +1,23 @@
 import { Image } from "expo-image";
-import { View, type StyleProp, type ViewStyle } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
-import type { CardNetwork, CardTheme, VirtualCard } from "@/data/seed";
-import { palette, radius, spacing, useTheme } from "@/theme";
+import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from "react-native-reanimated";
+import Svg, { Circle, Ellipse, G, Path } from "react-native-svg";
+import type { CardNetwork, VirtualCard } from "@/data/seed";
+import { motion, palette, radius, spacing, useTheme, type CardLook } from "@/theme";
+import { cardLook } from "@/utils/card-finish";
 import { Icon } from "./icon";
+import { PairIcon } from "./pair-icon";
+import { WalletPill } from "./pay-mark";
 import { Stripes } from "./stripes";
 import { Text } from "./text";
 
-type Theme = { name: string; bg: string; fg: string; sub: string; mark: string; line: string; swatch: [string, string]; shadow: string };
+export { cardLook } from "@/utils/card-finish";
 
-/** Card finishes — Virtual Card.png's idea (a set of themes + subtle patterns) in Tribe colours. */
-export const CARD_THEMES: Record<CardTheme, Theme> = {
-  midnight: { name: "Midnight", bg: palette.purple[900], fg: "#ffffff", sub: palette.purple[100], mark: palette.orange[400], line: palette.purple[500], swatch: [palette.purple[700], palette.purple[900]], shadow: "0 26px 44px -26px rgba(44,5,72,0.9)" },
-  sunset: { name: "Sunset", bg: palette.orange[500], fg: "#ffffff", sub: palette.orange[50], mark: "#ffffff", line: palette.orange[300], swatch: [palette.orange[300], palette.orange[600]], shadow: "0 26px 44px -26px rgba(181,70,23,0.85)" },
-  onyx: { name: "Onyx", bg: "#1E1C21", fg: "#ffffff", sub: "#B9B6BF", mark: palette.purple[200], line: "#34313A", swatch: ["#4A4750", "#1E1C21"], shadow: "0 26px 44px -26px rgba(0,0,0,0.85)" },
-  cream: { name: "Cream", bg: "#EFEBE1", fg: "#201F1F", sub: "#6F6E6E", mark: palette.purple[500], line: "#E0DACB", swatch: ["#F8F6F0", "#DDD6C6"], shadow: "0 26px 44px -26px rgba(60,50,30,0.45)" },
-  lime: { name: "Lime", bg: "#BFEBA3", fg: "#14261A", sub: "#3D5A45", mark: palette.purple[700], line: "#AADF8A", swatch: ["#D6F6C2", "#9FDB7C"], shadow: "0 26px 44px -26px rgba(60,110,40,0.55)" },
-  forest: { name: "Forest", bg: "#0C3B2C", fg: "#ffffff", sub: "#A9D4C2", mark: "#BFEBA3", line: "#145440", swatch: ["#1C5A44", "#0A2E22"], shadow: "0 26px 44px -26px rgba(5,40,28,0.85)" },
-  sky: { name: "Sky", bg: "#5AC8FA", fg: "#062A47", sub: "#0E4A75", mark: "#062A47", line: "#2FAEEF", swatch: ["#9ADFFF", "#2FAEEF"], shadow: "0 26px 44px -26px rgba(20,100,160,0.55)" },
-};
-
-/** Swatch order on "Select a theme": Tribe's own two first (brand), then the rest light → dark. */
-export const CARD_THEME_ORDER: CardTheme[] = ["midnight", "sunset", "lime", "sky", "cream", "forest", "onyx"];
-
-type Pair = { light: string; dark: string };
-/** How each finish tints the Cards pages: page background, the action colour and soft fills. */
-const PAGE: Record<CardTheme, { page: Pair; accent: Pair; accentFg: Pair; soft: Pair }> = {
-  midnight: { page: { light: "#F1E8F8", dark: "#170D24" }, accent: { light: palette.purple[500], dark: "#8B3FD0" }, accentFg: { light: "#ffffff", dark: "#ffffff" }, soft: { light: "#E4D3F2", dark: "#2A1840" } },
-  sunset: { page: { light: "#FFF1E9", dark: "#21120B" }, accent: { light: palette.orange[500], dark: palette.orange[400] }, accentFg: { light: "#ffffff", dark: "#ffffff" }, soft: { light: "#FFDCC9", dark: "#3A1F12" } },
-  onyx: { page: { light: "#EEEDF1", dark: "#0F0E12" }, accent: { light: "#1E1C21", dark: "#E9E7EE" }, accentFg: { light: "#ffffff", dark: "#1E1C21" }, soft: { light: "#DFDDE5", dark: "#24222A" } },
-  cream: { page: { light: "#F7F3EA", dark: "#1A1813" }, accent: { light: "#6B5B3E", dark: "#C9B88F" }, accentFg: { light: "#ffffff", dark: "#1A1813" }, soft: { light: "#EAE2D0", dark: "#2E291F" } },
-  lime: { page: { light: "#EEF9E5", dark: "#0F1A0C" }, accent: { light: "#3F8F2C", dark: "#8FD46E" }, accentFg: { light: "#ffffff", dark: "#0F1A0C" }, soft: { light: "#D6F1C4", dark: "#1D3317" } },
-  forest: { page: { light: "#E7F2EC", dark: "#0A1712" }, accent: { light: "#0C3B2C", dark: "#7FD1AE" }, accentFg: { light: "#ffffff", dark: "#0A1712" }, soft: { light: "#CFE6DA", dark: "#16302A" } },
-  sky: { page: { light: "#E8F6FE", dark: "#0A1620" }, accent: { light: "#0B6FB0", dark: "#7CCBF5" }, accentFg: { light: "#ffffff", dark: "#0A1620" }, soft: { light: "#CDEBFB", dark: "#15303F" } },
-};
-
-/** The selected card's colours for the page around it (light/dark aware). */
-export function useCardPalette(theme: CardTheme) {
+/** The selected card's colours for the page around it (light/dark aware; works for custom finishes). */
+export function useCardPalette(theme: string) {
   const { scheme } = useTheme();
-  const p = PAGE[theme];
-  return { page: p.page[scheme], accent: p.accent[scheme], accentFg: p.accentFg[scheme], soft: p.soft[scheme] };
+  const l = cardLook(theme);
+  return { page: l.page[scheme], accent: l.accent[scheme], accentFg: l.accentFg[scheme], soft: l.soft[scheme] };
 }
 
 /** Mastercard circles or the VISA wordmark. */
@@ -59,55 +37,121 @@ export function NetworkMark({ network, color, size = 34 }: { network: CardNetwor
   );
 }
 
-/** Round card token for lists and pair icons: the card's finish with its network mark. */
-export function CardBadge({ theme, network, size = 40 }: { theme: CardTheme; network: CardNetwork; size?: number }) {
-  const t = CARD_THEMES[theme];
+/** Round card token for lists and pair icons: the card's colour with its network mark. */
+export function CardBadge({ theme, network, size = 40 }: { theme: string; network: CardNetwork; size?: number }) {
+  const look = cardLook(theme);
   return (
-    <View accessible accessibilityLabel={`${t.name} card`} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.bg, alignItems: "center", justifyContent: "center", borderWidth: theme === "cream" || theme === "lime" || theme === "sky" ? 1 : 0, borderColor: "rgba(0,0,0,0.08)" }}>
-      <NetworkMark network={network} color={t.fg} size={size * 0.52} />
+    <View accessible accessibilityLabel={`${look.name} card`} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: look.bg, alignItems: "center", justifyContent: "center", borderWidth: look.light ? 1 : 0, borderColor: "rgba(0,0,0,0.08)" }}>
+      <NetworkMark network={network} color={look.fg} size={size * 0.52} />
     </View>
   );
 }
 
-/** Subtle per-theme pattern, drawn across the whole card. */
-function Pattern({ theme, w, h }: { theme: CardTheme; w: number; h: number }) {
-  const t = CARD_THEMES[theme];
-  if (theme === "midnight")
+/**
+ * Money moving between a balance and a card, Mastercard-style: `out` (funding, paying for a new
+ * card) puts the paying coin/flag at the back and the card in front; `in` (withdrawing) puts the
+ * card at the back and the coin it lands in up front.
+ */
+export function CardPairIcon({ theme, network, asset, direction = "out", size = 40 }: { theme: string; network: CardNetwork; asset: string; direction?: "out" | "in"; size?: number }) {
+  if (direction === "out") return <PairIcon from={asset} front={(s) => <CardBadge theme={theme} network={network} size={s} />} size={size} />;
+  return <PairIcon from="card" back={(s) => <CardBadge theme={theme} network={network} size={s} />} to={asset} size={size} />;
+}
+
+// Patterns are drawn once, in a fixed 340×214 box stretched to the card (no gradients → no SVG ids).
+const VW = 340;
+const VH = 214;
+
+// Pinstripe: hairlines leaning like the logo's bands, fading in towards the right
+const PINSTRIPES = ["", "", ""];
+for (let x = 92; x <= VW + 8; x += 9) PINSTRIPES[x < 170 ? 0 : x < 250 ? 1 : 2] += `M${x} ${VH}L${x + 134} 0`;
+
+// Waves: six slow S-curves across the lower half
+let WAVES = "";
+for (let i = 0; i < 6; i++) {
+  const y = 108 + 19 * i;
+  const a = 24 * (1 - 0.1 * i);
+  WAVES += `M-10 ${y}C80 ${y - a} 170 ${y + a} 260 ${y}S350 ${y - a / 2} 360 ${y - a / 2}`;
+}
+
+// Dots: a halftone that fades away from the top-right corner
+let DOTS = "";
+for (let y = 6; y <= 156; y += 11)
+  for (let x = 136; x <= VW; x += 11) {
+    const r = 2.5 * (1 - Math.hypot(VW - x, y) / 240);
+    if (r >= 0.45) DOTS += `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+  }
+
+// Rings: ripples spreading from the bottom-right corner
+const RINGS = Array.from({ length: 6 }, (_, i) => ({ r: 46 + 36 * i, opacity: 0.9 - i * 0.11 }));
+
+// Grid: a fine graph-paper grid over the right side, fading in towards the edge
+const GRID = ["", "", ""];
+for (let band = 0; band < 3; band++) {
+  const x0 = 136 + band * 68;
+  for (let x = x0; x < x0 + 68; x += 17) GRID[band] += `M${x} 0V${VH}`;
+  for (let y = 0; y <= VH; y += 17) GRID[band] += `M${x0} ${y}H${Math.min(x0 + 68, VW)}`;
+}
+
+// Diamonds: a light lattice of crossing diagonals across the whole card
+let DIAMONDS = "";
+for (let x = -VH; x <= VW; x += 26) DIAMONDS += `M${x} 0L${x + VH} ${VH}M${x} ${VH}L${x + VH} 0`;
+
+// Orbits: off-centre circles drifting from the top-right, one small "planet" on the third
+const ORBITS = Array.from({ length: 5 }, (_, i) => ({ cx: 300 - i * 14, cy: 26 + i * 10, r: 38 + 36 * i, opacity: 0.95 - i * 0.14 }));
+const PLANET = { cx: ORBITS[2].cx - ORBITS[2].r * Math.cos(0.5), cy: ORBITS[2].cy + ORBITS[2].r * Math.sin(0.5) };
+
+// Contours: a topographic hill rising from the bottom edge
+const CONTOUR_C = { x: 210, y: VH - 6 };
+const CONTOURS = Array.from({ length: 7 }, (_, i) => ({ rx: 30 + 27 * i, ry: 18 + 18 * i, opacity: 0.95 - i * 0.1 }));
+
+/** A finish's pattern, filling the card behind everything else. */
+function CardPatternArt({ look, width, height }: { look: CardLook; width: number; height: number }) {
+  const k = width / VW;
+  if (look.pattern === "brand" || look.pattern === "stripes") {
+    const brand = look.pattern === "brand";
     return (
-      <View style={{ position: "absolute", right: -30, top: -40, width: "72%", height: "160%", overflow: "hidden", opacity: 0.9 }}>
-        <Stripes band={20} gap={9} count={10} colors={[palette.purple[500], palette.orange[500]]} />
+      <View pointerEvents="none" style={{ position: "absolute", right: -30 * k, top: -40 * k, width: "72%", height: "160%", overflow: "hidden", opacity: brand ? 0.9 : 1 }}>
+        <Stripes band={(brand ? 20 : 15) * k} gap={(brand ? 9 : 8) * k} count={brand ? 10 : 9} colors={brand ? [palette.purple[500], palette.orange[500]] : [look.line, look.lineSoft]} />
       </View>
     );
-  if (theme === "sky")
-    // bow-tie triangles meeting in the middle (Virtual Card.png's blue finish)
-    return (
-      <Svg width={w} height={h} style={{ position: "absolute", left: 0, top: 0 }}>
-        <Path d={`M0 ${h * 0.12} L${w * 0.5} ${h * 0.5} L0 ${h * 0.88} Z`} fill={t.line} opacity={0.55} />
-        <Path d={`M${w} ${h * 0.12} L${w * 0.5} ${h * 0.5} L${w} ${h * 0.88} Z`} fill={t.line} opacity={0.55} />
-        <Path d={`M${w * 0.18} 0 L${w * 0.5} ${h * 0.5} L${w * 0.82} 0 Z`} fill="#ffffff" opacity={0.16} />
-        <Path d={`M${w * 0.18} ${h} L${w * 0.5} ${h * 0.5} L${w * 0.82} ${h} Z`} fill="#ffffff" opacity={0.16} />
-      </Svg>
-    );
-  const paths: string[] = [];
-  if (theme === "sunset" || theme === "onyx" || theme === "forest") {
-    // rays from the bottom-left corner
-    for (let i = 0; i <= 22; i++) {
-      const a = (i / 22) * (Math.PI / 2);
-      paths.push(`M0 ${h} L${Math.cos(a) * w * 1.6} ${h - Math.sin(a) * w * 1.6}`);
-    }
-  } else if (theme === "lime") {
-    // interlocking chevrons
-    for (let y = -10; y < h + 20; y += 18) for (let x = -20; x < w + 20; x += 36) paths.push(`M${x} ${y + 9} l9 -9 l9 9 l9 -9 M${x + 9} ${y + 18} l0 -9`);
-  } else {
-    // cream: soft waves
-    for (let y = 8; y < h + 20; y += 16) paths.push(`M-10 ${y} q${w / 8} -10 ${w / 4} 0 t${w / 4} 0 t${w / 4} 0 t${w / 4} 0 t${w / 4} 0`);
   }
   return (
-    <Svg width={w} height={h} style={{ position: "absolute", left: 0, top: 0 }}>
-      {paths.map((d, i) => (
-        <Path key={i} d={d} stroke={t.line} strokeWidth={theme === "lime" ? 2 : 1.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      ))}
-      {theme === "cream" && <Circle cx={w * 0.86} cy={h * 0.1} r={h * 0.5} fill="#ffffff" opacity={0.35} />}
+    <Svg pointerEvents="none" width={width} height={height} viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="none" style={{ position: "absolute", left: 0, top: 0 }}>
+      {look.pattern === "plain" && (
+        <>
+          <Circle cx={300} cy={10} r={170} fill={look.line} />
+          <Circle cx={20} cy={240} r={130} fill={look.lineSoft} />
+        </>
+      )}
+      {look.pattern === "lines" && PINSTRIPES.map((d, i) => <Path key={i} d={d} stroke={look.line} strokeWidth={1} opacity={0.35 + i * 0.3} fill="none" />)}
+      {look.pattern === "waves" && <Path d={WAVES} stroke={look.line} strokeWidth={1.3} fill="none" strokeLinecap="round" />}
+      {look.pattern === "dots" && <Path d={DOTS} fill={look.line} />}
+      {look.pattern === "grid" && GRID.map((d, i) => <Path key={i} d={d} stroke={look.line} strokeWidth={0.8} opacity={0.35 + i * 0.3} fill="none" />)}
+      {look.pattern === "diamonds" && <Path d={DIAMONDS} stroke={look.line} strokeWidth={0.8} opacity={0.7} fill="none" />}
+      {look.pattern === "orbits" && (
+        <G>
+          {ORBITS.map((o) => (
+            <Circle key={o.r} cx={o.cx} cy={o.cy} r={o.r} stroke={look.line} strokeWidth={1.2} opacity={o.opacity} fill="none" />
+          ))}
+          <Circle cx={PLANET.cx} cy={PLANET.cy} r={6} fill={look.line} />
+        </G>
+      )}
+      {look.pattern === "contours" && (
+        // a hill rising from the bottom edge, clear of the wordmark and the wallet pill
+        <G transform={`rotate(-12 ${CONTOUR_C.x} ${CONTOUR_C.y})`}>
+          {CONTOURS.map((k) => (
+            <Ellipse key={k.rx} cx={CONTOUR_C.x} cy={CONTOUR_C.y} rx={k.rx} ry={k.ry} stroke={look.line} strokeWidth={1.1} opacity={k.opacity} fill="none" />
+          ))}
+        </G>
+      )}
+      {look.pattern === "rings" && (
+        <G>
+          <Circle cx={330} cy={VH} r={46} fill={look.lineSoft} />
+          {RINGS.map((ring) => (
+            <Circle key={ring.r} cx={330} cy={VH} r={ring.r} stroke={look.line} strokeWidth={1.4} opacity={ring.opacity} fill="none" />
+          ))}
+        </G>
+      )}
     </Svg>
   );
 }
@@ -119,65 +163,182 @@ function Wordmark({ color, size = 15 }: { color: string; size?: number }) {
   );
 }
 
-/** Real cards are ~86mm wide; past this the face reads as a poster (iPad, wide sheets), so callers' widths are capped. */
-export const MAX_FACE_W = 400;
-
-type FaceCard = Pick<VirtualCard, "theme" | "network" | "number" | "last4" | "expiry" | "cvv" | "frozen" | "holder"> & { label?: string };
-
-/** Landscape card (Cards tab, reviews): wordmark + network on top, masked number + holder below. */
-export function VirtualCardFace({ card, revealed = false, width: requested = 340, style }: { card: FaceCard; revealed?: boolean; width?: number; style?: StyleProp<ViewStyle> }) {
-  const t = CARD_THEMES[card.theme];
-  const width = Math.min(requested, MAX_FACE_W);
-  const h = width / 1.586;
-  const numberSize = width * 0.05;
-  const masked = `${card.number.slice(0, 4) || "5399"}  ••••  ••••  ${card.last4}`;
+/** A mini card (switcher rows, wallet list, pattern chips): the finish and, optionally, its network. */
+export function CardThumb({ theme, network, width = 48 }: { theme: string; network?: CardNetwork; width?: number }) {
+  const look = cardLook(theme);
+  const h = Math.round(width / 1.586);
   return (
-    <View
-      accessible
-      accessibilityLabel={`${t.name} ${card.network} card ending ${card.last4}${card.frozen ? ", frozen" : ""}`}
-      style={[{ width, height: h, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden", backgroundColor: t.bg, padding: spacing.mdl, justifyContent: "space-between", boxShadow: t.shadow }, style]}
-    >
-      <Pattern theme={card.theme} w={width} h={h} />
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Wordmark color={t.mark} />
-        <NetworkMark network={card.network} color={t.fg} />
-      </View>
-      <View style={{ gap: spacing.sm }}>
-        <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: numberSize, lineHeight: Math.round(numberSize * 1.4), letterSpacing: 1.6, color: t.fg, fontVariant: ["tabular-nums"] }}>{revealed ? card.number : masked}</Text>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, letterSpacing: 1, color: t.sub }}>{(card.holder || "Card holder").toUpperCase()}</Text>
-          <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, letterSpacing: 1, color: t.sub }}>{revealed ? `${card.expiry} · CVV ${card.cvv}` : card.expiry}</Text>
-        </View>
-      </View>
-      {card.frozen && (
-        <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(214,226,240,0.55)", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
-          <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.85)", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="snowflake" size={26} color="#3A6EA5" />
-          </View>
-          <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 13, color: "#1F3550" }}>Frozen</Text>
+    <View style={{ width, height: h, borderRadius: Math.max(4, width * 0.1), borderCurve: "continuous", overflow: "hidden", backgroundColor: look.bg, borderWidth: look.light ? 1 : 0, borderColor: "rgba(0,0,0,0.08)" }}>
+      <CardPatternArt look={look} width={width} height={h} />
+      {network && (
+        <View style={{ position: "absolute", right: width * 0.08, bottom: h * 0.12 }}>
+          <NetworkMark network={network} color={look.fg} size={width * 0.26} />
         </View>
       )}
     </View>
   );
 }
 
-/** Portrait card for the theme carousel (Virtual Card.png "Select a theme"). */
-export function VirtualCardPortrait({ theme, network, width = 200 }: { theme: CardTheme; network: CardNetwork; width?: number }) {
-  const t = CARD_THEMES[theme];
-  const h = width * 1.586;
+/** Real cards are ~86mm wide; past this the face reads as a poster (iPad, wide sheets), so callers' widths are capped. */
+export const MAX_FACE_W = 400;
+
+type FaceCard = Pick<VirtualCard, "theme" | "network"> & Partial<Pick<VirtualCard, "holder" | "number" | "last4" | "expiry" | "cvv" | "frozen" | "inWallet">>;
+
+const faceLabel = (card: FaceCard, look: CardLook) =>
+  `${look.name} ${card.network === "visa" ? "Visa" : "Mastercard"} card${card.last4 && /\d/.test(card.last4) ? ` ending ${card.last4}` : ""}${card.frozen ? ", frozen" : ""}`;
+
+/** Card face geometry, all scaled from a 340pt-wide card. */
+function faceMetrics(requested: number) {
+  const width = Math.min(requested, MAX_FACE_W);
+  const k = width / VW;
+  const pad = Math.round(20 * k);
+  const mark = 15 * k;
+  const pillH = Math.max(16, Math.round(28 * k));
+  return { width, height: width / 1.586, k, pad, mark, pillH, pillTop: pad + (mark * 2.6 - pillH) / 2 };
+}
+
+/**
+ * Landscape card: Tribe wordmark top-left, the phone's wallet (Apple Pay / Google Pay) top-right,
+ * holder bottom-left, network bottom-right. The number never shows on the face, except on
+ * Card details with `revealed` (that screen guards against screenshots).
+ */
+function Face({ card, revealed, metrics, look, pill, decorative, style }: { card: FaceCard; revealed: boolean; metrics: ReturnType<typeof faceMetrics>; look: CardLook; pill: boolean; decorative?: boolean; style?: StyleProp<ViewStyle> }) {
+  const { width, height, k, pad, mark, pillH, pillTop } = metrics;
+  const numberSize = width * 0.05;
+  const small = width < 220;
+  const meta = { fontFamily: "Poppins_500Medium", fontSize: Math.max(9, 11 * k), lineHeight: Math.max(12, 15 * k), letterSpacing: 1, color: look.sub } as const;
+  // revealed details: a soft shadow keeps them legible over patterns (Midnight's stripes)
+  // (dark ink on pale finishes gets a pale halo, never a dark blur)
+  const shade = { textShadowColor: look.light ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: look.light ? 2 : 3 } as const;
+  const label = { fontFamily: "Poppins_500Medium", fontSize: Math.max(7, 8.5 * k), lineHeight: Math.max(9, 11 * k), letterSpacing: 1.2, color: look.sub, ...shade } as const;
+  const value = { fontFamily: "Poppins_600SemiBold", fontSize: Math.max(10, 13 * k), lineHeight: Math.max(13, 17 * k), letterSpacing: 0.8, color: look.fg, fontVariant: ["tabular-nums" as const], ...shade };
   return (
-    <View accessible accessibilityLabel={`${t.name} card`} style={{ width, height: h, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden", backgroundColor: t.bg, boxShadow: t.shadow }}>
-      <Pattern theme={theme} w={width} h={h} />
-      {/* wordmark runs down the right edge, number down the left — like a card held upright */}
-      <View style={{ position: "absolute", right: -h * 0.18 + 26, top: h * 0.22, transform: [{ rotate: "90deg" }] }}>
-        <Wordmark color={t.mark} size={16} />
+    <View
+      accessible={!decorative}
+      accessibilityLabel={decorative ? undefined : faceLabel(card, look)}
+      accessibilityElementsHidden={decorative}
+      importantForAccessibility={decorative ? "no-hide-descendants" : "auto"}
+      style={[{ width, height, borderRadius: Math.min(radius.card, width * 0.065), borderCurve: "continuous", overflow: "hidden", backgroundColor: look.bg, padding: pad, justifyContent: "space-between", boxShadow: look.shadow }, style]}
+    >
+      <CardPatternArt look={look} width={width} height={height} />
+      <View style={{ flexDirection: "row" }}>
+        <Wordmark color={look.mark} size={mark} />
       </View>
-      <View style={{ position: "absolute", left: 18 - h * 0.17, top: h * 0.3, transform: [{ rotate: "90deg" }] }}>
-        <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 13, letterSpacing: 2, color: t.sub }}>5399 **** **** ****</Text>
-      </View>
-      <View style={{ position: "absolute", right: 18, bottom: 22 }}>
-        <NetworkMark network={network} color={t.fg} size={36} />
-      </View>
+      {pill && width >= 150 && (
+        <View style={{ position: "absolute", top: pillTop, right: pad }}>
+          <WalletPill look={look} height={pillH} added={!!card.inWallet} />
+        </View>
+      )}
+      {revealed ? (
+        <>
+          {/* the number and the details as one block at the foot: even gaps, read left to right */}
+          <View style={{ gap: 14 * k }}>
+            <View style={{ flexDirection: "row", gap: 14 * k }}>
+              {(card.number ?? "").split(" ").map((g, i) => (
+                <Text key={`${g}-${i}`} selectable style={{ fontFamily: "Poppins_600SemiBold", fontSize: numberSize * 1.08, lineHeight: Math.round(numberSize * 1.45), letterSpacing: 1.6, color: look.fg, fontVariant: ["tabular-nums"], ...shade }}>
+                  {g}
+                </Text>
+              ))}
+            </View>
+          {/* labelled columns, like a real card: holder · expires · CVV, network on the right */}
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 22 * k }}>
+            <View style={{ flexShrink: 1, gap: 2 }}>
+              <Text style={label}>CARDHOLDER</Text>
+              <Text numberOfLines={1} style={value}>
+                {(card.holder || "Card holder").toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ gap: 2 }}>
+              <Text style={label}>EXPIRES</Text>
+              <Text selectable style={value}>
+                {card.expiry}
+              </Text>
+            </View>
+            <View style={{ gap: 2 }}>
+              <Text style={label}>CVV</Text>
+              <Text selectable style={value}>
+                {card.cvv}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <NetworkMark network={card.network} color={look.fg} size={34 * k} />
+          </View>
+          </View>
+        </>
+      ) : (
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>{!small && !!card.holder && <Text style={meta}>{card.holder.toUpperCase()}</Text>}</View>
+          <NetworkMark network={card.network} color={look.fg} size={34 * k} />
+        </View>
+      )}
+      {card.frozen && (
+        <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(214,226,240,0.55)", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
+          <View style={{ width: 52 * k, height: 52 * k, borderRadius: 26 * k, backgroundColor: "rgba(255,255,255,0.85)", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="snowflake" size={26 * k} color="#3A6EA5" />
+          </View>
+          <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: Math.max(11, 13 * k), color: "#1F3550" }}>Frozen</Text>
+        </View>
+      )}
     </View>
   );
+}
+
+/**
+ * The Cards tab's live card: the whole face opens Card details, and the glass Apple Pay / Google
+ * Pay pill on it opens Wallet & payments. Both are real buttons for VoiceOver (a pressable
+ * wrapper would have swallowed the pill).
+ */
+function InteractiveFace({ card, metrics, look, style, onPress, onWalletPress }: { card: FaceCard; metrics: ReturnType<typeof faceMetrics>; look: CardLook; style?: StyleProp<ViewStyle>; onPress: () => void; onWalletPress?: () => void }) {
+  const reduce = useReducedMotion();
+  const scale = useSharedValue(1);
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
+  const live = !!onWalletPress && !card.frozen;
+  return (
+    <Animated.View style={[pressStyle, style]}>
+      <Face card={card} revealed={false} metrics={metrics} look={look} pill={!live} decorative />
+      <Pressable
+        onPressIn={() => {
+          if (!reduce) scale.set(withSpring(0.98, motion.press));
+        }}
+        onPressOut={() => scale.set(withSpring(1, motion.press))}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${faceLabel(card, look)}. Card details`}
+        style={{ position: "absolute", inset: 0, borderRadius: radius.card }}
+      />
+      {live && (
+        <View style={{ position: "absolute", top: metrics.pillTop, right: metrics.pad }}>
+          <WalletPill look={look} height={metrics.pillH} added={!!card.inWallet} onPress={onWalletPress} />
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
+/**
+ * Landscape card (Cards tab, card creation, reviews). `revealed` (Card details only) shows the
+ * number, expiry and CVV; `onPress` / `onWalletPress` make it the Cards tab's live card.
+ */
+export function VirtualCardFace({
+  card,
+  revealed = false,
+  width = 340,
+  style,
+  onPress,
+  onWalletPress,
+  pill = true,
+}: {
+  card: FaceCard;
+  revealed?: boolean;
+  width?: number;
+  style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
+  onWalletPress?: () => void;
+  /** false hides the Apple Pay / Google Pay mark (busy art like the intro fan) */
+  pill?: boolean;
+}) {
+  const look = cardLook(card.theme);
+  const metrics = faceMetrics(width);
+  if (onPress) return <InteractiveFace card={card} metrics={metrics} look={look} style={style} onPress={onPress} onWalletPress={onWalletPress} />;
+  return <Face card={card} revealed={revealed} metrics={metrics} look={look} pill={pill} style={style} />;
 }

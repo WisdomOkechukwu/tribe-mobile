@@ -97,7 +97,7 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
           title="Continue"
           disabled={!usd || over}
           onPress={() => {
-            begin(fund ? { kind: "card-fund", cardId: card.id, usd, from: account } : { kind: "card-withdraw", cardId: card.id, usd, to: account }, `/${fund ? "card-fund" : "card-withdraw"}?id=${card.id}`);
+            begin(fund ? { kind: "card-fund", cardId: card.id, usd, from: account } : { kind: "card-withdraw", cardId: card.id, usd, to: account });
             router.push(fund ? "/card-fund/review" : "/card-withdraw/review");
           }}
         />

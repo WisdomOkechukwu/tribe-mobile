@@ -75,6 +75,7 @@ export function KeyField({
           {label}
         </Text>
       )}
+      <View>
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label ?? "Field"}: ${value || "empty"}`} accessibilityHint="Opens the keypad">
         <View
           style={{
@@ -99,9 +100,12 @@ export function KeyField({
             </Text>
             {active && <Caret />}
           </View>
-          {trailing}
+          {/* room for the trailing button, which sits on top (a button can't live inside one) */}
+          {trailing ? <View style={{ width: 36 }} /> : null}
         </View>
       </Pressable>
+      {trailing ? <View style={{ position: "absolute", right: spacing.md, top: 0, bottom: 0, justifyContent: "center" }}>{trailing}</View> : null}
+      </View>
       {hint && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.xs }}>
           {hintTone === "success" && <Icon name="checkCircle" size={13} color={c.success} />}

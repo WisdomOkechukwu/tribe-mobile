@@ -1,3 +1,4 @@
+import { DEMO_MS } from "@/utils/demo";
 import { router, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { openAddMoneySheet, openMoreSheet } from "@/screens/home/sheets";
@@ -18,12 +19,13 @@ import { Text } from "@/components/text";
 import { TransactionList } from "@/components/transaction-row";
 import { ASSETS } from "@/data/assets";
 import { REFERRAL } from "@/data/referrals";
-import { useCardsStore } from "@/stores/use-cards-store";
 import { useInboxStore, useUnreadCount } from "@/stores/use-inbox-store";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { toast } from "@/stores/use-ui-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { portfolioUsd, useWalletStore } from "@/stores/use-wallet-store";
+import { useAccounts, useCards, useTransactions } from "@/api/queries";
+import { BalanceHeroSkeleton, Loaded, SkeletonList } from "@/components/skeletons";
 import { radius, spacing, useColors } from "@/theme";
 import { setupTasks } from "@/utils/setup-flow";
 import { FinishSetupCard } from "@/components/finish-setup-card";
@@ -119,10 +121,11 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const user = useSessionStore((s) => s.user);
   const kycTier = useSessionStore((s) => s.kycTier);
-  const balances = useWalletStore((s) => s.balances);
-  const opened = useWalletStore((s) => s.opened);
-  const transactions = useWalletStore((s) => s.transactions);
-  const hasCard = useCardsStore((s) => s.cards.length > 0);
+  const accounts = useAccounts();
+  const history = useTransactions();
+  const cards = useCards();
+  // unknown until cards load: keep the "Get a dollar card" promo out rather than flash it
+  const hasCard = cards.data ? cards.data.length > 0 : true;
   const unread = useUnreadCount();
   const [refreshing, setRefreshing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -137,7 +140,7 @@ export default function Home() {
     const href = useSessionStore.getState().consumeLanding();
     if (!href) return;
     // the card world lands on card creation, through the verification check
-    const t = setTimeout(() => (href === "/card-new" ? openCardCreation() : href.startsWith("/pay") ? router.navigate(href as Href) : router.push(href as Href)), 450);
+    const t = setTimeout(() => (href === "/card-new" ? openCardCreation() : href.startsWith("/pay") ? router.navigate(href as Href) : router.push(href as Href)), DEMO_MS.worldLanding);
     return () => clearTimeout(t);
   }, []);
 
@@ -163,16 +166,17 @@ export default function Home() {
   const world = useSessionStore((s) => s.world);
   const tasks = setupTasks({ phoneVerified, pin, kycTier, world, globalAccounts });
 
-  const totalUsd = portfolioUsd(balances);
-  const weighted = ASSETS.reduce(
-    (s, a) => s + balances[a.code] * a.usd * a.change24h,
-    0,
-  );
+  const balances = accounts.data?.balances;
+  const opened = accounts.data?.opened;
+  const totalUsd = balances ? portfolioUsd(balances) : 0;
+  const weighted = balances ? ASSETS.reduce((s, a) => s + balances[a.code] * a.usd * a.change24h, 0) : 0;
   const change = totalUsd ? weighted / totalUsd : 0;
-  const held = ASSETS.filter((a) => opened.includes(a.code))
-    .sort((a, b) => balances[b.code] * b.usd - balances[a.code] * a.usd)
-    .slice(0, 4);
-  const unopened = ASSETS.filter((a) => !opened.includes(a.code));
+  const held = balances && opened
+    ? ASSETS.filter((a) => opened.includes(a.code))
+        .sort((a, b) => balances[b.code] * b.usd - balances[a.code] * a.usd)
+        .slice(0, 4)
+    : [];
+  const unopened = opened ? ASSETS.filter((a) => !opened.includes(a.code)) : [];
 
   const promos: Promo[] = [
     {
@@ -277,14 +281,14 @@ export default function Home() {
         contentInsetAdjustmentBehavior="never"
         contentStyle={{ paddingTop: spacing.sm }}
         onScroll={(e) => setScrolled(e.nativeEvent.contentOffset.y > 4)}
-        scrollEventThrottle={32}
+        scrollEventThrottle={100}
         refreshing={refreshing}
         onRefresh={() => {
           setRefreshing(true);
-          setTimeout(() => setRefreshing(false), 900);
+          Promise.all([accounts.refetch(), history.refetch(), cards.refetch()]).finally(() => setRefreshing(false));
         }}
       >
-        <BalanceHero totalUsd={totalUsd} changePct={change} />
+        {balances ? <BalanceHero totalUsd={totalUsd} changePct={change} /> : <BalanceHeroSkeleton />}
 
         <CircleActionRow>
           {/* money coming in: our own incoming-arrow glyph */}
@@ -357,19 +361,23 @@ export default function Home() {
 
         <PromoCarousel promos={promos} />
 
-        <ListSection
-            title="Assets"
-            action={
-              <SectionLink
-                label="See all"
-                onPress={() => router.navigate("/wallet")}
-              />
-            }
-          >
-            {held.map((a) => (
-              <AssetRow key={a.code} a={a} />
-            ))}
-          </ListSection>
+        <Loaded query={accounts} skeleton={<SkeletonList title="Assets" rows={4} />}>
+          {() => (
+            <ListSection
+              title="Assets"
+              action={
+                <SectionLink
+                  label="See all"
+                  onPress={() => router.navigate("/wallet")}
+                />
+              }
+            >
+              {held.map((a) => (
+                <AssetRow key={a.code} a={a} />
+              ))}
+            </ListSection>
+          )}
+        </Loaded>
 
         <View style={{ gap: spacing.sm }}>
           <SectionHeader
@@ -377,7 +385,9 @@ export default function Home() {
             action="See all"
             onAction={() => router.push("/activity")}
           />
-          <TransactionList items={transactions.slice(0, 6)} />
+          <Loaded query={history} skeleton={<SkeletonList rows={4} />}>
+            {(txs) => <TransactionList items={txs.slice(0, 6)} />}
+          </Loaded>
         </View>
       </Screen>
     </View>

@@ -1,9 +1,9 @@
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Pressable, View } from "react-native";
+import { useAccounts } from "@/api/queries";
 import type { Asset } from "@/data/assets";
 import { usePrefsStore } from "@/stores/use-prefs-store";
-import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
 import { formatAsset, formatMoney, toDisplay } from "@/utils/format";
 import { CoinIcon } from "./coin-icon";
@@ -12,7 +12,7 @@ import { Text } from "./text";
 /** Wallet/Home asset row: coin/flag · name + price & 24h change · value + units. */
 export function AssetRow({ a, onPress }: { a: Asset; onPress?: () => void }) {
   const c = useColors();
-  const bal = useWalletStore((s) => s.balances[a.code]);
+  const bal = useAccounts().data?.balances[a.code] ?? 0;
   const display = usePrefsStore((s) => s.display);
   const hidden = usePrefsStore((s) => s.hideBalances);
   const up = a.change24h >= 0;

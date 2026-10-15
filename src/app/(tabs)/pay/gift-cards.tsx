@@ -29,7 +29,7 @@ export default function GiftCards() {
         ]}
       />
       <Note icon={mode === "buy" ? "gift" : "bank"} tone="brand">
-        {mode === "buy" ? "Pay with USDT, BTC, dollars or Naira. Codes land instantly." : "Fair rates, paid out to NGN or USDT in minutes."}
+        {mode === "buy" ? "Pay with USDT, BTC, dollars or Naira. Codes land instantly." : "Fair rates, paid out in any currency (crypto too) in minutes."}
       </Note>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.smd }}>
         {GIFT_BRANDS.map((b) => (

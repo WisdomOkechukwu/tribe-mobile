@@ -7,13 +7,14 @@ import { Icon, type IconName } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { ChipRow, useChipText } from "@/components/sheet";
 import { Text } from "@/components/text";
+import { SwipePager } from "@/components/swipe-switch";
 import { TransactionSectionList } from "@/components/transaction-row";
 import type { AssetCode } from "@/data/assets";
-import type { Transaction, TxType } from "@/data/seed";
+import type { TxType } from "@/data/seed";
 import { openAddMoneySheet } from "@/screens/home/sheets";
-import { useCardsStore } from "@/stores/use-cards-store";
+import { useCards, useTransactions } from "@/api/queries";
+import { QueryError, SkeletonList } from "@/components/skeletons";
 import { overlay } from "@/stores/use-overlay-store";
-import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { senderOf, txScope, type TxScope } from "@/utils/tx";
 
@@ -49,8 +50,9 @@ export default function History() {
   const c = useColors();
   const chipText = useChipText();
   const params = useLocalSearchParams<{ type?: TxType; card?: string; tab?: Scope; asset?: AssetCode; from?: string; fromName?: string }>();
-  const all = useWalletStore((s) => s.transactions);
-  const card = useCardsStore((s) => s.cards.find((k) => k.id === params.card));
+  const history = useTransactions();
+  const all = history.data ?? [];
+  const card = useCards().data?.find((k) => k.id === params.card);
   const [category, setCategory] = useState<Category>(categoryOf(params.type));
   const [scope, setScope] = useState<Scope>(params.tab ?? "all");
   const [cardId, setCardId] = useState(params.card);
@@ -58,10 +60,11 @@ export default function History() {
   // receipt → "More from…": every deposit from one sender
   const [from, setFrom] = useState(params.from);
 
-  const type = CATEGORIES.find((k) => k.value === category)?.type;
-  const match = (t: Transaction) =>
-    (scope === "all" || txScope(t) === scope) && (!type || t.type === type) && (!cardId || t.meta?.cardId === cardId) && (!asset || t.asset === asset || t.toAsset === asset) && (!from || senderOf(t)?.key === from);
-  const items = all.filter(match);
+  // what one category page shows, under the account / card / asset / sender filters
+  const itemsFor = (cat: Category) => {
+    const type = CATEGORIES.find((k) => k.value === cat)?.type;
+    return all.filter((t) => (scope === "all" || txScope(t) === scope) && (!type || t.type === type) && (!cardId || (t.type === "card" && (t.meta?.cardId ?? "c1") === cardId)) && (!asset || t.asset === asset || t.toAsset === asset) && (!from || senderOf(t)?.key === from));
+  };
   // narrowing beyond the chips: shown as removable pills
   const pills = [
     scope !== "all" && { key: "scope", label: SCOPES.find((x) => x.value === scope)?.label, clear: () => setScope("all") },
@@ -69,7 +72,6 @@ export default function History() {
     !!asset && { key: "asset", label: asset, clear: () => setAsset(undefined) },
     !!from && { key: "from", label: `From ${params.fromName ?? "sender"}`, clear: () => setFrom(undefined) },
   ].filter((x) => !!x);
-  const filtered = category !== "all" || pills.length > 0;
 
   const clearFilter = () => {
     setCategory("all");
@@ -141,13 +143,24 @@ export default function History() {
     </>
   );
 
-  const empty =
+  const emptyFor = (cat: Category) =>
     all.length === 0 ? (
       <EmptyState icon="history" title="No transactions yet" body="Add money to get started. Sending, swapping and paying bills all show up here." action={<Button title="Deposit now" inline onPress={openAddMoneySheet} />} />
     ) : (
-      <EmptyState icon="history" title="Nothing here yet" body={filtered ? "Nothing matches these filters yet. Try another category or account." : "No transactions yet."} action={filtered ? <Button title="Clear filter" variant="secondary" inline onPress={clearFilter} /> : undefined} />
+      <EmptyState
+        icon="history"
+        title="Nothing here yet"
+        body={cat !== "all" || pills.length > 0 ? "Nothing matches these filters yet. Try another category or account." : "No transactions yet."}
+        action={cat !== "all" || pills.length > 0 ? <Button title="Clear filter" variant="secondary" inline onPress={clearFilter} /> : undefined}
+      />
     );
 
-  // virtualised: only the visible rows are mounted, however long the history gets
-  return <TransactionSectionList items={items} header={header} empty={empty} />;
+  // each list is virtualised: only the visible rows are mounted
+  // the chips stay put; the categories are a carousel of lists (swipe, or tap a chip to slide)
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.smd }}>{header}</View>
+      <SwipePager fill options={CATEGORY_VALUES} value={category} onChange={pickCategory} renderPage={(cat) => (history.data ? <TransactionSectionList items={itemsFor(cat)} empty={emptyFor(cat)} /> : history.isError ? <QueryError onRetry={() => history.refetch()} /> : <SkeletonList rows={7} style={{ paddingHorizontal: spacing.md }} />)} />
+    </View>
+  );
 }

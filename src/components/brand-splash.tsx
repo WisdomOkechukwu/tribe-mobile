@@ -11,9 +11,9 @@ import { schemes } from "@/theme";
 /** Must equal the splash plugin's `imageWidth` in app.json, so native → JS is invisible. */
 export const SPLASH_MARK_WIDTH = 140;
 
-const SETTLE = 120;
-const INHALE = 280;
-const EXHALE = 520;
+const SETTLE = 60;
+const INHALE = 200;
+const EXHALE = 380;
 // mark and background start fading 40% into the exhale, so the app shows through the zoom
 const FADE_AT = SETTLE + INHALE + EXHALE * 0.4;
 
@@ -67,7 +67,7 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
   const mark = useAnimatedStyle(() => ({ opacity: markOpacity.get(), transform: [{ scale: scale.get() }] }));
 
   const layer = (
-    <View style={{ position: "absolute", inset: 0, zIndex: 2000, alignItems: "center", justifyContent: "center" }} onLayout={() => setPainted(true)} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View pointerEvents="none" style={{ position: "absolute", inset: 0, zIndex: 2000, alignItems: "center", justifyContent: "center" }} onLayout={() => setPainted(true)} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Animated.View style={[{ position: "absolute", inset: 0, backgroundColor: schemes.light.bg }, bg]} />
       <Animated.View style={mark}>
         <Image source={require("@/assets/brand/tribe-logo.png")} style={{ width: SPLASH_MARK_WIDTH, height: SPLASH_MARK_WIDTH }} contentFit="contain" />

@@ -11,7 +11,7 @@ import { formatAsset } from "@/utils/format";
 import { txSubtitle, txTitle } from "@/utils/tx";
 import { BillerThumb, GiftMark } from "./brand-tiles";
 import { useCardsStore } from "@/stores/use-cards-store";
-import { CardBadge } from "./card-face";
+import { CardBadge, CardPairIcon } from "./card-face";
 import { CashpointMark } from "./cashpoint-mark";
 import { CoinIcon } from "./coin-icon";
 import { Icon, type IconName } from "./icon";
@@ -86,8 +86,7 @@ export function CardLeading({ tx, size }: { tx: Transaction; size: number }) {
   const theme = card?.theme ?? "midnight";
   const network = card?.network ?? "mastercard";
   if (!tx.meta?.face) return <CardBadge theme={theme} network={network} size={size} />;
-  if (tx.direction === "out") return <PairIcon from={tx.asset} front={(s) => <CardBadge theme={theme} network={network} size={s} />} size={size} />;
-  return <PairIcon from="card" back={(s) => <CardBadge theme={theme} network={network} size={s} />} to={tx.asset} size={size} />;
+  return <CardPairIcon theme={theme} network={network} asset={tx.asset} direction={tx.direction} size={size} />;
 }
 
 /** The thing bought/funded in its own terms — hidden when it would just repeat a Naira amount. */

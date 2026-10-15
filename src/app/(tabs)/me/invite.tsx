@@ -13,7 +13,8 @@ import { CoinIcon } from "@/components/coin-icon";
 import { Stripes } from "@/components/stripes";
 import { Text } from "@/components/text";
 import { earnedFrom, earnedThisMonth, INVITEES, REFERRAL, referralCode, totalEarned } from "@/data/referrals";
-import { useReferralStore } from "@/stores/use-referral-store";
+import { useReferrals } from "@/api/queries";
+import { Skeleton, SkeletonList } from "@/components/skeletons";
 import { useSessionStore } from "@/stores/use-session-store";
 import { palette, radius, spacing, useColors } from "@/theme";
 import { formatAsset, relativeDate } from "@/utils/format";
@@ -34,9 +35,8 @@ const STEPS: { icon: IconName; title: string; body: string }[] = [
 export default function Invite() {
   const c = useColors();
   const tag = useSessionStore((s) => s.user.tag);
-  const balance = useReferralStore((s) => s.balance);
-  const earnings = useReferralStore((s) => s.earnings);
-  const withdrawals = useReferralStore((s) => s.withdrawals);
+  const referrals = useReferrals();
+  const { balance = 0, earnings = [], withdrawals = [] } = referrals.data ?? {};
   const [tab, setTab] = useState<Tab>("earnings");
   const code = referralCode(tag);
   const earning = INVITEES.filter((i) => i.status === "earning").length;
@@ -60,11 +60,15 @@ export default function Invite() {
             <Text variant="caption" style={{ color: palette.purple[100] }}>
               Available to withdraw
             </Text>
-            <Text variant="balance" style={{ color: "#fff" }} adjustsFontSizeToFit numberOfLines={1}>
-              {naira(balance)}
-            </Text>
+            {referrals.data ? (
+              <Text variant="balance" style={{ color: "#fff" }} adjustsFontSizeToFit numberOfLines={1}>
+                {naira(balance)}
+              </Text>
+            ) : (
+              <Skeleton width={150} height={36} style={{ marginTop: spacing.xs, backgroundColor: "rgba(255,255,255,0.2)" }} />
+            )}
           </View>
-          <Button title="Withdraw" icon="arrowDown" variant="white" size="md" inline disabled={balance < REFERRAL.minWithdrawNgn} onPress={() => router.push("/referral-withdraw")} />
+          <Button title="Withdraw" icon="arrowDown" variant="white" size="md" inline disabled={!referrals.data || balance < REFERRAL.minWithdrawNgn} onPress={() => router.push("/referral-withdraw")} />
         </View>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {[
@@ -121,7 +125,9 @@ export default function Invite() {
         onChange={setTab}
       />
 
-      {tab === "earnings" && (
+      {!referrals.data && tab !== "friends" && <SkeletonList rows={4} />}
+
+      {referrals.data && tab === "earnings" && (
         <ListSection footer={`${naira(REFERRAL.perTransactionNgn)} for every transaction a friend makes, paid ${REFERRAL.payout}. No cap, no expiry.`}>
           {earnings.slice(0, 12).map((e) => (
             <ListRow key={e.id} leading={<Avatar size={38} name={e.friend} ring={false} />} title={e.friend} subtitle={`${e.what} · ${relativeDate(e.date)}`} trailing={<Text variant="amount" tone="success">+{naira(e.amount)}</Text>} />
@@ -129,7 +135,8 @@ export default function Invite() {
         </ListSection>
       )}
 
-      {tab === "withdrawals" &&
+      {referrals.data &&
+        tab === "withdrawals" &&
         (withdrawals.length ? (
           <ListSection>
             {withdrawals.map((w) => (

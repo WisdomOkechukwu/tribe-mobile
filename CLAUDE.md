@@ -5,12 +5,13 @@
 Expo SDK 57 · Expo Router · React Native 0.86 · Reanimated 4 · React Compiler · Zustand. It mirrors the landing page in `../` (same palette, logos and product truths). This is a **prototype on mock data**: there is no backend. Every balance, rate and transaction is seeded in `src/data/`.
 
 ## Run
-Homebrew Node on this machine is broken, so prefix every command with `export PATH=~/.nvm/versions/node/v24.19.0/bin:$PATH`.
+Homebrew Node on this machine is broken, so prefix every command with `export PATH=~/.nvm/versions/node/v24.21.0/bin:$PATH`.
 ```sh
 npx expo start            # Expo Go
 npx expo run:ios          # native dev build
 npm run check            # tsc + expo lint + SF Symbols guard (scripts/check-symbols.mjs)
 npm run flags            # re-rasterise assets/flags/*.png from flag-icons (needs the root's sharp)
+npm run logos            # re-rasterise crypto logos + gift-card marks (SVG sources) to PNG
 ```
 Add packages with `npx expo install`, never `npm install` directly. `ios/` and `android/` are generated (CNG) and gitignored, so never edit them.
 
@@ -32,26 +33,29 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
     - `(home)/`: index (fixed top bar), activity (**History**: All/Local/Crypto/Global + type filter; `?type=card&card=c1`), notifications
     - `wallet/`: index
     - `pay/`: index, vault, gift-cards, recurring
-    - `cards/`: index (page tinted by the card's theme; Recent + All transactions), details, all ("My cards")
+    - `cards/`: index (page tinted by the card's finish; balance, live card with the glass Apple Pay / Google Pay pill, Fund · Withdraw · Details · Freeze, Recent), details (the **only** place the number and CVV show), all ("My cards", a grid of real faces), wallet ("Wallet & payments": add cards to Apple Pay / Google Pay, default card; simulated, `TODO(wallet)`)
     - `me/`: index, edit, qr, invite (balance · Earnings · Withdrawals · Friends), security, change-pin (transaction PIN; sets one up if there's none), password, devices, notifications, statements
   - **Modal flows** (own folder + stack, native headers via `FlowScreen`): `send/` (index: NGN / global / crypto → global or crypto pickers → recipient → amount → review; state in `use-send-draft`), `swap/`, `bill/[id]`, `gift/[id]`, `cashpoint/`, `recurring/`, `card-new/` (index → type → verify → details → review), `card-fund/`, `card-withdraw/` (both render `screens/cards/move-money.tsx`), `add-currency/`, `referral-withdraw/`.
-  - Other root screens: `transaction/[id]` (receipt), `report/[id]`, `receive/[code]`, `search` (modals); `scan` (fullScreenModal); `asset/[code]`, `verify/*`, `pin`, `success`, `dev.tsx` (dev only: `?action=onboard|showcase|signout|reset|hide`, plus `&to=`, `&theme=`, `&demo=send`).
+  - Other root screens: `transaction/[id]` (receipt), `report/[id]`, `receive/[code]`, `search` (modals); `scan` (fullScreenModal); `asset/[code]`, `verify/*`, `pin`, `success`, `dev.tsx` (dev only: `?action=onboard|showcase|signout|reset|hide|latency`, plus `&to=`, `&theme=`, `&demo=send`).
 - **Routing rules:**
   - Only the tabs' Home may be `/`. Guarded groups come first in the root `<Stack>`.
   - Flow folders set `unstable_settings.initialRouteName = "index"`.
   - Cross-tab deep links use `router.push(href, { withAnchor: true })` so the tab's index sits underneath (that's how Token Vault got its back button).
-  - Titles sit inline with the back button: large titles only on the Wallet, Pay and Cards roots (`TAB_ROOT` in `stack-options.ts`). Headers are opaque.
-- `src/screens/`: `review.tsx` (shared review + `actionSummary()`: heading, breakdown, CTA per kind), `onboarding/shell.tsx` + `onboarding/pin-create.tsx`, `pin-change.tsx` (change/reset either PIN), `send/shared.tsx`, `cards/move-money.tsx`, `home/sheets.tsx`, verify flow.
+  - Titles sit inline with the back button: large titles only on the Wallet, Pay and Cards roots (`TAB_ROOT` in `stack-options.ts`). Headers are opaque. `TAB_ROOT` drops the custom `headerTitle` on iOS: a custom title view stays on the bar under the large title (the title showed twice).
+- `src/screens/`: `review.tsx` (shared review + `actionSummary()`: centred hero (overline · amount · sub), optional From → To legs, a ticket breakdown with an emphasised total, CTA per kind; `ReviewHero` / `ReviewTicket` reused by card-new/review), `onboarding/shell.tsx` + `onboarding/pin-create.tsx`, `pin-change.tsx` (change/reset either PIN), `send/shared.tsx`, `cards/move-money.tsx`, `home/sheets.tsx`, verify flow.
 - `src/components/` (highlights):
-  - Overlays: `overlay-host` + `stores/use-overlay-store` (`overlay.select / sheet / confirm / notice`), `toast`
+  - Card sheets: `screens/cards/card-sheets.tsx` (`openFreezeSheet`, `openDeleteSheet`; deleting is a `card-delete` flow action approved on `/pin`, the result card shows the card fading out)
+  - Overlays: `overlay-host` + `stores/use-overlay-store` (`overlay.select / menu / sheet / confirm / notice`; `menu` is for actions (⋯), no radios), `toast`, `date-range-sheet` (`openDateRange`, our own calendar)
   - Layout and lists: `list` (ListSection, ListRow, RowIcon, SectionLink), `flow-screen`, `screen`, `field`, `dropdown`, `keyboard-frame`
   - Navigation: `glass-tab-bar`, `tab-icons`, `app-tabs`, `stack-options`
   - Money: `balance-hero`, `asset-row`, `transaction-row` (`groupByDay`), `pair-icon`, `transfer-legs` (From → To pair), `result-badge`, `pending-timeline`, `amount-entry`
-  - Brand: `cashpoint-mark` (₦ on a tilted ticket), `cashpoint-ticket`, `card-face` (7 finishes, `useCardPalette`), `brand-tiles`, `coin-icon` (circular flags/coins), `illustrations` (intro art built from real assets; `onColour` for the intro bands), `tribe-loader` (logo disc breathing out rings over a wave of slanted bars; + `LoadingHost`, `withLoader()`), `brand-splash` (cold-start breathe-out)
+  - Brand: `cashpoint-mark` (₦ on a tilted ticket), `cashpoint-ticket`, `card-face` (`VirtualCardFace`, `CardBadge`, `CardPairIcon`, `CardThumb`, `useCardPalette`), `pay-mark` (`PayMark`, `WalletPill`), `country-flag`, `brand-tiles`, `coin-icon` (circular flags/coins), `illustrations` (intro art built from real assets; `onColour` for the intro bands), `tribe-loader` (logo disc breathing out rings over a wave of slanted bars; + `LoadingHost`, `withLoader()`), `brand-splash` (cold-start breathe-out)
   - **The logo is `assets/brand/tribe-logo.png`** (copied from `../TribeLogo.png`; it carries the TRIBE wordmark, so never set "TRIBE" text next to it). On purple-900 or orange put it on a white disc (`MarkDisc` in `screens/auth/shell.tsx`).
   - Auth: `password-field`, `password-rules`. Signed-out screens use `AuthShell` (`src/screens/auth/shell.tsx`): purple-900 band (corner stripes, logo disc, `poster` caps headline with an orange last line, step segments) and a light sheet rising over it; the band scrolls with the form. Post-signup setup uses `OnboardingShell` (`src/screens/onboarding/shell.tsx`) in the same language: compact purple-900 band, a Finish-setup meter (phone · PIN · identity · global accounts) driven by the route (`STAGES`), a `poster` headline (pass `headline` lines; the last is orange), the step's icon as a tilted orange sticker, and `Hero` + `Perks` for intro screens. Intro screens reuse the success art from `components/verified-art.tsx` with `done={false}`.
   - Pickers & money: `asset-picker` (`openAssetPicker`: search, popular, tabs, "Tap to create"), `quote-timer`, `receipt-ticket` (shareable receipt image)
   - `privacy-guard` (screenshot/recording protection; web no-op)
+- `src/api/`: **screens read data through React Query** (`queries.ts`: `useAccounts`, `useTransactions`, `useCards`, `useVaultTokens`, `useInbox`, `useRecurring`, `useReferrals`). `client.ts` is the backend seam: each `resource` is a mock today (waits for its store's hydration, returns a slice, `TODO(api)`), and `query-client.ts` mirrors store writes into the cache so flows still just write to the stores. With local data `initialData` means no skeleton ever flashes; when the API lands swap the fetchers, drop `local`/`sync`, and invalidate keys after mutations. Actions stay on the stores.
+- **Skeletons** (`components/skeletons.tsx`): `Skeleton` (one shared pulse; static with Reduce Motion), `SkeletonRow`/`SkeletonList` (row-shaped, pass the real `title`), `BalanceHeroSkeleton`, `CardFaceSkeleton`, `TileGridSkeleton`, `QueryError`, and `<Loaded query skeleton>{(data) => …}</Loaded>`. Skeletons sit inside the real page chrome and match the loaded layout. Preview with `dev?action=latency&ms=1500` (`ms=0` off).
 - `src/stores/` (Zustand, persisted as `tribe:*`): `session` (auth, transaction PIN, Face ID, KYC, world + landing, phone verified), `prefs`, `wallet`, `cards`, `vault`, `inbox`, `recurring`, `support`, `beneficiaries`, `referrals`. Not persisted: `flow`, `swap-draft`, `send-draft`, `signup`, `overlay`, `ui` (toast + loader). `reset.ts` resets all demo data.
 - `src/data/`: `countries`, `channels` (send rails + their fields), `worlds`, `security` (email code length, password rules) alongside the seed data.
 - `src/utils/`: `tx.ts` (`txScope`, `receiptRows`), `rates.ts` (clock-driven demo quotes), `share-receipt.ts` + `save-image(.web).ts`, `hash.ts` (demo password digest). `src/services/biometrics.ts` wraps expo-local-authentication.
@@ -64,7 +68,7 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
   - Green and red only for money up and down.
 - **Grouping:** group with `ListSection` (hairlines, inset separators), not a card per row. Cards are only for real cards: promos, the virtual card, the tag card, the Cashpoint hub.
 - **Icons are circular**: icon chips, flags, coins, biller and card badges. Neutral line icons in grey circles on Me/settings; colour only for status.
-- **No system UI**: no `Alert`, `ActionSheetIOS` or native pickers. Use `overlay.select / sheet / confirm / notice`.
+- **No system UI**: no `Alert`, `ActionSheetIOS` or native pickers. Use `overlay.select / menu / sheet / confirm / notice`.
 - **No scroll bars**: every `ScrollView` / `FlatList` / `SectionList` sets `showsVerticalScrollIndicator={false}` and `showsHorizontalScrollIndicator={false}`.
 - **Money colour**: outgoing (−) amounts are red, incoming green.
 - **Sensitive screens** (Cashpoint, card details, receipts with tokens/codes, Token Vault, success with a code) mount `<PrivacyGuard />`.
@@ -73,11 +77,10 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **Feedback:** copy actions confirm with `toast()`, not inline "Copied" chips.
 - **Tab bar:**
   - iOS 26+ uses the system **Liquid Glass** `NativeTabs`, with no background override.
-  - Older iOS, Android and web use the floating frosted `GlassTabs` capsule.
-  - The bar hides on screens pushed inside a tab (`useTabBarHidden`).
-- **`expo-router/ui` Tabs gotchas** (we hit both):
-  - `TabTrigger`s must be **direct children** of `TabList`'s child.
-  - `TabList asChild` rejects array styles. That's why the bar animates with RN `Animated` and a single style object.
+  - Older iOS, Android and web use the floating frosted `GlassTabs` capsule, drawn as the custom `tabBar` of Expo Router's `Tabs` navigator (lazy, `freezeOnBlur`). Don't go back to `expo-router/ui` Tabs: it re-resolved every tab's link on every navigation (~15-20 ms before any new screen rendered).
+  - Only `<TabBarDriver/>` (root layout) follows the route; it writes `hidden` to `use-tab-bar-store`, so navigating never re-renders the tab navigator.
+  - The bar shows **only on the five tab roots**. `useTabBarHidden` keeps its last answer while a root modal is on top (otherwise it flashed back under receipts), and GlassTabs hides **instantly** (only the return animates) and starts hidden on a deep-linked pushed page.
+  - No badge on the Home tab; unread notifications show only on Home's bell.
 - **Currency chips** use `ASSETS_FIAT_FIRST`, and `ChipRow` scrolls a default selection into view.
 - **New native modules** (`expo-blur`, `expo-camera`, `expo-image-picker`, `expo-glass-effect`, `expo-screen-capture`, `expo-clipboard`, `expo-local-authentication`, `expo-sharing`, `expo-media-library`, `react-native-view-shot`) work in Expo Go. A dev build (`npx expo run:ios`) must be **rebuilt** after adding them.
 
@@ -90,8 +93,11 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 
 ## Rules that came from real bugs
 - **Splash parity:** `BrandSplash` must start exactly where the native splash ends: same image (`tribe-logo.png`), same width (`SPLASH_MARK_WIDTH` = `imageWidth` in app.json), same light `#F5F3F7` background in both schemes. It hides the native splash on its own `onLayout`. Native splash changes need a rebuild (`npx expo run:ios`).
-- **Finishing a flow resets it:** `/success` leaves through `closeAll()`, which is `router.dismissTo("/")`. `dismissAll()` stopped at the flow's modal, so closing a receipt reopened the review screen. "View details" closes everything first, *then* pushes the receipt, so closing the receipt lands on Home.
-- **Every money flow is review → `/pin` → `/success`.** Screens call `useFlowStore.begin(action, origin)` and push `/pin`. `pin.tsx` executes the action and **pushes** `/success` on top (replacing it flashed the review screen). `/success` is a `transparentModal` result card over the dimmed PIN screen: Processing → success/pending, View details, **Make another transaction** (re-opens `origin`), Done. PIN-less actions (Cashpoint redeem) call `complete(result)`. Don't move money anywhere else.
+- **Leaving a finished flow returns to where it started** (`utils/flow-exit.ts`), never via Home:
+  - `leaveFlow(nav)` (Done, Android back) pops exactly the trailing flow routes (flow modal, `/pin`, `/success`) off the root stack, so you land on the Cards tab, asset page, Vault… you came from. "View details" / "Add to Apple Pay" leave first, then push on the next frame.
+  - `restartFlow(nav)` ("Make another transaction") pops `/pin` + `/success` and resets the flow modal's own stack to its first screen with the same params and a new key (fresh state; sell stays sell, airtime stays airtime). Shown only when `canRestart` (not for flows that start on `review` or straight on `/pin`).
+  - `dismissTo("/")` flashed Home first, and `dismissAll()` stopped at the flow's modal: don't go back to either.
+- **Every money flow is review → `/pin` → `/success`.** Screens call `useFlowStore.begin(action)` and push `/pin`. `pin.tsx` executes the action and **pushes** `/success` on top (replacing it flashed the review screen). `/success` is a `transparentModal` result card over the dimmed PIN screen: Processing → success/pending, View details, **Make another transaction** (`restartFlow`), Done. PIN-less actions (Cashpoint redeem) call `complete(result)`. Don't move money anywhere else.
 - **Swap/send quotes come from `utils/rates.ts`** (30-second windows), so review, PIN and execution agree within a window. Don't compute rates from `asset.usd` directly in new money code.
 - **`expo-media-library`'s new API doesn't exist on web** (its `Asset` class extends `undefined` and kills static rendering). Keep it behind `utils/save-image.ts` with the `.web.ts` twin.
 - **SF Symbols must exist in SF Symbols 4 (iOS 16).** `wallet.bifold` rendered blank on iOS 17; `npm run check` fails on newer names.
@@ -104,6 +110,19 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **No callbacks inside worklets** (`useAnimatedStyle`, scroll handlers, animation callbacks): no `.map((x) => …)`, `.filter`, inline arrows. The React Compiler hoists capture-free arrows into plain `_tempN` functions; calling one on the UI runtime aborts Expo Go with `[Worklets] Tried to synchronously call a Remote Function`. Build arrays on the JS side and only read them in the worklet (see `SLIDE_BGS` in `(auth)/intro.tsx`). Hop back to JS with `scheduleOnRN`.
 - `Appearance.setColorScheme` doesn't exist on web; keep the guard in the root layout.
 - Static `boxShadow` strings and `borderCurve: "continuous"` are fine. Don't use Tailwind or NativeWind here.
+
+## Virtual cards
+- **Finishes:** `card.theme` is a `CardFinish`: a preset (`CARD_PRESETS` in `src/theme/card-finishes.ts`; Midnight's default is the logo stripes), a preset in another pattern (`sunset:dots`, via `presetFinish`), or a user-made `custom:RRGGBB:pattern` from "Make your own" (`screens/cards/card-designer.tsx`: 12 swatches, hue slider + Light/Rich/Deep). Every finish picks from the same 10 patterns (`CARD_PATTERNS`; `PatternStrip`). Read any finish with `cardLook()` / `parseFinish()` (`utils/card-finish.ts`, never throws); custom page tints are derived in `utils/color.ts`. Never reuse the key `design` (old persisted data).
+- **The face never shows the card number**; only `(tabs)/cards/details` passes `revealed`. Every face carries the phone's wallet mark (`PAY` in `utils/pay-platform.ts`: Google Pay on Android, Apple Pay elsewhere); on the Cards tab it's the live glass pill → `/cards/wallet` (motion only while focused, none with Reduce Motion).
+- **Card icons show who pays:** `CardPairIcon` — funding/creating puts the paying coin at the back and the card in front; withdrawing the reverse.
+- **A new card must be funded:** first top-up ≥ `CARD_MIN_TOPUP_USD` ($5), enforced on the details step and in the flow store.
+
+## Receipts, bills, speed
+- **Receipts are posters** (`components/receipt-poster.tsx`): a Midnight band (same in both themes) with the logo stripes, a tilted status sticker (`stickerLabel`), the huge amount and the pair art, then a paper stub (`ReceiptStub`: details, token/code box, barcode from the reference). The screen's stub follows the theme; the share image (`ReceiptTicket`) is always light.
+- **Sharing closes the sheet first:** the overlay host is a `FullWindowOverlay` on iOS and sits above the system share sheet. `ReceiptSheet` captures (`captureReceipt`), then `close(() => shareReceiptImage(uri, tx))`.
+- **Bills are OPay-style** (`bill/[id].tsx` + `bill-bits.tsx`): category-first (`?category=`), Airtime | Data switch, a provider logo row (`ProviderRow`) with the phone network auto-detected from the prefix (`detectNetwork` in `data/catalog.ts`; overridable), saved numbers (`openSavedNumbers`, from `tx.meta.target`), quick-amount tiles (`AmountGrid`), bundles by Daily/Weekly/Monthly and TV packages (`BundleGrid`), a verified-customer card, electricity Prepaid | Postpaid (postpaid makes **no token**). Pay tab opens bills from an icon grid (`ShortcutGrid`).
+- **Swipe between tabs:** `components/swipe-switch.tsx` (`SwipeSwitch`) wraps Wallet (Fiat ↔ Crypto) and History (category chips; `ChipRow` scrolls the selected chip into view). Horizontal-only pan (`activeOffsetX` ±24, `failOffsetY` ±14) so lists still scroll.
+- **Speed rules:** demo waits live in `utils/demo.ts` (keep them short); **never freeze screens** (`react-freeze`, `freezeOnBlur`, `enableFreeze`): on Fabric a frozen tree loses its native views, so the page behind a modal went black and took 1–2 s to rebuild on back/close (that's what `TabGate` did); bundled images use PNG (no SVG decode) and no `transition` fade; the splash layer is `pointerEvents="none"`; appearance is applied by the prefs store on rehydrate. Native wins not done yet (need a rebuilt dev build): fonts via the `expo-font` config plugin, MMKV storage instead of AsyncStorage (removes the hydration gate); judge speed on a Release build, not Expo Go.
 
 ## Identity verification
 - `setup/bvn` and `VerifyFlow` collect a tier's details, show **processing** for a beat, then mark the tier verified (`setKyc({ tier, status: "approved", reference })`, with a `KYC-…` reference). `src/services/kyc.ts` holds the tier data (`TIER_INFO`).

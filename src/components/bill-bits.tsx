@@ -1,11 +1,12 @@
 import { Pressable, View } from "react-native";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
-import type { Biller } from "@/data/catalog";
+import type { BillPlan, Biller } from "@/data/catalog";
 import { overlay } from "@/stores/use-overlay-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
 import { groupAmount } from "./amount-entry";
+import { BillerThumb } from "./brand-tiles";
 import { CoinIcon } from "./coin-icon";
 import { Icon } from "./icon";
 import { PressableScale } from "./pressable-scale";
@@ -182,4 +183,140 @@ export function AmountCard({ value, active, onPress, helper, presets, onPreset, 
       )}
     </View>
   );
+}
+
+/**
+ * OPay-style provider row: every provider's logo in a line, the chosen one ringed. Switch in
+ * place instead of going back to a picker.
+ */
+export function ProviderRow({ billers, value, onChange }: { billers: Biller[]; value: string; onChange: (id: string) => void }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", gap: spacing.md }}>
+      {billers.map((b) => {
+        const on = b.id === value;
+        return (
+          <PressableScale key={b.id} onPress={() => onChange(b.id)} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={b.name} style={{ alignItems: "center", gap: spacing.xs }}>
+            <View style={{ padding: 3, borderRadius: 30, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
+              <BillerThumb biller={b} size={46} />
+            </View>
+            <Text variant="caption" tone={on ? "text" : "muted"} style={on ? { fontFamily: fonts.semibold } : undefined}>
+              {b.name}
+            </Text>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * Quick amounts as a 3-column tile grid (OPay's "Top up" grid): the amount big, a small line
+ * under it (what it is in your paying wallet, or kWh for electricity). Selected gets the brand outline.
+ */
+export function AmountGrid({ amounts, value, onPick, sub }: { amounts: number[]; value: number; onPick: (n: number) => void; sub?: (n: number) => string | undefined }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+      {amounts.map((n) => {
+        const on = n === value;
+        const line = sub?.(n);
+        return (
+          <PressableScale
+            key={n}
+            scaleTo={0.96}
+            onPress={() => onPick(n)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`₦${n.toLocaleString()}${line ? `, ${line}` : ""}`}
+            style={{ width: "31.5%", flexGrow: 1, alignItems: "center", gap: 2, paddingVertical: spacing.smd, borderRadius: radius.group, borderCurve: "continuous", backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1.5, borderColor: on ? c.brand : "transparent" }}
+          >
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, lineHeight: 23, color: on ? c.brandText : c.text, fontVariant: ["tabular-nums"] }}>₦{n.toLocaleString()}</Text>
+            {line ? (
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                {line}
+              </Text>
+            ) : null}
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
+/** "1GB · 7 days" → ["1GB", "7 days"]. */
+const sizeAndValidity = (name: string) => {
+  const [head, ...rest] = name.split(" · ");
+  return [head, rest.join(" · ")] as const;
+};
+
+/**
+ * Data bundles / TV packages as tiles (3 across for data, 2 for TV): the size or package name
+ * big, validity small, the price at the foot.
+ */
+export function BundleGrid({ plans, value, onChange, columns = 3 }: { plans: BillPlan[]; value: string | null; onChange: (id: string) => void; columns?: 2 | 3 }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+      {plans.map((p) => {
+        const on = p.id === value;
+        const [head, sub] = sizeAndValidity(p.name);
+        return (
+          <PressableScale
+            key={p.id}
+            scaleTo={0.96}
+            onPress={() => onChange(p.id)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`${p.name}, ₦${p.price.toLocaleString()}`}
+            style={{ width: columns === 3 ? "31.5%" : "48%", flexGrow: 1, gap: spacing.xs, padding: spacing.smd, borderRadius: radius.group, borderCurve: "continuous", backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1.5, borderColor: on ? c.brand : "transparent" }}
+          >
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, lineHeight: 23, color: on ? c.brandText : c.text }} numberOfLines={1}>
+              {head}
+            </Text>
+            {sub ? (
+              <Text variant="caption" tone="muted" numberOfLines={1}>
+                {sub}
+              </Text>
+            ) : null}
+            <Text variant="subhead" style={{ marginTop: spacing.xs }}>
+              ₦{p.price.toLocaleString()}
+            </Text>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
+/** The account a number belongs to, once it's complete (illustrative lookup). */
+export function CustomerCard({ name, lines }: { name: string; lines: string[] }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: c.successSoft, borderRadius: radius.input, borderCurve: "continuous", padding: spacing.smd }}>
+      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.success, alignItems: "center", justifyContent: "center" }}>
+        <Icon name="check" size={15} color="#fff" weight="bold" />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="bodyStrong" numberOfLines={1}>
+          {name}
+        </Text>
+        {lines.map((l) => (
+          <Text key={l} variant="caption" tone="muted" numberOfLines={1}>
+            {l}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Saved numbers for a field: yours first, then ones you've paid before. Tap to fill. */
+export function openSavedNumbers({ title, items, onPick }: { title: string; items: { value: string; label: string; sub?: string; billerId?: string; biller?: Biller }[]; onPick: (v: string) => void }) {
+  overlay.select({
+    title,
+    subtitle: items.length ? "Numbers you've paid for before" : "Nothing saved yet. Numbers you pay for show up here.",
+    options: items.map((i) => ({ value: i.value, label: i.label, sub: i.sub, leading: i.biller ? <BillerThumb biller={i.biller} size={36} /> : undefined })),
+    onSelect: onPick,
+  });
 }

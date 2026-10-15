@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius, spacing, useColors } from "@/theme";
@@ -48,6 +48,13 @@ export function ChipRow<T extends string | number>({ options, value, onChange, r
   const c = useColors();
   const ref = useRef<ScrollView>(null);
   const placed = useRef(false);
+  const xs = useRef(new Map<T, number>());
+  // a selection made elsewhere (a swipe) brings its chip into view
+  useEffect(() => {
+    const x = xs.current.get(value);
+    if (x === undefined || !placed.current) return;
+    ref.current?.scrollTo({ x: Math.max(0, x - spacing.xl), animated: true });
+  }, [value]);
   return (
     <ScrollView showsVerticalScrollIndicator={false}
       ref={ref}
@@ -64,16 +71,13 @@ export function ChipRow<T extends string | number>({ options, value, onChange, r
             key={String(o)}
             onPress={() => onChange(o)}
             // First layout only: bring a default selection that starts off-screen into view.
-            onLayout={
-              on
-                ? (e) => {
-                    if (placed.current) return;
-                    placed.current = true;
-                    const x = e.nativeEvent.layout.x;
-                    if (x > 220) ref.current?.scrollTo({ x: x - spacing.xl, animated: false });
-                  }
-                : undefined
-            }
+            onLayout={(e) => {
+              xs.current.set(o, e.nativeEvent.layout.x);
+              if (!on || placed.current) return;
+              placed.current = true;
+              const x = e.nativeEvent.layout.x;
+              if (x > 220) ref.current?.scrollTo({ x: x - spacing.xl, animated: false });
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.smd + 2, height: 40, borderRadius: radius.full, backgroundColor: on ? c.brand : c.surface }}

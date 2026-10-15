@@ -28,7 +28,7 @@ export type Asset = {
 export const ASSETS: Asset[] = [
   {
     code: "USDT", name: "Tether", kind: "crypto", usd: 1, change24h: 0.01, decimals: 2, symbol: "₮", glyph: "₮", bg: "#279442", fg: "#fff",
-    logo: require("@/assets/logos/crypto/usdt.svg"),
+    logo: require("@/assets/logos/crypto/usdt.png"),
     networks: [
       { id: "trc20", name: "Tron (TRC20)", fee: 1, eta: "~2 min" },
       { id: "bep20", name: "BNB Chain (BEP20)", fee: 0.3, eta: "~1 min" },
@@ -37,7 +37,7 @@ export const ASSETS: Asset[] = [
   },
   {
     code: "BTC", name: "Bitcoin", kind: "crypto", usd: 98_400, change24h: 3.1, decimals: 6, symbol: "₿", glyph: "₿", bg: "#ff6220", fg: "#fff",
-    logo: require("@/assets/logos/crypto/btc.svg"),
+    logo: require("@/assets/logos/crypto/btc.png"),
     networks: [
       { id: "btc", name: "Bitcoin", fee: 0.00002, eta: "~30 min" },
       { id: "lightning", name: "Lightning", fee: 0.0000001, eta: "Instant" },
@@ -45,7 +45,7 @@ export const ASSETS: Asset[] = [
   },
   {
     code: "ETH", name: "Ethereum", kind: "crypto", usd: 3_620, change24h: 1.8, decimals: 5, symbol: "Ξ", glyph: "Ξ", bg: "#4b097a", fg: "#f0e7f7",
-    logo: require("@/assets/logos/crypto/eth.svg"),
+    logo: require("@/assets/logos/crypto/eth.png"),
     networks: [
       { id: "erc20", name: "Ethereum", fee: 0.0012, eta: "~5 min" },
       { id: "base", name: "Base", fee: 0.00002, eta: "~1 min" },
@@ -53,7 +53,7 @@ export const ASSETS: Asset[] = [
   },
   {
     code: "USDC", name: "USD Coin", kind: "crypto", usd: 1, change24h: 0, decimals: 2, symbol: "$", glyph: "◎", bg: "#0088e8", fg: "#fff",
-    logo: require("@/assets/logos/crypto/usdc.svg"),
+    logo: require("@/assets/logos/crypto/usdc.png"),
     networks: [
       { id: "sol", name: "Solana", fee: 0.1, eta: "~1 min" },
       { id: "base", name: "Base", fee: 0.1, eta: "~1 min" },
@@ -61,7 +61,7 @@ export const ASSETS: Asset[] = [
   },
   {
     code: "SOL", name: "Solana", kind: "crypto", usd: 182, change24h: -2.4, decimals: 4, symbol: "◎", glyph: "S", bg: "#201f1f", fg: "#ba90d9",
-    logo: require("@/assets/logos/crypto/sol.svg"),
+    logo: require("@/assets/logos/crypto/sol.png"),
     networks: [{ id: "sol", name: "Solana", fee: 0.00005, eta: "Instant" }],
   },
   {

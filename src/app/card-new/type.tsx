@@ -10,9 +10,10 @@ import { FlowScreen } from "@/components/flow-screen";
 import { Icon, type IconName } from "@/components/icon";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
-import type { CardNetwork, CardTheme } from "@/data/seed";
+import type { CardNetwork } from "@/data/seed";
 import { useSessionStore } from "@/stores/use-session-store";
 import { radius, spacing, useColors } from "@/theme";
+import { parseFinish } from "@/utils/card-finish";
 
 const TYPES: Record<CardNetwork, { title: string; points: [IconName, string][] }> = {
   mastercard: {
@@ -37,7 +38,7 @@ const TYPES: Record<CardNetwork, { title: string; points: [IconName, string][] }
 export default function CardType() {
   const c = useColors();
   const { width } = useWindowDimensions();
-  const { theme = "midnight" } = useLocalSearchParams<{ theme?: CardTheme }>();
+  const theme = parseFinish(useLocalSearchParams<{ theme?: string }>().theme);
   const user = useSessionStore((s) => s.user);
   const tint = useCardPalette(theme);
   const [network, setNetwork] = useState<CardNetwork>("mastercard");
@@ -54,7 +55,7 @@ export default function CardType() {
 
       {/* the card itself, re-flipped whenever the network changes */}
       <Animated.View key={network} entering={FlipInEasyX.springify().damping(16)} style={{ alignItems: "center" }}>
-        <VirtualCardFace card={{ theme, network, holder: `${user.firstName} ${user.lastName}`, number: network === "visa" ? "4532" : "5399", last4: "••••", expiry: "09/29", cvv: "", frozen: false }} width={width - spacing.mdl * 2} />
+        <VirtualCardFace card={{ theme, network, holder: `${user.firstName} ${user.lastName}` }} width={width - spacing.mdl * 2} />
       </Animated.View>
 
       <Segmented<CardNetwork>

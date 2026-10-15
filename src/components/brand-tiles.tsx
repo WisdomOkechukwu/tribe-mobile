@@ -15,7 +15,7 @@ export function BillerThumb({ biller, size = 52 }: { biller: Biller; size?: numb
       <Text variant="caption" style={{ color: biller.fg, fontFamily: "BricolageGrotesque_800ExtraBold" }}>
         {biller.name}
       </Text>
-      <Image source={biller.image} contentFit="cover" transition={120} style={{ position: "absolute", width: "100%", height: "100%" }} />
+      <Image source={biller.image} contentFit="cover" style={{ position: "absolute", width: "100%", height: "100%" }} />
     </View>
   );
 }

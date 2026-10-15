@@ -9,67 +9,43 @@ import { PairIcon } from "@/components/pair-icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { BILLERS, billerById, GIFT_BRANDS, type Biller } from "@/data/catalog";
-import { overlay } from "@/stores/use-overlay-store";
-import { FREQUENCY_LABEL, useRecurringStore, type Frequency } from "@/stores/use-recurring-store";
-import { useVaultStore } from "@/stores/use-vault-store";
-import { useWalletStore } from "@/stores/use-wallet-store";
+import { billerById, detectNetwork, GIFT_BRANDS } from "@/data/catalog";
+import { useSessionStore } from "@/stores/use-session-store";
+import { FREQUENCY_LABEL, useRecurringStore, type Frequency, type Schedule } from "@/stores/use-recurring-store";
+import { useRecurring, useTransactions, useVaultTokens } from "@/api/queries";
+import { Skeleton } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 
-type Category = { key: string; label: string; blurb: string; icon: IconName; billers: Biller[] };
+type Shortcut = { key: string; label: string; icon: IconName; go: () => void; badge?: number };
 
-const PHONE = BILLERS.filter((b) => b.field === "phone");
-const CATEGORIES: Category[] = [
-  { key: "airtime", label: "Airtime", blurb: "Any network", icon: "airtime", billers: PHONE },
-  { key: "data", label: "Data", blurb: "Bundles for every plan", icon: "data", billers: PHONE },
-  { key: "tv", label: "TV", blurb: "Renew in seconds", icon: "tv", billers: BILLERS.filter((b) => b.category === "tv") },
-  { key: "electricity", label: "Electricity", blurb: "Prepaid meter tokens", icon: "bolt", billers: BILLERS.filter((b) => b.category === "electricity") },
-];
-
-/** Pick a provider for a category in our own sheet → the bill flow. */
-function chooseBiller(cat: Category) {
-  overlay.select({
-    title: cat.label,
-    subtitle: cat.key === "electricity" ? "Prepaid tokens are saved to your Token Vault" : "Choose a provider",
-    options: cat.billers.map((b) => ({ value: b.id, label: b.name, sub: b.field === "meter" ? "Prepaid meter" : b.field === "smartcard" ? "Smartcard / IUC" : "Any Nigerian number", leading: <BillerThumb biller={b} size={38} /> })),
-    onSelect: (id) => router.push({ pathname: "/bill/[id]", params: { id, category: cat.key } }),
-  });
-}
-
-const MARK = 24;
-
-/** One bill category: icon, the providers' real logos, and what it's for. */
-function CategoryTile({ cat }: { cat: Category }) {
+/**
+ * OPay-style shortcut grid: four round icons a row, label underneath. Bills open straight on the
+ * bill screen (your own network pre-picked); the rest open their pages.
+ */
+function ShortcutGrid({ items }: { items: Shortcut[] }) {
   const c = useColors();
   return (
-    <PressableScale
-      onPress={() => chooseBiller(cat)}
-      accessibilityLabel={`Pay ${cat.label}`}
-      scaleTo={0.96}
-      style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
-          <Icon name={cat.icon} size={20} color={c.brandText} />
-        </View>
-        {/* the providers you can pay, overlapping like the gift card stack */}
-        <View style={{ flexDirection: "row" }}>
-          {cat.billers.slice(0, 3).map((b, i) => (
-            <View key={b.id} style={{ marginLeft: i ? -8 : 0, borderRadius: MARK / 2 + 2, borderWidth: 2, borderColor: c.surface, zIndex: 3 - i }}>
-              <BillerThumb biller={b} size={MARK} />
+    <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", paddingVertical: spacing.md, flexDirection: "row", flexWrap: "wrap", rowGap: spacing.md }}>
+      {items.map((it) => (
+        <PressableScale key={it.key} onPress={it.go} accessibilityLabel={it.label} scaleTo={0.92} style={{ width: "25%", alignItems: "center", gap: spacing.sm }}>
+          <View>
+            <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <Icon name={it.icon} size={21} color={c.brandText} />
             </View>
-          ))}
-        </View>
-      </View>
-      <View style={{ gap: spacing.xxs }}>
-        <Text variant="bodyStrong" numberOfLines={1}>
-          {cat.label}
-        </Text>
-        <Text variant="caption" tone="muted" numberOfLines={1}>
-          {cat.blurb}
-        </Text>
-      </View>
-    </PressableScale>
+            {!!it.badge && (
+              <View style={{ position: "absolute", top: -3, right: -5, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: c.accent, borderWidth: 2, borderColor: c.surface, alignItems: "center", justifyContent: "center" }}>
+                <Text variant="caption" style={{ color: "#fff", fontFamily: fonts.semibold, fontSize: 10, lineHeight: 12 }}>
+                  {it.badge}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text variant="caption" numberOfLines={1} style={{ fontFamily: fonts.medium }}>
+            {it.label}
+          </Text>
+        </PressableScale>
+      ))}
+    </View>
   );
 }
 
@@ -91,8 +67,25 @@ function untilLabel(iso: string) {
  * Paused bills stay in the rail (dimmed) so pausing never makes a card vanish under your thumb.
  */
 function RecurringRail() {
+  const schedules = useRecurring().data;
+  if (!schedules)
+    return (
+      <View style={{ gap: spacing.smd }}>
+        <View style={{ gap: spacing.xs, paddingHorizontal: spacing.xs }}>
+          <Text variant="headline">Recurring bills</Text>
+          <Skeleton width={190} height={11} />
+        </View>
+        <View style={{ flexDirection: "row", gap: spacing.smd }}>
+          <Skeleton width={TILE} height={176} radius={radius.card} />
+          <Skeleton width={TILE} height={176} radius={radius.card} />
+        </View>
+      </View>
+    );
+  return <Rail schedules={schedules} />;
+}
+
+function Rail({ schedules }: { schedules: Schedule[] }) {
   const c = useColors();
-  const schedules = useRecurringStore((s) => s.schedules);
   const toggle = useRecurringStore((s) => s.toggle);
   const list = [...schedules].sort((a, b) => Number(b.active) - Number(a.active) || a.nextRun.localeCompare(b.nextRun));
   const monthly = schedules.filter((x) => x.active).reduce((sum, x) => sum + x.amountNgn * PER_MONTH[x.frequency], 0);
@@ -189,25 +182,26 @@ function SectionIntro({ title, caption, action, onAction }: { title: string; cap
 /** Pay: bills by category, Token Vault, recurring bills, gift cards, then Cashpoints. */
 export default function Pay() {
   const c = useColors();
-  const tokens = useVaultStore((s) => s.tokens);
-  const transactions = useWalletStore((s) => s.transactions);
-  const activeCodes = transactions.filter((t) => t.type === "cashpoint" && t.direction === "out" && t.status === "pending").length;
+  const vault = useVaultTokens();
+  const tokens = vault.data ?? [];
+  const activeCodes = (useTransactions().data ?? []).filter((t) => t.type === "cashpoint" && t.direction === "out" && t.status === "pending").length;
   const unused = tokens.filter((t) => !t.loadedOn);
+  const phone = useSessionStore((s) => s.user.phone);
+  const network = detectNetwork(phone.replace(/^\+234\s?/, "0")) ?? "mtn";
+  const bill = (id: string, category: string) => () => router.push({ pathname: "/bill/[id]", params: { id, category } });
+  const shortcuts: Shortcut[] = [
+    { key: "airtime", label: "Airtime", icon: "airtime", go: bill(network, "airtime") },
+    { key: "data", label: "Data", icon: "data", go: bill(network, "data") },
+    { key: "tv", label: "TV", icon: "tv", go: bill("dstv", "tv") },
+    { key: "electricity", label: "Electricity", icon: "bolt", go: bill("phed", "electricity") },
+  ];
 
   return (
     <Screen>
-      {/* Bills — four categories as a 2×2 grid, each with its providers' logos */}
+      {/* Bills & more: one OPay-style grid */}
       <View style={{ gap: spacing.smd }}>
         <SectionIntro title="Pay bills" caption="Pay from any wallet: Naira, dollars or crypto." />
-        <View style={{ gap: spacing.smd }}>
-          {[CATEGORIES.slice(0, 2), CATEGORIES.slice(2)].map((row) => (
-            <View key={row[0].key} style={{ flexDirection: "row", gap: spacing.smd }}>
-              {row.map((cat) => (
-                <CategoryTile key={cat.key} cat={cat} />
-              ))}
-            </View>
-          ))}
-        </View>
+        <ShortcutGrid items={shortcuts} />
       </View>
 
       {/* Recurring bills (live): swipeable subscription cards */}
@@ -215,29 +209,34 @@ export default function Pay() {
 
       {/* Token Vault */}
       <View style={{ gap: spacing.smd }}>
-        <SectionIntro title="Token Vault" caption={`Every electricity token you buy, saved. ${tokens.length} in your vault so far.`} action="Open" onAction={() => router.push("/pay/vault")} />
-        <PressableScale onPress={() => router.push("/pay/vault")} scaleTo={0.98} accessibilityLabel="Token Vault" style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: unused.length ? c.warningSoft : c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: unused.length ? c.pending : c.successSoft, alignItems: "center", justifyContent: "center" }}>
-            <Icon name="vault" size={21} color={unused.length ? "#fff" : c.success} />
-          </View>
-          <View style={{ flex: 1, gap: spacing.xxs }}>
-            {/* the header already says Token Vault: lead with what's in it */}
-            <Text variant="bodyStrong">{unused.length ? `${unused.length} token${unused.length > 1 ? "s" : ""} waiting` : "All tokens loaded"}</Text>
-            <Text variant="caption" tone="muted">
-              {unused.length ? `${unused.reduce((s, t) => s + t.kwh, 0).toFixed(1)} kWh ready to load into your meter` : "New tokens land here the moment you buy them."}
-            </Text>
-          </View>
-          <View style={{ backgroundColor: unused.length ? c.pending : c.surfaceAlt, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
-            <Text variant="subhead" style={{ color: unused.length ? "#fff" : c.text }}>
-              {unused.length ? "Load now" : "Open"}
-            </Text>
-          </View>
-        </PressableScale>
+        <SectionIntro title="Token Vault" caption={vault.data ? `Every electricity token you buy, saved. ${tokens.length} in your vault so far.` : "Every electricity token you buy, saved."} action="Open" onAction={() => router.push("/pay/vault")} />
+        {!vault.data ? (
+          <Skeleton width="100%" height={80} radius={radius.group} />
+        ) : (
+          <PressableScale onPress={() => router.push("/pay/vault")} scaleTo={0.98} accessibilityLabel="Token Vault" style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: unused.length ? c.warningSoft : c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md }}>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: unused.length ? c.pending : c.successSoft, alignItems: "center", justifyContent: "center" }}>
+              <Icon name="vault" size={21} color={unused.length ? "#fff" : c.success} />
+            </View>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
+              {/* the header already says Token Vault: lead with what's in it */}
+              <Text variant="bodyStrong">{unused.length ? `${unused.length} token${unused.length > 1 ? "s" : ""} waiting` : "All tokens loaded"}</Text>
+              <Text variant="caption" tone="muted">
+                {unused.length ? `${unused.reduce((s, t) => s + t.kwh, 0).toFixed(1)} kWh ready to load into your meter` : "New tokens land here the moment you buy them."}
+              </Text>
+            </View>
+            <View style={{ backgroundColor: unused.length ? c.pending : c.surfaceAlt, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
+              <Text variant="subhead" style={{ color: unused.length ? "#fff" : c.text }}>
+                {unused.length ? "Load now" : "Open"}
+              </Text>
+            </View>
+          </PressableScale>
+        )}
       </View>
+
 
       {/* Gift cards: buy or sell, side by side */}
       <View style={{ gap: spacing.smd }}>
-        <SectionIntro title="Gift cards" caption="Buy codes in seconds, or turn unused cards into Naira or USDT." action="See all" onAction={() => router.push("/pay/gift-cards")} />
+        <SectionIntro title="Gift cards" caption="Buy codes in seconds, or turn unused cards into any currency." action="See all" onAction={() => router.push("/pay/gift-cards")} />
         <View style={{ flexDirection: "row", gap: spacing.smd }}>
           <PressableScale onPress={() => router.push({ pathname: "/pay/gift-cards", params: { mode: "buy" } })} scaleTo={0.97} accessibilityLabel="Buy a gift card" style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
             <View style={{ flexDirection: "row" }}>

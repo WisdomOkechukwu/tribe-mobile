@@ -159,7 +159,7 @@ export default function Cashpoint() {
             title={value && !over && !tooSmall ? `Generate ${formatAsset(value, "NGN")} code` : "Generate code"}
             disabled={!value || over || tooSmall}
             onPress={() => {
-              begin({ kind: "cashpoint", amount: value }, "/cashpoint");
+              begin({ kind: "cashpoint", amount: value });
               router.push("/cashpoint/review");
             }}
           />

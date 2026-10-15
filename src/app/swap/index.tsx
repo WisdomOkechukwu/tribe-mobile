@@ -90,7 +90,7 @@ export default function Swap() {
       });
       return;
     }
-    begin({ kind: "swap", from, to, amount: value }, "/swap");
+    begin({ kind: "swap", from, to, amount: value });
     router.push("/swap/review");
   };
 

@@ -23,6 +23,19 @@ export const useVaultStore = create<VaultState>()(
       },
       reset: () => set({ tokens: SEED_TOKENS.map((t) => ({ ...t })) }),
     }),
-    { name: "tribe:vault", storage: persistStorage, version: 1 },
+    {
+      name: "tribe:vault",
+      storage: persistStorage,
+      version: 2,
+      // v2: tokens remember what paid for them; seeded tokens pick that up from the seed
+      migrate: (state) => {
+        const s = state as { tokens?: VaultToken[] };
+        const tokens = (s.tokens ?? SEED_TOKENS).map((t) => {
+          const seed = SEED_TOKENS.find((x) => x.id === t.id);
+          return t.paidWith || !seed ? t : { ...t, paidWith: seed.paidWith, paid: seed.paid };
+        });
+        return { ...s, tokens } as never;
+      },
+    },
   ),
 );

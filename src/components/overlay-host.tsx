@@ -12,7 +12,7 @@ import { Button } from "./button";
 import { Icon } from "./icon";
 import { Text } from "./text";
 
-const OUT = { duration: 200, easing: Easing.in(Easing.quad) };
+const OUT = { duration: 160, easing: Easing.in(Easing.quad) };
 
 /**
  * JS-side callback to run once the current overlay has animated out (navigate, open the next
@@ -24,7 +24,7 @@ function settle(close: () => void) {
   close();
   const after = pendingAfter;
   pendingAfter = undefined;
-  if (after) setTimeout(after, 30);
+  if (after) requestAnimationFrame(after);
 }
 
 function toneColors(c: ThemeColors, tone?: string) {
@@ -35,7 +35,7 @@ function toneColors(c: ThemeColors, tone?: string) {
 }
 
 /** Slide-up sheet: backdrop tap or drag the handle down to close. */
-function BottomSheet({ title, subtitle, children }: { title?: string; subtitle?: string; children: (close: (after?: () => void) => void) => ReactNode }) {
+function BottomSheet({ title, subtitle, leading, children }: { title?: string; subtitle?: string; leading?: ReactNode; children: (close: (after?: () => void) => void) => ReactNode }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -82,7 +82,8 @@ function BottomSheet({ title, subtitle, children }: { title?: string; subtitle?:
           <View style={{ paddingTop: spacing.sm, paddingHorizontal: spacing.mdl, paddingBottom: spacing.md, gap: spacing.xs }}>
             <View style={{ alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: c.borderStrong, marginBottom: spacing.md }} />
             {title && (
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
+                {leading}
                 <View style={{ flex: 1, gap: spacing.xxs }}>
                   <Text variant="title">{title}</Text>
                   {subtitle && (
@@ -150,6 +151,49 @@ function SelectList({ o, close }: { o: Extract<Overlay, { kind: "select" }>; clo
             </Pressable>
           );
         })}
+      </View>
+    </ScrollView>
+  );
+}
+
+/** Action menu (⋯): tap a row to close the sheet and run it. Destructive rows are red. */
+function MenuList({ o, close }: { o: Extract<Overlay, { kind: "menu" }>; close: (after?: () => void) => void }) {
+  const c = useColors();
+  return (
+    <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm }} bounces={false}>
+      <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
+        {o.items.map((item, i) => (
+          <Pressable
+            key={item.value}
+            accessibilityRole="button"
+            accessibilityLabel={item.sub ? `${item.label}. ${item.sub}` : item.label}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              close(() => o.onSelect(item.value));
+            }}
+          >
+            {({ pressed }) => (
+              <View>
+                {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: 66 }} />}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, minHeight: 60, paddingVertical: spacing.sm, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: item.destructive ? c.dangerSoft : c.surfaceAlt, alignItems: "center", justifyContent: "center" }}>
+                    <Icon name={item.icon} size={17} color={item.destructive ? c.danger : c.text} />
+                  </View>
+                  <View style={{ flex: 1, gap: spacing.xxs }}>
+                    <Text variant="bodyStrong" style={item.destructive ? { color: c.danger } : undefined}>
+                      {item.label}
+                    </Text>
+                    {item.sub && (
+                      <Text variant="caption" tone="muted">
+                        {item.sub}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        ))}
       </View>
     </ScrollView>
   );
@@ -227,8 +271,12 @@ export function OverlayHost() {
       <BottomSheet key={o.id} title={o.title} subtitle={o.subtitle}>
         {(close) => <SelectList o={o} close={close} />}
       </BottomSheet>
+    ) : o.kind === "menu" ? (
+      <BottomSheet key={o.id} title={o.title} subtitle={o.subtitle} leading={o.leading}>
+        {(close) => <MenuList o={o} close={close} />}
+      </BottomSheet>
     ) : o.kind === "sheet" ? (
-      <BottomSheet key={o.id} title={o.title}>
+      <BottomSheet key={o.id} title={o.title} subtitle={o.subtitle} leading={o.leading}>
         {(close) => o.content(close)}
       </BottomSheet>
     ) : (

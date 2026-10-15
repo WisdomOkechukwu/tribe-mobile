@@ -11,7 +11,8 @@ import { Text } from "@/components/text";
 import { groupByDay, TxLeading } from "@/components/transaction-row";
 import { BillerThumb } from "@/components/brand-tiles";
 import { billerById } from "@/data/catalog";
-import { useWalletStore } from "@/stores/use-wallet-store";
+import { useInbox, useTransactions } from "@/api/queries";
+import { Loaded, SkeletonList } from "@/components/skeletons";
 import type { ReactNode } from "react";
 import type { InboxItem, InboxKind } from "@/data/inbox";
 import { useInboxStore } from "@/stores/use-inbox-store";
@@ -48,7 +49,7 @@ const txIdOf = (n: InboxItem) => n.txId ?? n.href?.match(/^\/transaction\/(.+)$/
 function Leading({ n }: { n: InboxItem }) {
   const c = useColors();
   const id = txIdOf(n);
-  const tx = useWalletStore((s) => (id ? s.transactions.find((t) => t.id === id) : undefined));
+  const tx = useTransactions().data?.find((t) => t.id === id);
   const k = KIND[n.kind];
   const badge = n.badge ?? KIND_BADGE[n.kind];
 
@@ -126,7 +127,8 @@ function Row({ n }: { n: InboxItem }) {
 /** In-app inbox: money in/out, security alerts, Cashpoint redemptions, referral rewards. */
 export default function Notifications() {
   const c = useColors();
-  const items = useInboxStore((s) => s.items);
+  const inbox = useInbox();
+  const items = inbox.data ?? [];
   const markAllRead = useInboxStore((s) => s.markAllRead);
   const unread = items.filter((n) => !n.read).length;
 
@@ -148,25 +150,29 @@ export default function Notifications() {
         }}
       />
       <Screen>
-        {items.length === 0 ? (
-          <EmptyState icon="bell" title="All quiet" body="Money moves, security alerts and Cashpoint redemptions land here." />
-        ) : (
-          groups.map((g) => (
-            <View key={g.day} style={{ gap: spacing.sm }}>
-              <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
-                {g.day}
-              </Text>
-              <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
-                {g.items.map((n, i) => (
-                  <View key={n.id}>
-                    {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: spacing.md + SIZE + 12 + spacing.smd }} />}
-                    <Row n={n} />
+        <Loaded query={inbox} skeleton={<SkeletonList rows={6} />}>
+          {() =>
+            items.length === 0 ? (
+              <EmptyState icon="bell" title="All quiet" body="Money moves, security alerts and Cashpoint redemptions land here." />
+            ) : (
+              groups.map((g) => (
+                <View key={g.day} style={{ gap: spacing.sm }}>
+                  <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
+                    {g.day}
+                  </Text>
+                  <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", overflow: "hidden" }}>
+                    {g.items.map((n, i) => (
+                      <View key={n.id}>
+                        {i > 0 && <View style={{ height: 1, backgroundColor: c.border, marginLeft: spacing.md + SIZE + 12 + spacing.smd }} />}
+                        <Row n={n} />
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
-            </View>
-          ))
-        )}
+                </View>
+              ))
+            )
+          }
+        </Loaded>
       </Screen>
     </>
   );

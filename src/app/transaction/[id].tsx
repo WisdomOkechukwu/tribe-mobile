@@ -1,70 +1,51 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useRef } from "react";
 import { ScrollView, useWindowDimensions, View } from "react-native";
-import { copyToClipboard, EmptyState, Pill, StatusPill } from "@/components/bits";
-import { BillerThumb, GiftMark } from "@/components/brand-tiles";
+import { copyToClipboard, EmptyState, Pill } from "@/components/bits";
 import { Button } from "@/components/button";
-import { CashpointMark } from "@/components/cashpoint-mark";
-import { CoinIcon } from "@/components/coin-icon";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { ListRow, ListSection, SectionLink } from "@/components/list";
-import { PairIcon } from "@/components/pair-icon";
 import { PendingTimeline } from "@/components/pending-timeline";
 import { PressableScale } from "@/components/pressable-scale";
 import { PrivacyGuard } from "@/components/privacy-guard";
+import { ReceiptPoster, ReceiptStub, Scallops } from "@/components/receipt-poster";
 import { ReceiptTicket } from "@/components/receipt-ticket";
 import { Text } from "@/components/text";
-import { CardLeading, showFace, TransactionGroup } from "@/components/transaction-row";
-import { billerById, giftBrandById } from "@/data/catalog";
+import { TransactionGroup } from "@/components/transaction-row";
 import type { Transaction } from "@/data/seed";
 import { overlay } from "@/stores/use-overlay-store";
 import { ISSUE_REASON, useSupportStore } from "@/stores/use-support-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
-import { spacing, useColors } from "@/theme";
-import { downloadReceipt, shareReceipt } from "@/utils/share-receipt";
+import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
-import { headline, receiptRows, senderOf, txTitle } from "@/utils/tx";
+import { captureReceipt, saveReceiptImage, shareReceiptImage } from "@/utils/share-receipt";
+import { senderOf } from "@/utils/tx";
 
-function Hero({ tx }: { tx: Transaction }) {
-  if (tx.type === "swap" && tx.toAsset) return <PairIcon from={tx.asset} to={tx.toAsset} size={72} />;
-  if (tx.type === "bill" && tx.meta?.billerId) {
-    const b = billerById(tx.meta.billerId);
-    return <PairIcon from={tx.asset} front={(s) => <BillerThumb biller={b} size={s} />} size={72} />;
-  }
-  if (tx.type === "giftcard" && tx.meta?.giftBrand) {
-    const g = giftBrandById(tx.meta.giftBrand);
-    return <PairIcon from={tx.asset} front={(s) => <GiftMark brand={g} size={s} />} size={72} />;
-  }
-  if (tx.type === "cashpoint") return <CashpointMark size={60} />;
-  if (tx.type === "card") return <CardLeading tx={tx} size={72} />;
-  // earnings underneath (from), the balance they landed in in front (to)
-  if (tx.type === "referral") return <PairIcon from="Referral earnings" to={tx.asset} back={(s) => <ReferralMark size={s} />} size={72} />;
-  return <CoinIcon code={tx.asset} size={60} />;
-}
-
-function ReferralMark({ size }: { size: number }) {
-  const c = useColors();
-  return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}>
-      <Icon name="people" size={size * 0.45} color="#fff" />
-    </View>
-  );
-}
-
-/** The receipt image, previewed in a sheet — then shared or saved (Transaction.png). */
-function ReceiptSheet({ tx, first }: { tx: Transaction; first: "share" | "download" }) {
+/**
+ * The receipt image, previewed in a sheet. Share captures it, then CLOSES the sheet before the
+ * system share sheet opens (our overlay sits above everything on iOS and would cover it).
+ */
+function ReceiptSheet({ tx, first, close }: { tx: Transaction; first: "share" | "download"; close: (after?: () => void) => void }) {
   const ref = useRef<View>(null);
   const { width } = useWindowDimensions();
   const w = Math.min(width - spacing.mdl * 2, 360);
-  const share = <Button key="share" title="Share" icon="share" variant={first === "share" ? "primary" : "secondary"} style={{ flex: 1 }} onPress={() => shareReceipt(ref, tx)} />;
-  const save = <Button key="save" title="Save image" icon="download" variant={first === "download" ? "primary" : "secondary"} style={{ flex: 1 }} onPress={() => downloadReceipt(ref, tx)} />;
+  const share = async () => {
+    const uri = await captureReceipt(ref);
+    close(() => void shareReceiptImage(uri, tx));
+  };
+  const save = async () => {
+    const uri = await captureReceipt(ref);
+    close(() => void saveReceiptImage(uri, tx));
+  };
+  const shareBtn = <Button key="share" title="Share" icon="share" variant={first === "share" ? "primary" : "secondary"} style={{ flex: 1 }} onPress={share} />;
+  const saveBtn = <Button key="save" title="Save image" icon="download" variant={first === "download" ? "primary" : "secondary"} style={{ flex: 1 }} onPress={save} />;
   return (
     <View style={{ paddingHorizontal: spacing.mdl, gap: spacing.md }}>
-      <ScrollView showsHorizontalScrollIndicator={false} style={{ maxHeight: 460 }} contentContainerStyle={{ alignItems: "center" }} showsVerticalScrollIndicator={false}>
+      <ScrollView showsHorizontalScrollIndicator={false} style={{ maxHeight: 480 }} contentContainerStyle={{ alignItems: "center" }} showsVerticalScrollIndicator={false}>
         <ReceiptTicket ref={ref} tx={tx} width={w} />
       </ScrollView>
-      <View style={{ flexDirection: "row", gap: spacing.sm }}>{first === "share" ? [save, share] : [share, save]}</View>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>{first === "share" ? [saveBtn, shareBtn] : [shareBtn, saveBtn]}</View>
     </View>
   );
 }
@@ -110,79 +91,55 @@ function MoreFromSender({ tx }: { tx: Transaction }) {
   );
 }
 
-const openReceiptSheet = (tx: Transaction, first: "share" | "download") => overlay.sheet({ title: "Receipt", content: () => <ReceiptSheet tx={tx} first={first} /> });
+const openReceiptSheet = (tx: Transaction, first: "share" | "download") => overlay.sheet({ title: "Receipt", content: (close) => <ReceiptSheet tx={tx} first={first} close={close} /> });
 
 /**
- * Transaction details (Transaction.png): the hero, a "{type} details" list built for each kind
- * of transaction (utils/tx.ts), Share receipt + Download as an image, and Report an issue.
+ * Transaction details as a poster receipt (Gen-Z, Transaction.png's content): the Midnight band
+ * with the status sticker and the amount, then the paper stub (details built per kind in
+ * utils/tx.ts, any token or code in its own box, barcode + reference). Share / Download make
+ * the image; Report an issue sits underneath.
  */
 export default function Receipt() {
   const c = useColors();
+  const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const tx = useWalletStore((s) => s.transactions.find((t) => t.id === id));
   const ticket = useSupportStore((s) => s.tickets.find((k) => k.txId === id));
 
   if (!tx) {
     return (
-      <FlowScreen title="Transaction details" cancel="x">
+      <FlowScreen title="Receipt" cancel="x">
         <EmptyState icon="history" title="Transaction not found" body="It may have been cleared when demo data was reset." />
       </FlowScreen>
     );
   }
-
-  const isSwap = tx.type === "swap" && tx.toAsset;
-  const bought = (tx.type === "bill" || tx.type === "giftcard" || tx.type === "card") && !!tx.meta?.face;
-  const { title, rows } = receiptRows(tx);
+  const w = Math.min(width - spacing.mdl * 2, 520);
 
   return (
     <FlowScreen
-      title="Transaction details"
+      title="Receipt"
       cancel="x"
       footer={
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <Button title="Share" icon="share" variant="secondary" style={{ flex: 1 }} onPress={() => openReceiptSheet(tx, "share")} />
-          <Button title="Download" icon="download" style={{ flex: 1 }} onPress={() => openReceiptSheet(tx, "download")} />
+          <PressableScale onPress={() => openReceiptSheet(tx, "download")} accessibilityLabel="Download receipt" style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: c.surface, alignItems: "center", justifyContent: "center" }}>
+            <Icon name="download" size={20} color={c.text} />
+          </PressableScale>
+          <Button title="Share receipt" icon="share" style={{ flex: 1 }} onPress={() => openReceiptSheet(tx, "share")} />
         </View>
       }
     >
       {(tx.meta?.token || tx.meta?.code) && <PrivacyGuard />}
-      <View style={{ alignItems: "center", gap: spacing.sm }}>
-        <Hero tx={tx} />
-        <Text variant="subhead" tone="muted" style={{ marginTop: spacing.sm }}>
-          {txTitle(tx)}
-        </Text>
-        <Text variant="largeTitle" tone={tx.status === "failed" || tx.status === "cancelled" ? "muted" : tx.direction === "in" || isSwap ? "success" : "text"} adjustsFontSizeToFit numberOfLines={1}>
-          {headline(tx)}
-        </Text>
-        {bought && showFace(tx) && (
-          <Text variant="body" tone="muted" align="center">
-            {tx.direction === "in" ? `for your ${tx.meta!.face}` : `for ${tx.meta!.face}`}
-          </Text>
-        )}
-        {/* wrapped: Pill pins itself to flex-start, the wrapper is what the column centres */}
-        <View>
-          <StatusPill status={tx.status} />
+
+      {/* the poster, then the paper stub (theme-aware), with a scalloped foot */}
+      <View>
+        <View style={{ borderTopLeftRadius: radius.panel, borderTopRightRadius: radius.panel, borderCurve: "continuous", overflow: "hidden" }}>
+          <ReceiptPoster tx={tx} width={w} />
         </View>
+        <ReceiptStub tx={tx} colors={{ paper: c.surface, ink: c.text, muted: c.textMuted, line: c.borderStrong, soft: c.brandSoft, success: c.success, brand: c.brandText, notch: c.bg }} onCopy={(r) => r.copy && copyToClipboard(r.copy, `${r.label} copied`)} />
+        <Scallops width={w} color={c.surface} />
       </View>
+
       {tx.status === "pending" && <PendingTimeline tx={tx} />}
-      <ListSection title={title} inset={spacing.md}>
-        {rows.map((r) => (
-          <ListRow
-            key={r.label}
-            title={r.label}
-            value={r.value}
-            valueTone={r.tone === "success" ? "success" : undefined}
-            compact
-            trailing={
-              r.copy ? (
-                <PressableScale onPress={() => copyToClipboard(r.copy!, `${r.label} copied`)} hitSlop={12} accessibilityLabel={`Copy ${r.label.toLowerCase()}`}>
-                  <Icon name="copy" size={15} color={c.brandText} />
-                </PressableScale>
-              ) : undefined
-            }
-          />
-        ))}
-      </ListSection>
       <MoreFromSender tx={tx} />
       {ticket ? (
         <ListSection title="Support">
@@ -190,9 +147,9 @@ export default function Receipt() {
         </ListSection>
       ) : (
         <PressableScale onPress={() => router.push({ pathname: "/report/[id]", params: { id: tx.id } })} accessibilityRole="button" style={{ flexDirection: "row", alignSelf: "center", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm }}>
-          <Icon name="info" size={15} color={c.textMuted} />
-          <Text variant="bodyStrong" tone="muted">
-            Report an issue
+          <Icon name="help" size={15} color={c.textMuted} />
+          <Text variant="subhead" tone="muted">
+            Something wrong? Report an issue
           </Text>
         </PressableScale>
       )}

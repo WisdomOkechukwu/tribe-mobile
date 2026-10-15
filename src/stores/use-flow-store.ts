@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { assetByCode, type AssetCode } from "@/data/assets";
-import { billerById, GIFT_CARD_BUY_MARKUP, giftBrandById } from "@/data/catalog";
+import { billerById, GIFT_CARD_BUY_MARKUP, giftBrandById, giftSellPayout } from "@/data/catalog";
 import type { InboxItem, InboxKind } from "@/data/inbox";
-import { CARD_FEE_USD, cardFundingFee, type CardNetwork, type CardTheme, type Transaction } from "@/data/seed";
+import { CARD_FEE_USD, CARD_MIN_TOPUP_USD, cardFundingFee, type CardFinish, type CardNetwork, type Transaction, type VirtualCard } from "@/data/seed";
 import { formatAsset, randomDigits } from "@/utils/format";
+import { PAY } from "@/utils/pay-platform";
 import { liveUsd } from "@/utils/rates";
 import { useBeneficiariesStore, type BeneficiaryDraft } from "./use-beneficiaries-store";
 import { useCardsStore } from "./use-cards-store";
@@ -44,15 +45,31 @@ export type PendingAction =
       eta?: string;
     }
   | { kind: "swap"; from: AssetCode; to: AssetCode; amount: number }
-  | { kind: "bill"; billerId: string; amountNgn: number; payWith: AssetCode; target: string; plan?: string; recurringId?: string }
+  | {
+      kind: "bill";
+      billerId: string;
+      amountNgn: number;
+      payWith: AssetCode;
+      /** as shown (meters masked) */
+      target: string;
+      /** the full number, kept on the transaction for "saved numbers" */
+      account?: string;
+      category?: "airtime" | "data" | "tv" | "electricity";
+      /** electricity only; postpaid pays the account and makes no token */
+      meterType?: "prepaid" | "postpaid";
+      plan?: string;
+      recurringId?: string;
+    }
   | { kind: "gift-buy"; brandId: string; usd: number; payWith: AssetCode }
-  | { kind: "gift-sell"; brandId: string; usd: number; payout: "NGN" | "USDT" }
+  | { kind: "gift-sell"; brandId: string; usd: number; payout: AssetCode }
   | { kind: "card-fund"; cardId: string; usd: number; from: AssetCode }
-  | { kind: "card-create"; label: string; theme: CardTheme; network: CardNetwork; usd: number; from: AssetCode }
+  | { kind: "card-create"; label: string; theme: CardFinish; network: CardNetwork; usd: number; from: AssetCode }
   | { kind: "card-withdraw"; cardId: string; usd: number; to: AssetCode }
   | { kind: "recurring-create"; billerId: string; target: string; plan?: string; amountNgn: number; payWith: AssetCode; frequency: Frequency; start: string }
   | { kind: "cashpoint"; amount: number }
-  | { kind: "referral-withdraw"; amountNgn: number; to: AssetCode };
+  | { kind: "referral-withdraw"; amountNgn: number; to: AssetCode }
+  /** not a payment, but final: deleting a card is approved with the PIN too (its balance is refunded) */
+  | { kind: "card-delete"; cardId: string };
 
 /** What a paid bill needs to become a recurring schedule (offered on the success screen). */
 export type RecurringOffer = { billerId: string; target: string; plan?: string; amountNgn: number; payWith: AssetCode };
@@ -67,14 +84,16 @@ export type FlowResult = {
   recurringOffer?: RecurringOffer;
   /** a send to someone not saved yet: the result card offers "Add to beneficiaries" */
   beneficiary?: BeneficiaryDraft;
+  /** a card that was just created: the result card offers "Add to Apple Pay / Google Pay" */
+  walletCardId?: string;
+  /** a card that was just deleted: the result card shows it fading out */
+  retiredCard?: Pick<VirtualCard, "theme" | "network" | "label" | "last4" | "holder">;
 };
 
 type FlowState = {
   pending: PendingAction | null;
   result: FlowResult | null;
-  /** where Done should return to after success */
-  origin: string | null;
-  begin: (action: PendingAction, origin?: string) => void;
+  begin: (action: PendingAction) => void;
   execute: () => FlowResult;
   /** for actions that don't need a PIN (e.g. redeeming a Cashpoint) */
   complete: (result: FlowResult) => void;
@@ -124,7 +143,10 @@ function run(action: PendingAction): FlowResult {
       const b = billerById(action.billerId);
       const cost = (action.amountNgn * assetByCode("NGN").usd) / assetByCode(action.payWith).usd;
       const isLight = b.category === "electricity";
-      const token = isLight ? randomDigits(20).replace(/(.{4})(?=.)/g, "$1 ") : undefined;
+      const postpaid = isLight && action.meterType === "postpaid";
+      // prepaid meters get a token (saved to the Vault); postpaid just settles the account
+      const token = isLight && !postpaid ? randomDigits(20).replace(/(.{4})(?=.)/g, "$1 ") : undefined;
+      const category = action.category ?? b.category;
       const units = isLight ? `${(action.amountNgn / NGN_PER_KWH).toFixed(1)} kWh` : undefined;
       const tx = wallet.record(
         {
@@ -132,18 +154,18 @@ function run(action: PendingAction): FlowResult {
           asset: action.payWith,
           amount: cost,
           direction: "out",
-          title: action.plan ? `${b.name} ${action.plan}` : `${b.name} ${isLight ? "Prepaid" : b.category === "airtime" ? "airtime" : "top-up"}`,
-          subtitle: `Paid with ${action.payWith} · ${isLight ? units : action.target}`,
-          meta: { billerId: b.id, token, units, face: `₦${action.amountNgn.toLocaleString()}`, recurringId: action.recurringId },
+          title: action.plan ? `${b.name} ${action.plan}` : `${b.name} ${isLight ? (postpaid ? "Postpaid" : "Prepaid") : category === "airtime" ? "airtime" : "top-up"}`,
+          subtitle: `Paid with ${action.payWith} · ${isLight && !postpaid ? units : action.target}`,
+          meta: { billerId: b.id, token, units: postpaid ? undefined : units, face: `₦${action.amountNgn.toLocaleString()}`, recurringId: action.recurringId, target: action.account ?? action.target, billCategory: category, meterType: isLight ? (postpaid ? "postpaid" : "prepaid") : undefined },
         },
         { [action.payWith]: -cost },
       );
       if (isLight && token) {
-        useVaultStore.getState().add({ provider: `${b.name} Prepaid`, meter: action.target, amount: action.amountNgn, kwh: Number((action.amountNgn / NGN_PER_KWH).toFixed(1)), token });
+        useVaultStore.getState().add({ provider: `${b.name} Prepaid`, meter: action.target, amount: action.amountNgn, kwh: Number((action.amountNgn / NGN_PER_KWH).toFixed(1)), token, paidWith: action.payWith, paid: cost });
       }
       if (action.recurringId) useRecurringStore.getState().markPaid(action.recurringId);
-      const recurringOffer = action.recurringId ? undefined : { billerId: b.id, target: action.target, plan: action.plan, amountNgn: action.amountNgn, payWith: action.payWith };
-      return isLight
+      const recurringOffer = action.recurringId || postpaid ? undefined : { billerId: b.id, target: action.target, plan: action.plan, amountNgn: action.amountNgn, payWith: action.payWith };
+      return isLight && !postpaid
         ? { tx, recurringOffer, headline: "Token saved to your Vault", detail: `${units} for meter ${action.target}`, extra: { label: "Token", value: token! }, notify: { kind: "vault", title: "Token saved to your Vault", body: `${b.name} Prepaid · ${units}. Load it, then tap “I've loaded it”.` } }
         : { tx, recurringOffer, headline: "Paid", detail: `${b.name} · ${action.target}`, notify: { kind: "money", title: `${b.name} paid`, body: `₦${action.amountNgn.toLocaleString()} · ${action.target}` } };
     }
@@ -159,8 +181,9 @@ function run(action: PendingAction): FlowResult {
     }
     case "gift-sell": {
       const brand = giftBrandById(action.brandId);
-      const ngn = action.usd * brand.sellRate;
-      const amount = action.payout === "NGN" ? ngn : ngn * assetByCode("NGN").usd;
+      const amount = giftSellPayout(action.usd, brand, action.payout);
+      // a currency you hadn't opened yet gets opened for the payout
+      if (!wallet.opened.includes(action.payout)) wallet.openAccount(action.payout);
       // Paid out once the card is verified — logged as pending, balance untouched for now.
       const tx = wallet.record(
         { type: "giftcard", asset: action.payout, amount, direction: "in", status: "pending", title: `Sold ${brand.name} gift card`, subtitle: `Paid out in ${action.payout} · ₦${brand.sellRate.toLocaleString()}/$`, meta: { giftBrand: brand.id, face: `$${action.usd} ${brand.name} card` } },
@@ -179,6 +202,8 @@ function run(action: PendingAction): FlowResult {
       return { tx, headline: "Card funding successful", detail: `$${action.usd.toFixed(2)} is on your card. You can now pay online with ease.`, notify: { kind: "card", title: "Card topped up", body: `+$${action.usd.toFixed(2)} on your virtual card.` } };
     }
     case "card-create": {
+      // every new card starts funded (the details step enforces it too)
+      if (action.usd < CARD_MIN_TOPUP_USD) throw new Error(`Add at least $${CARD_MIN_TOPUP_USD} to your new card.`);
       const total = action.usd + CARD_FEE_USD + cardFundingFee(action.usd);
       const cost = total / assetByCode(action.from).usd;
       // Check funds before creating, so a failed top-up never leaves a half-made card.
@@ -186,14 +211,15 @@ function run(action: PendingAction): FlowResult {
       const user = cardHolderName();
       const card = useCardsStore.getState().createCard({ label: action.label, theme: action.theme, network: action.network, holder: user });
       const tx = wallet.record(
-        { type: "card", asset: action.from, amount: cost, direction: "out", fee: (CARD_FEE_USD + cardFundingFee(action.usd)) / assetByCode(action.from).usd, title: "New virtual card", subtitle: `Paid with ${action.from} · ${action.label} •• ${card.last4}`, meta: { cardId: card.id, cardOp: "created", face: action.usd ? `+$${action.usd.toFixed(2)} to card` : `$${CARD_FEE_USD.toFixed(2)} card fee` } },
+        { type: "card", asset: action.from, amount: cost, direction: "out", fee: (CARD_FEE_USD + cardFundingFee(action.usd)) / assetByCode(action.from).usd, title: "New virtual card", subtitle: `Paid with ${action.from} · ${action.label} •• ${card.last4}`, meta: { cardId: card.id, cardOp: "created", face: `+$${action.usd.toFixed(2)} to card` } },
         { [action.from]: -cost },
       );
-      if (action.usd) useCardsStore.getState().credit(card.id, action.usd);
+      useCardsStore.getState().credit(card.id, action.usd);
       return {
         tx,
+        walletCardId: card.id,
         headline: "Your card is ready",
-        detail: `${action.label} •• ${card.last4} works anywhere online. Add it to Apple Pay or Google Wallet.`,
+        detail: `${action.label} •• ${card.last4} works anywhere online. Add it to ${PAY.name} to tap and pay with your phone.`,
         notify: { kind: "card", title: "New virtual card", body: `${action.label} •• ${card.last4} is ready to use.` },
       };
     }
@@ -240,6 +266,24 @@ function run(action: PendingAction): FlowResult {
         notify: { kind: "referral", title: "Referral earnings withdrawn", body: `₦${action.amountNgn.toLocaleString()} → ${formatAsset(received, action.to)}` },
       };
     }
+    case "card-delete": {
+      const gone = useCardsStore.getState().deleteCard(action.cardId);
+      if (!gone) throw new Error("That card is already gone.");
+      const name = `${gone.label} •• ${gone.last4}`;
+      const retiredCard = { theme: gone.theme, network: gone.network, label: gone.label, last4: gone.last4, holder: gone.holder };
+      // whatever was on the card goes back to the USD wallet
+      const tx =
+        gone.balance > 0
+          ? wallet.record({ type: "card", asset: "USD", amount: gone.balance, direction: "in", title: "Card deleted · refund", subtitle: name, meta: { cardId: gone.id } }, { USD: gone.balance })
+          : undefined;
+      return {
+        tx,
+        retiredCard,
+        headline: "Card deleted",
+        detail: tx ? `${name} no longer works. Its $${gone.balance.toFixed(2)} is back in your USD wallet.` : `${name} no longer works anywhere it was saved.`,
+        notify: { kind: "card", title: "Card deleted", body: tx ? `${name} · $${gone.balance.toFixed(2)} refunded to USD.` : `${name} was deleted.`, href: "/cards" },
+      };
+    }
     case "cashpoint": {
       const tx = wallet.generateCashpoint(action.amount);
       return {
@@ -256,8 +300,7 @@ function run(action: PendingAction): FlowResult {
 export const useFlowStore = create<FlowState>()((set, get) => ({
   pending: null,
   result: null,
-  origin: null,
-  begin: (pending, origin) => set({ pending, result: null, origin: origin ?? null }),
+  begin: (pending) => set({ pending, result: null }),
   execute: () => {
     const { pending } = get();
     if (!pending) throw new Error("Nothing to confirm.");
@@ -267,5 +310,5 @@ export const useFlowStore = create<FlowState>()((set, get) => ({
     return result;
   },
   complete: (result) => set({ pending: null, result }),
-  clear: () => set({ pending: null, result: null, origin: null }),
+  clear: () => set({ pending: null, result: null }),
 }));

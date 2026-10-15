@@ -15,22 +15,31 @@ async function capture(ref: RefObject<View | null>) {
 const textReceipt = (tx: Transaction) => `${txTitle(tx)}\n${headline(tx)}${tx.meta?.face ? ` · ${tx.meta.face}` : ""}\n${fullDate(tx.date)}\nRef ${tx.reference}\n— Tribe`;
 
 
-/** Share the receipt as an image (falls back to text if capture isn't possible). */
-export async function shareReceipt(ref: RefObject<View | null>, tx: Transaction) {
+/** Turn the on-screen receipt into an image (a tmp file; a data URI on web). */
+export async function captureReceipt(ref: RefObject<View | null>) {
   try {
-    const uri = await capture(ref);
-    if (Platform.OS === "web") return void (await saveImage(uri, `tribe-receipt-${tx.reference}.png`));
-    if (await Sharing.isAvailableAsync()) return await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Share receipt", UTI: "public.png" });
+    return await capture(ref);
   } catch {
-    // capture failed (old device, missing module in this build) — share the text instead
+    // capture failed (old device, missing module in this build)
+    return null;
+  }
+}
+
+/** Share a captured receipt image; without one, share the text version. */
+export async function shareReceiptImage(uri: string | null, tx: Transaction) {
+  try {
+    if (uri && Platform.OS === "web") return void (await saveImage(uri, `tribe-receipt-${tx.reference}.png`));
+    if (uri && (await Sharing.isAvailableAsync())) return await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Share receipt", UTI: "public.png" });
+  } catch {
+    // fall through to text
   }
   await Share.share({ message: textReceipt(tx) });
 }
 
-/** Save the receipt image to Photos (downloads the PNG on web). */
-export async function downloadReceipt(ref: RefObject<View | null>, tx: Transaction) {
+/** Save a captured receipt image to Photos (downloads the PNG on web). */
+export async function saveReceiptImage(uri: string | null, tx: Transaction) {
+  if (!uri) return toast("Couldn't save the receipt. Try Share instead.", "danger");
   try {
-    const uri = await capture(ref);
     if (!(await saveImage(uri, `tribe-receipt-${tx.reference}.png`))) return toast("Allow Photos access to save receipts", "danger");
     toast(Platform.OS === "web" ? "Receipt downloaded" : "Receipt saved to Photos", "success");
   } catch {

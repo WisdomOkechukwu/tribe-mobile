@@ -18,7 +18,8 @@ import { assetByCode, railsFor, type Asset } from "@/data/assets";
 import { guideSteps, type GuideKind } from "@/data/guides";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { toast } from "@/stores/use-ui-store";
-import { useWalletStore } from "@/stores/use-wallet-store";
+import { useAccounts, useTransactions } from "@/api/queries";
+import { Loaded, Skeleton, SkeletonList } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { formatAsset, formatMoney, toDisplay } from "@/utils/format";
 import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
@@ -149,10 +150,13 @@ export default function AssetDetail() {
   const c = useColors();
   const { code } = useLocalSearchParams<{ code: string }>();
   const a = assetByCode(code);
-  const balance = useWalletStore((s) => s.balances[a.code]);
-  const isOpen = useWalletStore((s) => s.opened.includes(a.code));
+  const accounts = useAccounts();
+  const history = useTransactions();
+  const loaded = !!accounts.data;
+  const balance = accounts.data?.balances[a.code] ?? 0;
+  const isOpen = !!accounts.data?.opened.includes(a.code);
   const unlocked = useWalletsUnlocked();
-  const all = useWalletStore((s) => s.transactions);
+  const all = history.data ?? [];
   const display = usePrefsStore((s) => s.display);
   const hidden = usePrefsStore((s) => s.hideBalances);
   const txs = all.filter((t) => t.asset === a.code || t.toAsset === a.code);
@@ -171,10 +175,14 @@ export default function AssetDetail() {
           <Text variant="subhead" tone="muted" style={{ marginTop: spacing.sm }}>
             {a.name} · {a.code}
           </Text>
-          <Text variant="largeTitle" adjustsFontSizeToFit numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
-            {hidden ? "•••••" : formatAsset(balance, a.code)}
-          </Text>
-          {!hidden && (crypto || a.code !== display) && (
+          {loaded ? (
+            <Text variant="largeTitle" adjustsFontSizeToFit numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
+              {hidden ? "•••••" : formatAsset(balance, a.code)}
+            </Text>
+          ) : (
+            <Skeleton width={170} height={34} style={{ marginVertical: 4 }} />
+          )}
+          {loaded && !hidden && (crypto || a.code !== display) && (
             <Text variant="subhead" tone="muted">
               ≈ {formatMoney(toDisplay(balance, a.code, display), display)}
             </Text>
@@ -187,7 +195,16 @@ export default function AssetDetail() {
           )}
         </View>
 
-        {isOpen ? (
+        {!loaded ? (
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.xl }}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={{ alignItems: "center", gap: spacing.sm }}>
+                <Skeleton width={56} height={56} radius={28} />
+                <Skeleton width={44} height={10} />
+              </View>
+            ))}
+          </View>
+        ) : isOpen ? (
           <CircleActionRow>
             <CircleAction glyph="incoming" label="Receive" onPress={() => open(a, "receive")} />
             <CircleAction glyph="outgoing" label="Send" onPress={() => open(a, "send")} />
@@ -224,7 +241,9 @@ export default function AssetDetail() {
             onAction={() => (guideHidden ? restore(guideKey(a.code)) : seeAll())}
           />
           {/* the latest few only — the full list lives in (virtualised) History */}
-          {txs.length ? <TransactionList items={txs.slice(0, RECENT)} /> : <EmptyState icon="history" title={`No ${a.code} activity yet`} body={`Receive or swap into ${a.name} and it'll show up here.`} />}
+          <Loaded query={history} skeleton={<SkeletonList rows={4} />}>
+            {() => (txs.length ? <TransactionList items={txs.slice(0, RECENT)} /> : <EmptyState icon="history" title={`No ${a.code} activity yet`} body={`Receive or swap into ${a.name} and it'll show up here.`} />)}
+          </Loaded>
           {guideHidden && txs.length > RECENT && (
             <PressableScale onPress={seeAll} accessibilityRole="button" style={{ alignSelf: "center", paddingVertical: spacing.xs }}>
               <Text variant="subhead" tone="brand">

@@ -1,6 +1,8 @@
 import { useColorScheme } from "react-native";
 import { schemes, type ThemeColors } from "./colors";
 
+export { CARD_GLASS, CARD_PATTERNS, CARD_PRESETS, CARD_SWATCHES, CARD_THEME_ORDER, CUSTOM_SHADES } from "./card-finishes";
+export type { CardLook, CustomShade } from "./card-finishes";
 export { schemes } from "./colors";
 export { palette } from "./palette";
 export { fonts, motion, radius, shadows, spacing, type } from "./tokens";

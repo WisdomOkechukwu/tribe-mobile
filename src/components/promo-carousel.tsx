@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { ScrollView, useWindowDimensions, View } from "react-native";
-import Animated, { FadeOut, LinearTransition } from "react-native-reanimated";
+import Animated, { FadeOut } from "react-native-reanimated";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { radius, spacing, useColors } from "@/theme";
 import { Icon } from "./icon";
@@ -22,7 +22,7 @@ export function PromoCarousel({ promos, gutter = spacing.md }: { promos: Promo[]
   const cardW = width - gutter * 2;
 
   return (
-    <Animated.View layout={LinearTransition} exiting={FadeOut} style={{ gap: spacing.sm }}>
+    <Animated.View exiting={FadeOut} style={{ gap: spacing.sm }}>
       <ScrollView showsVerticalScrollIndicator={false}
         horizontal
         pagingEnabled={false}
