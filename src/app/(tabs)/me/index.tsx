@@ -129,6 +129,11 @@ export default function Me() {
         />
       </ListSection>
 
+      {/* TODO(launch): testing only, remove with the mock data */}
+      <ListSection title="Testing" footer="Pretend money for trying things out. Nothing real moves.">
+        <ListRow icon="plusCircle" title="Test top-up" subtitle="Any amount, any currency" onPress={() => router.push("/test-topup")} />
+      </ListSection>
+
       <ListSection>
         <ListRow
           icon="logoutLine"

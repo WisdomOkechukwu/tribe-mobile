@@ -73,40 +73,104 @@ for (let i = 0; i < 6; i++) {
   WAVES += `M-10 ${y}C80 ${y - a} 170 ${y + a} 260 ${y}S350 ${y - a / 2} 360 ${y - a / 2}`;
 }
 
-// Dots: a halftone that fades away from the top-right corner
+// Dots: a bold halftone (offset rows) pouring out of the top-right corner, fading towards the holder name
 let DOTS = "";
-for (let y = 6; y <= 156; y += 11)
-  for (let x = 136; x <= VW; x += 11) {
-    const r = 2.5 * (1 - Math.hypot(VW - x, y) / 240);
-    if (r >= 0.45) DOTS += `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+for (let row = 0, y = 4; y <= VH + 6; y += 12, row++)
+  for (let x = VW + 4 - (row % 2) * 7; x >= 60; x -= 14) {
+    const r = 5.2 * (1 - Math.hypot(VW - x, y * 1.25) / 300);
+    if (r >= 0.6) DOTS += `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
   }
 
 // Rings: ripples spreading from the bottom-right corner
-const RINGS = Array.from({ length: 6 }, (_, i) => ({ r: 46 + 36 * i, opacity: 0.9 - i * 0.11 }));
+const RINGS = Array.from({ length: 6 }, (_, i) => ({ r: 46 + 36 * i, opacity: 1 - i * 0.1 }));
 
-// Grid: a fine graph-paper grid over the right side, fading in towards the edge
-const GRID = ["", "", ""];
-for (let band = 0; band < 3; band++) {
-  const x0 = 136 + band * 68;
-  for (let x = x0; x < x0 + 68; x += 17) GRID[band] += `M${x} 0V${VH}`;
-  for (let y = 0; y <= VH; y += 17) GRID[band] += `M${x0} ${y}H${Math.min(x0 + 68, VW)}`;
-}
+// Grid: graph paper over the right side in five fading bands, with a few cells filled in like pixels
+const CELL = 22;
+const GRID_X = VW - CELL * 10;
+const GRID = Array.from({ length: 5 }, (_, band) => {
+  const x0 = GRID_X + band * CELL * 2;
+  const x1 = Math.min(x0 + CELL * 2, VW);
+  let d = "";
+  for (let x = x0; x < x1; x += CELL) d += `M${x} 0V${VH}`;
+  for (let y = 0; y <= VH; y += CELL) d += `M${x0} ${y}H${x1}`;
+  return d;
+});
+const GRID_FILL = [[9, 0], [8, 1], [9, 2], [7, 0], [6, 2], [8, 3], [9, 5], [5, 1], [7, 4], [4, 0]]
+  .map(([col, row]) => `M${GRID_X + col * CELL} ${row * CELL}h${CELL}v${CELL}h${-CELL}z`)
+  .join("");
 
 // Diamonds: a light lattice of crossing diagonals across the whole card
 let DIAMONDS = "";
 for (let x = -VH; x <= VW; x += 26) DIAMONDS += `M${x} 0L${x + VH} ${VH}M${x} ${VH}L${x + VH} 0`;
 
 // Orbits: off-centre circles drifting from the top-right, one small "planet" on the third
-const ORBITS = Array.from({ length: 5 }, (_, i) => ({ cx: 300 - i * 14, cy: 26 + i * 10, r: 38 + 36 * i, opacity: 0.95 - i * 0.14 }));
+const ORBITS = Array.from({ length: 5 }, (_, i) => ({ cx: 300 - i * 14, cy: 26 + i * 10, r: 38 + 36 * i, opacity: 1 - i * 0.12 }));
 const PLANET = { cx: ORBITS[2].cx - ORBITS[2].r * Math.cos(0.5), cy: ORBITS[2].cy + ORBITS[2].r * Math.sin(0.5) };
 
 // Contours: a topographic hill rising from the bottom edge
 const CONTOUR_C = { x: 210, y: VH - 6 };
-const CONTOURS = Array.from({ length: 7 }, (_, i) => ({ rx: 30 + 27 * i, ry: 18 + 18 * i, opacity: 0.95 - i * 0.1 }));
+const CONTOURS = Array.from({ length: 7 }, (_, i) => ({ rx: 30 + 27 * i, ry: 18 + 18 * i, opacity: 1 - i * 0.08 }));
+
+// --- the playful set (Sparkles, Daisies, Hearts, Zigzag) ---
+// Each one is loudest top-right and thins out towards the holder name, like the fine patterns.
+
+// Sparkles: four-point stars (concave sides), big to tiny
+const SPARKLES = [
+  [298, 56, 36],
+  [234, 130, 17],
+  [326, 162, 21],
+  [190, 44, 13],
+  [166, 184, 16],
+  [122, 102, 9],
+  [274, 198, 10],
+  [238, 70, 8],
+  [334, 104, 9],
+  [146, 30, 6],
+]
+  .map(([x, y, r]) => `M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z`)
+  .join("");
+
+// Daisies: six round petals around a hollow centre (the centre is painted in the card colour)
+const DAISIES = [
+  { x: 296, y: 50, r: 56, rot: 10 },
+  { x: 210, y: 170, r: 38, rot: 30 },
+  { x: 336, y: 182, r: 30, rot: 0 },
+  { x: 172, y: 62, r: 21, rot: 20 },
+  { x: 118, y: 206, r: 22, rot: 15 },
+].map((d) => ({
+  ...d,
+  petals: Array.from({ length: 6 }, (_, i) => {
+    const a = ((d.rot + i * 60) * Math.PI) / 180;
+    return { cx: d.x + Math.cos(a) * d.r * 0.58, cy: d.y + Math.sin(a) * d.r * 0.58, deg: d.rot + i * 60 };
+  }),
+}));
+
+// Hearts: a few filled, a few outlined, all slightly off-kilter
+const heart = (x: number, y: number, s: number) =>
+  `M${x} ${y + 0.4 * s}C${x - 0.95 * s} ${y - 0.2 * s} ${x - 0.5 * s} ${y - 0.95 * s} ${x} ${y - 0.42 * s}C${x + 0.5 * s} ${y - 0.95 * s} ${x + 0.95 * s} ${y - 0.2 * s} ${x} ${y + 0.4 * s}Z`;
+const HEARTS = [
+  { x: 292, y: 66, s: 56, rot: -14, fill: true },
+  { x: 212, y: 164, s: 36, rot: 12, fill: false },
+  { x: 332, y: 178, s: 28, rot: -6, fill: true },
+  { x: 178, y: 52, s: 22, rot: 18, fill: false },
+  { x: 136, y: 190, s: 17, rot: -10, fill: true },
+  { x: 250, y: 112, s: 14, rot: 6, fill: false },
+];
+
+// Zigzag: chunky chevrons over the right side (clear of the holder name), strong and soft in turn
+const ZIGZAGS = Array.from({ length: 6 }, (_, i) => {
+  const y = 22 + i * 34;
+  const x0 = 136 + (i % 3) * 16;
+  let d = `M${x0} ${y}`;
+  for (let x = x0, up = true; x < VW + 14; x += 16, up = !up) d += `L${x + 16} ${up ? y - 12 : y}`;
+  return d;
+});
 
 /** A finish's pattern, filling the card behind everything else. */
 function CardPatternArt({ look, width, height }: { look: CardLook; width: number; height: number }) {
   const k = width / VW;
+  // strokes scale with the viewBox, so a 72pt thumb drew 0.2pt hairlines: keep every line ≥ ~1pt on screen
+  const w = (sw: number) => sw * Math.max(1, 1 / (sw * k));
   if (look.pattern === "brand" || look.pattern === "stripes") {
     const brand = look.pattern === "brand";
     return (
@@ -123,15 +187,22 @@ function CardPatternArt({ look, width, height }: { look: CardLook; width: number
           <Circle cx={20} cy={240} r={130} fill={look.lineSoft} />
         </>
       )}
-      {look.pattern === "lines" && PINSTRIPES.map((d, i) => <Path key={i} d={d} stroke={look.line} strokeWidth={1} opacity={0.35 + i * 0.3} fill="none" />)}
-      {look.pattern === "waves" && <Path d={WAVES} stroke={look.line} strokeWidth={1.3} fill="none" strokeLinecap="round" />}
+      {look.pattern === "lines" && PINSTRIPES.map((d, i) => <Path key={i} d={d} stroke={look.line} strokeWidth={w(1.4)} opacity={0.55 + i * 0.225} fill="none" />)}
+      {look.pattern === "waves" && <Path d={WAVES} stroke={look.line} strokeWidth={w(1.9)} fill="none" strokeLinecap="round" />}
       {look.pattern === "dots" && <Path d={DOTS} fill={look.line} />}
-      {look.pattern === "grid" && GRID.map((d, i) => <Path key={i} d={d} stroke={look.line} strokeWidth={0.8} opacity={0.35 + i * 0.3} fill="none" />)}
-      {look.pattern === "diamonds" && <Path d={DIAMONDS} stroke={look.line} strokeWidth={0.8} opacity={0.7} fill="none" />}
+      {look.pattern === "grid" && (
+        <G>
+          <Path d={GRID_FILL} fill={look.lineSoft} />
+          {GRID.map((d, i) => (
+            <Path key={i} d={d} stroke={look.line} strokeWidth={w(1.4)} opacity={0.14 + i * 0.215} fill="none" />
+          ))}
+        </G>
+      )}
+      {look.pattern === "diamonds" && <Path d={DIAMONDS} stroke={look.line} strokeWidth={w(1.2)} opacity={0.85} fill="none" />}
       {look.pattern === "orbits" && (
         <G>
           {ORBITS.map((o) => (
-            <Circle key={o.r} cx={o.cx} cy={o.cy} r={o.r} stroke={look.line} strokeWidth={1.2} opacity={o.opacity} fill="none" />
+            <Circle key={o.r} cx={o.cx} cy={o.cy} r={o.r} stroke={look.line} strokeWidth={w(1.7)} opacity={o.opacity} fill="none" />
           ))}
           <Circle cx={PLANET.cx} cy={PLANET.cy} r={6} fill={look.line} />
         </G>
@@ -140,15 +211,32 @@ function CardPatternArt({ look, width, height }: { look: CardLook; width: number
         // a hill rising from the bottom edge, clear of the wordmark and the wallet pill
         <G transform={`rotate(-12 ${CONTOUR_C.x} ${CONTOUR_C.y})`}>
           {CONTOURS.map((k) => (
-            <Ellipse key={k.rx} cx={CONTOUR_C.x} cy={CONTOUR_C.y} rx={k.rx} ry={k.ry} stroke={look.line} strokeWidth={1.1} opacity={k.opacity} fill="none" />
+            <Ellipse key={k.rx} cx={CONTOUR_C.x} cy={CONTOUR_C.y} rx={k.rx} ry={k.ry} stroke={look.line} strokeWidth={w(1.6)} opacity={k.opacity} fill="none" />
           ))}
         </G>
       )}
+      {look.pattern === "sparkles" && <Path d={SPARKLES} fill={look.line} />}
+      {look.pattern === "daisies" &&
+        DAISIES.map((d) => (
+          <G key={d.x}>
+            {d.petals.map((p) => (
+              <Ellipse key={p.deg} cx={p.cx} cy={p.cy} rx={d.r * 0.4} ry={d.r * 0.24} transform={`rotate(${p.deg} ${p.cx} ${p.cy})`} fill={look.line} />
+            ))}
+            {/* the card colour hides where the petals meet, then a soft eye */}
+            <Circle cx={d.x} cy={d.y} r={d.r * 0.3} fill={look.bg} />
+            <Circle cx={d.x} cy={d.y} r={d.r * 0.3} fill={look.lineSoft} stroke={look.line} strokeWidth={w(1.4)} />
+          </G>
+        ))}
+      {look.pattern === "hearts" &&
+        HEARTS.map((h) => (
+          <Path key={h.x} d={heart(h.x, h.y, h.s)} transform={`rotate(${h.rot} ${h.x} ${h.y})`} fill={h.fill ? look.line : "none"} stroke={h.fill ? "none" : look.line} strokeWidth={w(2.2)} strokeLinejoin="round" />
+        ))}
+      {look.pattern === "zigzag" && ZIGZAGS.map((d, i) => <Path key={i} d={d} stroke={i % 2 ? look.lineSoft : look.line} strokeWidth={w(6)} strokeLinejoin="miter" fill="none" />)}
       {look.pattern === "rings" && (
         <G>
           <Circle cx={330} cy={VH} r={46} fill={look.lineSoft} />
           {RINGS.map((ring) => (
-            <Circle key={ring.r} cx={330} cy={VH} r={ring.r} stroke={look.line} strokeWidth={1.4} opacity={ring.opacity} fill="none" />
+            <Circle key={ring.r} cx={330} cy={VH} r={ring.r} stroke={look.line} strokeWidth={w(2)} opacity={ring.opacity} fill="none" />
           ))}
         </G>
       )}

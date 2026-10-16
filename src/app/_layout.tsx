@@ -113,9 +113,11 @@ export default function RootLayout() {
               <Stack.Screen name="card-fund" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="card-withdraw" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="card-new" options={{ presentation: "modal", headerShown: false }} />
+              <Stack.Screen name="card-design" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="setup" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="add-currency" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="referral-withdraw" options={{ presentation: "modal", headerShown: false }} />
+              <Stack.Screen name="test-topup" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="pin" options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }} />
               <Stack.Screen name="success" options={{ presentation: "transparentModal", headerShown: false, animation: "fade", gestureEnabled: false, contentStyle: { backgroundColor: "transparent" } }} />
             </Stack.Protected>

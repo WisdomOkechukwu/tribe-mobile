@@ -108,7 +108,7 @@ function derive(hex: string, pattern: CardPattern): CardLook {
   const ink =
     pattern === "plain"
       ? { line: withAlpha(WHITE, light ? 0.28 : 0.1), lineSoft: withAlpha("#000000", light ? 0.06 : 0.2) }
-      : { line: withAlpha(fg, light ? 0.22 : 0.28), lineSoft: withAlpha(fg, light ? 0.1 : 0.13) };
+      : { line: withAlpha(fg, light ? 0.34 : 0.42), lineSoft: withAlpha(fg, light ? 0.15 : 0.2) };
   const page = { light: hslToHex({ h, s: Math.min(s, 0.55), l: 0.95 }), dark: hslToHex({ h, s: Math.min(s, 0.45), l: 0.07 }) };
   // the action colour is the card's own, darkened on light pages / lightened on dark ones until it reads
   const accent = { light: readableOn(page.light, h, s, l, -0.05), dark: readableOn(page.dark, h, Math.min(s, 0.75), Math.max(l, 0.62), 0.05) };
@@ -143,7 +143,7 @@ function presetWith(theme: CardTheme, pattern: CardPattern): CardLook {
     p === "plain"
       ? { line: withAlpha(WHITE, base.light ? 0.45 : 0.08), lineSoft: withAlpha("#000000", base.light ? 0.06 : 0.25) }
       : base.pattern === "plain" || base.pattern === "brand"
-        ? { line: withAlpha(base.fg, base.light ? 0.2 : 0.26), lineSoft: withAlpha(base.fg, base.light ? 0.09 : 0.12) }
+        ? { line: withAlpha(base.fg, base.light ? 0.32 : 0.4), lineSoft: withAlpha(base.fg, base.light ? 0.14 : 0.18) }
         : { line: base.line, lineSoft: base.lineSoft };
   return { ...base, ...ink, pattern: p, name: `${base.name} ${word}` };
 }

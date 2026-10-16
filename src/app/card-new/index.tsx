@@ -1,20 +1,18 @@
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWindowDimensions, View } from "react-native";
 import Animated, { Extrapolation, interpolate, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, type SharedValue } from "react-native-reanimated";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Button } from "@/components/button";
 import { cardLook, useCardPalette, VirtualCardFace } from "@/components/card-face";
 import { CARD_STEPS, FlowProgress } from "@/components/flow-progress";
 import { FlowScreen } from "@/components/flow-screen";
-import { Icon } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import type { CardFinish, CardPattern, CardTheme } from "@/data/seed";
-import { CardDesigner, DEFAULT_DESIGN, PatternStrip, RainbowSwatch, type CustomDesign } from "@/screens/cards/card-designer";
+import { CardDesigner, DEFAULT_DESIGN, FinishSwatch, PatternStrip, RainbowSwatch, type CustomDesign } from "@/screens/cards/card-designer";
 import { useSessionStore } from "@/stores/use-session-store";
-import { CARD_THEME_ORDER, fonts, palette, radius, spacing, useColors } from "@/theme";
+import { CARD_THEME_ORDER, fonts, palette, radius, spacing } from "@/theme";
 import { customFinish, defaultPattern, presetFinish } from "@/utils/card-finish";
 
 /** Upright cards: the real landscape face, turned 90° — same design, held vertically. */
@@ -24,32 +22,6 @@ const GAP = 16;
 const SNAP = CARD_W + GAP;
 /** The seven presets, then "Make your own". */
 const SLOTS: (CardTheme | "custom")[] = [...CARD_THEME_ORDER, "custom"];
-
-function Swatch({ theme, on, onPress }: { theme: CardTheme; on: boolean; onPress: () => void }) {
-  const c = useColors();
-  // unique per instance: on web every SVG shares one DOM
-  const gid = `sw-${theme}-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const look = cardLook(theme);
-  const [a, b] = look.swatch;
-  return (
-    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${look.name} finish`} style={{ width: 38, height: 38, borderRadius: 19, padding: 3, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
-      <Svg width={28} height={28}>
-        <Defs>
-          <LinearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={a} />
-            <Stop offset="1" stopColor={b} />
-          </LinearGradient>
-        </Defs>
-        <Rect x={0} y={0} width={28} height={28} rx={14} fill={`url(#${gid})`} stroke={c.border} strokeWidth={1} />
-      </Svg>
-      {on && (
-        <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
-          <Icon name="check" size={13} color={look.fg} weight="bold" />
-        </View>
-      )}
-    </PressableScale>
-  );
-}
 
 /** One upright card in the carousel: scale, tilt and fade follow the scroll position (UI thread). */
 function ThemeCard({ finish, index, x, holder, sticker, onPress }: { finish: CardFinish; index: number; x: SharedValue<number>; holder: string; sticker?: string; onPress: () => void }) {
@@ -80,7 +52,7 @@ function ThemeCard({ finish, index, x, holder, sticker, onPress }: { finish: Car
 
 /**
  * New card · Finish: swipe the upright cards (they tilt and settle as they pass the middle) or tap
- * a swatch. The last one is "Make your own": any colour and one of six patterns. The page takes
+ * a swatch. The last one is "Make your own": any colour and any pattern. The page takes
  * on the finish you're looking at, with a tick of haptics per card.
  */
 export default function CardThemeStep() {
@@ -177,7 +149,7 @@ export default function CardThemeStep() {
           </Text>
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 }}>
-          {SLOTS.map((s, i) => (s === "custom" ? <RainbowSwatch key="custom" on={i === index} onPress={() => go(i)} /> : <Swatch key={s} theme={s} on={i === index} onPress={() => go(i)} />))}
+          {SLOTS.map((s, i) => (s === "custom" ? <RainbowSwatch key="custom" on={i === index} onPress={() => go(i)} /> : <FinishSwatch key={s} theme={s} on={i === index} onPress={() => go(i)} />))}
         </View>
       </View>
 

@@ -3,7 +3,7 @@ import { Platform, Pressable, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
 import { EmptyState, SectionHeader } from "@/components/bits";
 import { Button } from "@/components/button";
-import { useCardPalette, VirtualCardFace } from "@/components/card-face";
+import { cardLook, useCardPalette, VirtualCardFace } from "@/components/card-face";
 import { CircleAction, CircleActionRow } from "@/components/circle-action";
 import { Icon } from "@/components/icon";
 import { PayMark } from "@/components/pay-mark";
@@ -332,7 +332,12 @@ export default function Cards() {
           )}
         </View>
 
-        {/* the one thing not in the action row: quietly at the end, behind a sheet and the PIN */}
+        {/* restyle the card: colour and pattern, same number */}
+        <ListSection>
+          <ListRow icon="palette" title="Card design" subtitle={`${cardLook(card.theme).name} · change colour and pattern`} chevron onPress={() => router.push({ pathname: "/card-design", params: { id: card.id } })} />
+        </ListSection>
+
+        {/* quietly at the end, behind a sheet and the PIN */}
         <ListSection>
           <ListRow icon="trash" destructive title="Delete card" subtitle={card.balance > 0 ? `Its $${money(card.balance)} goes back to your USD wallet` : "Closes this card for good"} chevron onPress={() => openDeleteSheet(card)} />
         </ListSection>

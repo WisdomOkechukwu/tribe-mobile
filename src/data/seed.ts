@@ -142,7 +142,7 @@ export function seedTransactions(): Transaction[] {
 /** Tribe's seven preset finishes (Virtual Card.png themes, in Tribe colours). */
 export type CardTheme = "midnight" | "sunset" | "onyx" | "cream" | "lime" | "forest" | "sky";
 /** The patterns a finish can carry (Midnight keeps the logo's own stripes). */
-export type CardPattern = "plain" | "lines" | "waves" | "dots" | "rings" | "stripes" | "grid" | "diamonds" | "orbits" | "contours";
+export type CardPattern = "plain" | "lines" | "waves" | "dots" | "rings" | "stripes" | "grid" | "diamonds" | "orbits" | "contours" | "sparkles" | "daisies" | "hearts" | "zigzag";
 /**
  * How a card looks: a preset ("sunset"), a preset wearing another pattern ("sunset:dots"), or
  * one made in "Make your own" ("custom:RRGGBB:pattern"). A plain string, so it travels as a

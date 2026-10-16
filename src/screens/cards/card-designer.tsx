@@ -5,11 +5,12 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
-import { CardThumb } from "@/components/card-face";
+import { CardThumb, cardLook } from "@/components/card-face";
+import { Icon } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
-import type { CardPattern } from "@/data/seed";
+import type { CardPattern, CardTheme } from "@/data/seed";
 import { CARD_PATTERNS, CARD_SWATCHES, CUSTOM_SHADES, palette, radius, spacing, useColors, type CustomShade } from "@/theme";
 import { colourName, customFinish } from "@/utils/card-finish";
 import { hexToHsl, hslToHex } from "@/utils/color";
@@ -136,6 +137,33 @@ function HueSlider({ hue, shade, label, onPreview, onCommit }: { hue: number; sh
   );
 }
 
+/** A preset finish as a round swatch (Finish step, Card design). */
+export function FinishSwatch({ theme, on, onPress }: { theme: CardTheme; on: boolean; onPress: () => void }) {
+  const c = useColors();
+  // unique per instance: on web every SVG shares one DOM
+  const gid = `sw-${theme}-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const look = cardLook(theme);
+  const [a, b] = look.swatch;
+  return (
+    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${look.name} finish`} style={{ width: 38, height: 38, borderRadius: 19, padding: 3, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
+      <Svg width={28} height={28}>
+        <Defs>
+          <LinearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={a} />
+            <Stop offset="1" stopColor={b} />
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={28} height={28} rx={14} fill={`url(#${gid})`} stroke={c.border} strokeWidth={1} />
+      </Svg>
+      {on && (
+        <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
+          <Icon name="check" size={13} color={look.fg} weight="bold" />
+        </View>
+      )}
+    </PressableScale>
+  );
+}
+
 /**
  * Every pattern as a mini card in the colours you've picked, in one swipeable row. Used for the
  * presets and for "Make your own". `bleed` lets the row run to the edges of a padded parent.
@@ -159,7 +187,7 @@ export function PatternStrip({ value, finishFor, onChange, bleed = 0 }: { value:
             style={{ alignItems: "center", gap: spacing.xs }}
           >
             <View style={{ padding: 3, borderRadius: radius.xs + 3, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
-              <CardThumb theme={finishFor(p.id)} width={72} />
+              <CardThumb theme={finishFor(p.id)} width={84} />
             </View>
             <Text variant="caption" tone={on ? "text" : "muted"} style={on ? { fontFamily: "Poppins_600SemiBold" } : undefined}>
               {p.label}
@@ -182,7 +210,7 @@ function ColourDot({ hex, name, on, onPress }: { hex: string; name: string; on: 
 
 /**
  * "Make your own": twelve curated colours, any hue from the slider (as a pastel, a full colour or
- * a deep one), and six patterns. Swatch, shade and pattern taps commit at once; the slider
+ * a deep one), and every pattern. Swatch, shade and pattern taps commit at once; the slider
  * previews while you drag (`onPreview`) and commits when you let go.
  */
 export function CardDesigner({ design, width, onChange, onPreview }: { design: CustomDesign; width: number; onChange: (d: CustomDesign) => void; onPreview: (hex: string | null) => void }) {
