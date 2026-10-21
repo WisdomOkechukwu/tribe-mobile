@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { spacing, useColors } from "@/theme";
+import { MAX_FACE_W } from "./card-face";
 import { Glyph, type GlyphName } from "./glyphs";
 import { Icon, type IconName } from "./icon";
 import { PressableScale } from "./pressable-scale";
@@ -24,6 +25,7 @@ export function CircleAction({ icon, glyph, label, onPress, primary, badge, colo
   );
 }
 
+/** Capped at the card face's width and centred, so on tablets the row sits under the card instead of spreading edge to edge. */
 export function CircleActionRow({ children }: { children: React.ReactNode }) {
-  return <View style={{ flexDirection: "row", justifyContent: "space-around" }}>{children}</View>;
+  return <View style={{ flexDirection: "row", justifyContent: "space-around", alignSelf: "center", width: "100%", maxWidth: MAX_FACE_W }}>{children}</View>;
 }

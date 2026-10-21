@@ -1,5 +1,5 @@
 import * as Clipboard from "expo-clipboard";
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import type { TxStatus } from "@/data/seed";
 import { toast } from "@/stores/use-ui-store";
@@ -13,6 +13,30 @@ import { Text } from "./text";
 export async function copyToClipboard(value: string, label = "Copied") {
   await Clipboard.setStringAsync(value);
   toast(label);
+}
+
+/**
+ * Equal tiles, `columns` across, flush with the content edges at any width. (Percent widths plus a
+ * gap fell short of the right edge, by more the wider the screen: ~27pt on a tablet.) Give tiles
+ * `flexGrow: 1` so a row's tiles share one height.
+ */
+export function TileGrid({ columns = 3, children }: { columns?: number; children: ReactNode }) {
+  const items = Children.toArray(children);
+  const rows: ReactNode[][] = [];
+  for (let i = 0; i < items.length; i += columns) rows.push(items.slice(i, i + columns));
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {rows.map((row, r) => (
+        <View key={r} style={{ flexDirection: "row", gap: spacing.sm }}>
+          {Array.from({ length: columns }, (_, i) => (
+            <View key={i} style={{ flex: 1 }}>
+              {row[i]}
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 /** Tiny label pill: status, "Soon", "New", tier badges. */

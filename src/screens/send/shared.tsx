@@ -112,7 +112,7 @@ export function ChoiceCard({ title, body, on, onPress }: { title: string; body: 
 export function DestinationTile({ code, title, sub, onPress }: { code: AssetCode; title: string; sub: string; onPress: () => void }) {
   const c = useColors();
   return (
-    <PressableScale onPress={onPress} accessibilityLabel={`${title}, ${sub}`} style={{ width: "31.5%", backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.smd, gap: spacing.sm }}>
+    <PressableScale onPress={onPress} accessibilityLabel={`${title}, ${sub}`} style={{ flexGrow: 1, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.smd, gap: spacing.sm }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
         <CoinIcon code={code} size={30} />
         <Icon name="chevron" size={10} color={c.textSubtle} weight="bold" />

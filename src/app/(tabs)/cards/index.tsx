@@ -3,7 +3,7 @@ import { Platform, Pressable, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
 import { EmptyState, SectionHeader } from "@/components/bits";
 import { Button } from "@/components/button";
-import { cardLook, useCardPalette, VirtualCardFace } from "@/components/card-face";
+import { cardLook, MAX_FACE_W, useCardPalette, VirtualCardFace } from "@/components/card-face";
 import { CircleAction, CircleActionRow } from "@/components/circle-action";
 import { Icon } from "@/components/icon";
 import { PayMark } from "@/components/pay-mark";
@@ -188,7 +188,7 @@ function CardsSkeleton({ width }: { width: number }) {
         <Skeleton width={160} height={34} />
       </View>
       <CardFaceSkeleton width={width} />
-      <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-around", alignSelf: "center", width: "100%", maxWidth: MAX_FACE_W }}>
         {[0, 1, 2, 3].map((i) => (
           <View key={i} style={{ alignItems: "center", gap: spacing.sm }}>
             <Skeleton width={52} height={52} radius={26} />

@@ -9,7 +9,6 @@
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#F5F3F7",
     "ios": {
-      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "africa.tribe.wallet",
       "supportsTablet": false,
       "infoPlist": {

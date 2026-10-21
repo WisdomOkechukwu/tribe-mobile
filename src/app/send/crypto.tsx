@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
+import { TileGrid } from "@/components/bits";
 import { Field } from "@/components/field";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
@@ -26,11 +27,11 @@ export default function SendCrypto() {
     router.push("/send/recipient");
   };
   const grid = (list: Asset[]) => (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+    <TileGrid>
       {list.map((a) => (
         <DestinationTile key={a.code} code={a.code} title={a.code} sub={a.name} onPress={() => pick(a)} />
       ))}
-    </View>
+    </TileGrid>
   );
   return (
     <FlowScreen title="Send crypto" cancel="back">

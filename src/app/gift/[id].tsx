@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
 import { openAssetPicker } from "@/components/asset-picker";
-import { Note } from "@/components/bits";
+import { Note, TileGrid } from "@/components/bits";
 import { GiftCardFace } from "@/components/brand-tiles";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
@@ -28,7 +28,7 @@ type Mode = "buy" | "sell";
 function ValueGrid({ value, onPick, sub }: { value: number; onPick: (v: number) => void; sub: (v: number) => string }) {
   const c = useColors();
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+    <TileGrid>
       {GIFT_AMOUNTS.map((v) => {
         const on = v === value;
         return (
@@ -39,7 +39,7 @@ function ValueGrid({ value, onPick, sub }: { value: number; onPick: (v: number) 
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             accessibilityLabel={`$${v} card, ${sub(v)}`}
-            style={{ width: "31.5%", alignItems: "center", gap: 2, paddingVertical: spacing.smd, borderRadius: radius.group, borderCurve: "continuous", backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1.5, borderColor: on ? c.brand : "transparent" }}
+            style={{ flexGrow: 1, alignItems: "center", gap: 2, paddingVertical: spacing.smd, borderRadius: radius.group, borderCurve: "continuous", backgroundColor: on ? c.brandSoft : c.surface, borderWidth: 1.5, borderColor: on ? c.brand : "transparent" }}
           >
             <Text style={{ fontFamily: fonts.displayBold, fontSize: 19, lineHeight: 24, color: on ? c.brandText : c.text }}>${v}</Text>
             <Text variant="caption" tone="muted" numberOfLines={1}>
@@ -48,7 +48,7 @@ function ValueGrid({ value, onPick, sub }: { value: number; onPick: (v: number) 
           </PressableScale>
         );
       })}
-    </View>
+    </TileGrid>
   );
 }
 

@@ -49,6 +49,8 @@ export function FlowScreen({
         options={{
           title,
           headerShown: true,
+          // Android puts the title flush against headerLeft ("CancelPlayStation"); centre it like iOS
+          headerTitleAlign: "center",
           ...(tint ? { headerStyle: { backgroundColor: tint }, contentStyle: { backgroundColor: tint } } : null),
           headerTitle: step
             ? () => (

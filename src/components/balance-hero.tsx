@@ -33,7 +33,9 @@ export function BalanceHero({ totalUsd, changePct }: { totalUsd: number; changeP
         <Icon name={hidden ? "eyeOff" : "eye"} size={15} color={c.textMuted} />
       </PressableScale>
 
-      <View style={{ height: 52, justifyContent: "center", alignSelf: "stretch", overflow: "hidden" }}>
+      {/* minHeight, not height: a fixed height caps the text's measure, and Android's
+          adjustsFontSizeToFit shrinks the font but never the lineHeight, so it fell to 4pt */}
+      <View style={{ minHeight: 52, justifyContent: "center", alignSelf: "stretch", overflow: "hidden" }}>
         <Animated.View key={`${display}-${hidden}`} entering={FadeInDown.springify().damping(18)} exiting={FadeOutUp.duration(140)}>
           <Text variant="balance" align="center" adjustsFontSizeToFit numberOfLines={1} accessibilityLabel={hidden ? "Balance hidden" : undefined}>
             {hidden ? (display === "USD" ? "$ ••••••" : "₦ ••••••") : formatMoney(value, display, { exact: true })}

@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { Avatar } from "@/components/avatar";
+import { TileGrid } from "@/components/bits";
 import { CoinIcon } from "@/components/coin-icon";
 import { FlowScreen } from "@/components/flow-screen";
 import { ListRow, ListSection, RowIcon } from "@/components/list";
@@ -57,9 +58,9 @@ export default function SendStart() {
           <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
             Pay again
           </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+          <TileGrid>
             {saved.map((b) => (
-              <PressableScale key={b.id} onPress={() => sendToBeneficiary(b)} accessibilityLabel={`Send to ${b.name}, ${b.handle}`} style={{ width: "31.5%", alignItems: "center", gap: spacing.sm, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", paddingVertical: spacing.md, paddingHorizontal: spacing.sm }}>
+              <PressableScale key={b.id} onPress={() => sendToBeneficiary(b)} accessibilityLabel={`Send to ${b.name}, ${b.handle}`} style={{ flexGrow: 1, alignItems: "center", gap: spacing.sm, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", paddingVertical: spacing.md, paddingHorizontal: spacing.sm }}>
                 <View>
                   <Avatar size={44} name={b.name} />
                   <View style={{ position: "absolute", right: -4, bottom: -4, borderRadius: 11, borderWidth: 2, borderColor: c.surface }}>
@@ -74,7 +75,7 @@ export default function SendStart() {
                 </Text>
               </PressableScale>
             ))}
-          </View>
+          </TileGrid>
         </View>
       )}
     </FlowScreen>
