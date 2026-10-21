@@ -63,6 +63,17 @@ export function quote(amount: number, from: AssetCode, to: AssetCode, tick = quo
   return { fee, rate, receive: Math.max(0, (amount - fee) * rate) };
 }
 
+/**
+ * `quote` run backwards: what to pay in `from` so the recipient gets exactly `receive` of `to`.
+ * Rounded up to `from`'s smallest unit, so they never get a little less than asked.
+ */
+export function quoteFor(receive: number, from: AssetCode, to: AssetCode, tick = quoteTick()) {
+  const rate = liveUsd(from, tick) / liveUsd(to, tick);
+  const unit = 10 ** assetByCode(from).decimals;
+  const amount = Math.ceil((receive / (rate * (1 - SWAP_FEE))) * unit - 1e-6) / unit;
+  return { amount: Math.max(0, amount), fee: amount * SWAP_FEE, rate };
+}
+
 export function relativeDate(iso: string) {
   const d = new Date(iso);
   const mins = Math.round((Date.now() - d.getTime()) / 60_000);

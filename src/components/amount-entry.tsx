@@ -32,6 +32,7 @@ export function AmountEntry({
   error,
   showDisplay = true,
   pad = true,
+  compact = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -45,6 +46,8 @@ export function AmountEntry({
   showDisplay?: boolean;
   /** false when the screen docks one shared `KeypadDock` instead (bills, recurring) */
   pad?: boolean;
+  /** shorter keys, for short screens that also show cards above the pad (Send) */
+  compact?: boolean;
 }) {
   const c = useColors();
   return (
@@ -72,11 +75,12 @@ export function AmountEntry({
       )}
       {pad && (
       <NumberPad
+        compact={compact}
         onKey={(d) => onChange(pushDigit(value, d, decimals))}
         onDelete={() => onChange(value.slice(0, -1))}
         extra={
           decimals > 0 ? (
-            <PressableScale haptic={false} onPress={() => onChange(pushDigit(value, ".", decimals))} accessibilityLabel="Decimal point" style={{ width: 76, height: 64, alignItems: "center", justifyContent: "center" }}>
+            <PressableScale haptic={false} onPress={() => onChange(pushDigit(value, ".", decimals))} accessibilityLabel="Decimal point" style={{ width: 76, height: compact ? 46 : 64, alignItems: "center", justifyContent: "center" }}>
               <Text variant="display" style={{ fontSize: 30 }}>
                 .
               </Text>
