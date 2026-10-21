@@ -64,7 +64,7 @@ export default function Security() {
         <ListRow icon="eyeOff" title="Hide balances" subtitle="Mask amounts on every screen" trailing={<BrandSwitch label="Hide balances" value={hidden} onValueChange={toggleHidden} />} />
       </ListSection>
 
-      <ListSection footer="Deleting closes every account and card. In this demo it just resets everything.">
+      <ListSection footer={`Deleting closes every account and card.${__DEV__ ? " In this demo it just resets everything." : ""}`}>
         <ListRow
           icon="trashLine"
           destructive
@@ -73,7 +73,7 @@ export default function Security() {
             overlay.confirm({
               icon: "trash",
               title: "Delete your account?",
-              body: "Every balance must be empty first in the real app. This demo will reset all data and sign you out.",
+              body: __DEV__ ? "This demo will reset all data and sign you out." : "This permanently closes your accounts and cards and deletes your data. Every balance must be empty first.",
               confirmLabel: "Delete",
               destructive: true,
               onConfirm: () => {

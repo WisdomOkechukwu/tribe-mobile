@@ -11,6 +11,7 @@ import { Field } from "@/components/field";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
+import { PrivacyGuard } from "@/components/privacy-guard";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
@@ -21,6 +22,7 @@ import { overlay } from "@/stores/use-overlay-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
+import { liveUsd, useQuoteTick } from "@/utils/rates";
 
 type Mode = "buy" | "sell";
 
@@ -68,15 +70,17 @@ export default function Gift() {
   const funded = ASSETS_FIAT_FIRST.filter((a) => opened.includes(a.code) && balances[a.code] > 0);
   const [mode, setMode] = useState<Mode>(params.mode === "sell" ? "sell" : "buy");
   const [usd, setUsd] = useState(50);
+  // prices follow the 30-second quote window, the same one review and execution use
+  const tick = useQuoteTick();
   const [payWith, setPayWith] = useState<AssetCode>(() => (funded.find((a) => a.code === "USDT") ?? funded[0])?.code ?? "NGN");
   const [payout, setPayout] = useState<AssetCode>("NGN");
   const [cardCode, setCardCode] = useState("");
 
-  const costOf = (v: number) => (v * (1 + GIFT_CARD_BUY_MARKUP)) / assetByCode(payWith).usd;
+  const costOf = (v: number) => (v * (1 + GIFT_CARD_BUY_MARKUP)) / liveUsd(payWith, tick);
   const cost = costOf(usd);
   const fee = usd * GIFT_CARD_BUY_MARKUP;
   const over = mode === "buy" && cost > balances[payWith];
-  const payoutAmt = giftSellPayout(usd, brand, payout);
+  const payoutAmt = giftSellPayout(usd, brand, payout, tick);
   const ok = mode === "buy" ? !over : cardCode.replace(/\W/g, "").length >= 10;
   const faceW = Math.min(width - spacing.mdl * 2 - 24, 320);
 
@@ -109,6 +113,8 @@ export default function Gift() {
         />
       }
     >
+      {/* selling: the card code is worth money, so no screenshots or recordings */}
+      {mode === "sell" && <PrivacyGuard />}
       {/* the card itself, value on its face */}
       <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
         <View style={{ transform: [{ rotate: "-3deg" }] }}>
@@ -129,7 +135,7 @@ export default function Gift() {
         <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
           Card value
         </Text>
-        <ValueGrid value={usd} onPick={setUsd} sub={(v) => (mode === "buy" ? `≈ ${formatAsset(costOf(v), payWith)}` : `≈ ${formatAsset(giftSellPayout(v, brand, payout), payout)}`)} />
+        <ValueGrid value={usd} onPick={setUsd} sub={(v) => (mode === "buy" ? `≈ ${formatAsset(costOf(v), payWith)}` : `≈ ${formatAsset(giftSellPayout(v, brand, payout, tick), payout)}`)} />
       </View>
 
       {mode === "buy" ? (
@@ -157,7 +163,7 @@ export default function Gift() {
             rows={[
               ["Card value", `$${usd}`],
               ["Fee", `$${fee.toFixed(2)} (${GIFT_CARD_BUY_MARKUP * 100}%)`],
-              ...(payWith !== "USD" ? ([["Rate", `$1 = ${formatAsset(1 / assetByCode(payWith).usd, payWith)}`]] as [string, string][]) : []),
+              ...(payWith !== "USD" ? ([["Rate", `$1 = ${formatAsset(1 / liveUsd(payWith, tick), payWith)}`]] as [string, string][]) : []),
             ]}
             total={["You pay", formatAsset(cost, payWith)]}
           />

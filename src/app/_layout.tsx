@@ -1,6 +1,8 @@
 // per-weight imports: the package barrels require() every weight (25 TTFs) into the bundle
 import { BricolageGrotesque_700Bold } from "@expo-google-fonts/bricolage-grotesque/700Bold";
 import { BricolageGrotesque_800ExtraBold } from "@expo-google-fonts/bricolage-grotesque/800ExtraBold";
+import { IBMPlexMono_400Regular } from "@expo-google-fonts/ibm-plex-mono/400Regular";
+import { IBMPlexMono_500Medium } from "@expo-google-fonts/ibm-plex-mono/500Medium";
 import { Poppins_400Regular } from "@expo-google-fonts/poppins/400Regular";
 import { Poppins_500Medium } from "@expo-google-fonts/poppins/500Medium";
 import { Poppins_600SemiBold } from "@expo-google-fonts/poppins/600SemiBold";
@@ -44,7 +46,7 @@ function useStoresHydrated() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold });
+  const [fontsLoaded] = useFonts({ BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold, IBMPlexMono_400Regular, IBMPlexMono_500Medium, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold });
   const hydrated = useStoresHydrated();
   const signedIn = useSessionStore((s) => s.signedIn);
   const hasOnboarded = useSessionStore((s) => s.hasOnboarded);

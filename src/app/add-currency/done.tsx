@@ -56,7 +56,7 @@ function OpenedHero({ code }: { code: string }) {
   );
 }
 
-/** Open a new currency · done: celebrate, then show the details straight away. */
+/** Open a new currency · done: celebrate, show the details, then offer to fund it right away. */
 export default function CurrencyOpened() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const a = assetByCode(code);
@@ -69,9 +69,11 @@ export default function CurrencyOpened() {
       cancel="none"
       footer={
         <>
+          {/* straight on to funding it, in the same flow (add-currency/fund) */}
+          <Button title={`Add money to ${a.code}`} icon="plus" onPress={() => router.push({ pathname: "/add-currency/fund", params: { code: a.code } })} />
           <Button
             title={`Receive ${a.code}`}
-            icon="receive"
+            variant="secondary"
             onPress={() => {
               close();
               router.back();
@@ -79,8 +81,9 @@ export default function CurrencyOpened() {
             }}
           />
           <Button
-            title="Done"
+            title="Skip for now"
             variant="tertiary"
+            size="md"
             onPress={() => {
               close();
               router.back();

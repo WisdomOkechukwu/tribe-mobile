@@ -1,6 +1,7 @@
 import { router } from "expo-router";
-import { Pressable, Text as RNText, useWindowDimensions, View } from "react-native";
-import { copyToClipboard, EmptyState } from "@/components/bits";
+import { useState } from "react";
+import { Pressable, View } from "react-native";
+import { EmptyState } from "@/components/bits";
 import { BillerThumb } from "@/components/brand-tiles";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
@@ -10,6 +11,7 @@ import { PrivacyGuard } from "@/components/privacy-guard";
 import { Screen } from "@/components/screen";
 import { Stripes } from "@/components/stripes";
 import { Text } from "@/components/text";
+import { TokenSlip } from "@/components/token-slip";
 import { billerById } from "@/data/catalog";
 import type { VaultToken } from "@/data/seed";
 import { useVaultStore } from "@/stores/use-vault-store";
@@ -27,8 +29,8 @@ const when = (iso: string) => {
   return /^\d/.test(r) ? r : r[0].toLowerCase() + r.slice(1);
 };
 
-/** "4821093755123307…" → ["4821", "0937", …] — the chunks people type into a meter. */
-const chunks = (token: string) => token.replace(/\s/g, "").match(/.{1,4}/g) ?? [];
+/** A token bought this recently types itself in (once) when the Vault opens. */
+const FRESH_MS = 10 * 60 * 1000;
 
 const STEPS: { icon: IconName; label: string }[] = [
   { icon: "copy", label: "Copy" },
@@ -47,7 +49,7 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
         <Text variant="overline" style={{ color: palette.orange[300] }}>
           {waiting ? `${waiting} token${waiting > 1 ? "s" : ""} to load` : "All caught up"}
         </Text>
-        <Text variant="balance" style={{ color: "#fff" }}>
+        <Text variant="balance" style={{ color: palette.white }}>
           {(waiting ? kwh : loadedKwh).toFixed(1)}
           <Text variant="title" style={{ color: palette.purple[100] }}>
             {" "}
@@ -62,12 +64,12 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {STEPS.map((s, i) => (
             <View key={s.label} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: palette.purple[800], borderRadius: radius.full, paddingVertical: 7, paddingHorizontal: spacing.sm }}>
-              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: palette.white, alignItems: "center", justifyContent: "center" }}>
                 <Text variant="caption" style={{ color: palette.purple[900], fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14 }}>
                   {i + 1}
                 </Text>
               </View>
-              <Text variant="caption" numberOfLines={1} style={{ color: "#fff", fontFamily: fonts.semibold, flexShrink: 1 }}>
+              <Text variant="caption" numberOfLines={1} style={{ color: palette.white, fontFamily: fonts.semibold, flexShrink: 1 }}>
                 {s.label}
               </Text>
             </View>
@@ -80,20 +82,15 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
 
 /**
  * A token still to be typed into the meter, as a prepaid ticket: who/what on top, a tear line,
- * then the digits on one line in five boxes of four (easy to read off while typing). Tap them to copy;
- * "I've loaded it" files it under Loaded. Static on purpose — no press or layout animation.
+ * then the token typed onto a slip (TokenSlip: Plex Mono on a ruled line, tap to copy) and
+ * "I've loaded it", which files it under Loaded. Static, except a fresh token's one-time type-on.
  */
 function TokenTicket({ t }: { t: VaultToken }) {
   const c = useColors();
   const toggle = useVaultStore((s) => s.toggleLoaded);
-  const copy = () => copyToClipboard(t.token.replace(/\s/g, ""), "Token copied");
   const paidWith = t.paidWith ?? "NGN";
   const naira = `₦${t.amount.toLocaleString()}`;
-  // five boxes of four digits on one line, sized to the phone (web can't auto-shrink text)
-  const { width } = useWindowDimensions();
-  const BOX_GAP = 6;
-  const boxW = (Math.min(width, 520) - 64 - 4 * BOX_GAP) / 5;
-  const digitSize = Math.max(13, Math.min(22, ((boxW - 10) / 4 / 0.66) * 0.95));
+  const [fresh] = useState(() => Date.now() - new Date(t.bought).getTime() < FRESH_MS);
   return (
     <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, padding: spacing.md }}>
@@ -103,9 +100,6 @@ function TokenTicket({ t }: { t: VaultToken }) {
             {t.provider}
           </Text>
           <Text variant="caption" tone="muted" numberOfLines={1}>
-            Meter {t.meter}
-          </Text>
-          <Text variant="caption" tone="subtle" numberOfLines={1}>
             Bought {when(t.bought)}
           </Text>
         </View>
@@ -134,28 +128,7 @@ function TokenTicket({ t }: { t: VaultToken }) {
       </View>
 
       <View style={{ padding: spacing.md, paddingTop: spacing.xs, gap: spacing.smd }}>
-        {/* the token: five boxes of four on one line; tap anywhere on them to copy all 20 digits */}
-        <Pressable onPress={copy} accessibilityRole="button" accessibilityLabel={`Token ${t.token}. Tap to copy`}>
-          {({ pressed }) => (
-            <View style={{ gap: spacing.sm, alignItems: "center", opacity: pressed ? 0.6 : 1 }}>
-              <View style={{ flexDirection: "row", gap: BOX_GAP }}>
-                {chunks(t.token).map((g, i) => (
-                  <View key={`${g}-${i}`} style={{ width: boxW, alignItems: "center", justifyContent: "center", paddingVertical: spacing.smd, backgroundColor: c.sunken, borderRadius: radius.xs, borderCurve: "continuous", borderWidth: 1, borderColor: c.border }}>
-                    <RNText selectable numberOfLines={1} style={{ fontFamily: fonts.semibold, fontSize: digitSize, lineHeight: Math.round(digitSize * 1.3), letterSpacing: digitSize * 0.04, color: c.text, fontVariant: ["tabular-nums"] }}>
-                      {g}
-                    </RNText>
-                  </View>
-                ))}
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                <Icon name="copy" size={11} color={c.textMuted} />
-                <Text variant="caption" tone="muted">
-                  Tap to copy
-                </Text>
-              </View>
-            </View>
-          )}
-        </Pressable>
+        <TokenSlip token={t.token} rows={[["Meter", t.meter]]} typeOn={fresh} />
 
         <Pressable onPress={() => toggle(t.id)} accessibilityRole="button" accessibilityLabel={`Mark ${t.kwh} kWh token as loaded`}>
           {({ pressed }) => (
@@ -182,7 +155,7 @@ function LoadedToken({ t }: { t: VaultToken }) {
       <View>
         <BillerThumb biller={PHED} size={40} />
         <View style={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: 9, backgroundColor: c.success, borderWidth: 2, borderColor: c.surface, alignItems: "center", justifyContent: "center" }}>
-          <Icon name="check" size={9} color="#fff" weight="bold" />
+          <Icon name="check" size={9} color={c.onBrand} weight="bold" />
         </View>
       </View>
       <View style={{ flex: 1, gap: spacing.xxs }}>
@@ -206,8 +179,10 @@ function LoadedToken({ t }: { t: VaultToken }) {
 
 /**
  * Every electricity token, saved. Oldest first (load them in order), each as a ticket you copy,
- * type in and tick off; ticked tokens move to Loaded with Undo. Deliberately static: no
- * layout/press animation, no filter tabs (it mirrors the landing page's vault).
+ * type in and tick off; ticked tokens move to Loaded with Undo. Tokens filed with "I'm loading it
+ * now" on the result card land straight in Loaded. Deliberately static: no layout/press animation,
+ * no filter tabs (it mirrors the landing page's vault). The one exception is a fresh token's
+ * one-time type-on (TokenSlip).
  */
 export default function Vault() {
   const c = useColors();

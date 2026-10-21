@@ -1,4 +1,5 @@
-import { assetByCode, type AssetCode } from "./assets";
+import type { AssetCode } from "./assets";
+import { liveUsd, quoteTick } from "@/utils/rates";
 import type { ImageSourcePropType } from "react-native";
 
 // Biller tiles have their background baked in (no alpha) — render the image AS the tile.
@@ -117,8 +118,8 @@ export const giftBrandById = (id: string) => GIFT_BRANDS.find((b) => b.id === id
 export const GIFT_CARD_BUY_MARKUP = 0.015;
 export const GIFT_AMOUNTS = [10, 25, 50, 100, 200];
 
-/** What selling a card pays, in any currency: the ₦/$ rate, then converted at today's (illustrative) rate. */
-export function giftSellPayout(usd: number, brand: GiftBrand, code: AssetCode) {
+/** What selling a card pays, in any currency: the ₦/$ rate, then converted at the quote window's (illustrative) rate. */
+export function giftSellPayout(usd: number, brand: GiftBrand, code: AssetCode, tick = quoteTick()) {
   const ngn = usd * brand.sellRate;
-  return code === "NGN" ? ngn : (ngn * assetByCode("NGN").usd) / assetByCode(code).usd;
+  return code === "NGN" ? ngn : (ngn * liveUsd("NGN", tick)) / liveUsd(code, tick);
 }

@@ -20,7 +20,7 @@ export default function Devices() {
         ))}
       </ListSection>
       {others.length > 0 && (
-        <ListSection title="Other devices" footer="Don't recognise one? Log it out and change your PIN.">
+        <ListSection title="Other devices" footer="Don't recognise one? Log it out and change your password.">
           {others.map((d) => (
             <ListRow
               key={d.id}
@@ -34,7 +34,7 @@ export default function Devices() {
                 overlay.confirm({
                   icon: d.name.includes("Chrome") ? "laptop" : "phone",
                   title: `Log out ${d.name}?`,
-                  body: "That device will need your phone number and a code to sign in again.",
+                  body: "That device will need your email and password to sign in again.",
                   confirmLabel: "Log out",
                   destructive: true,
                   onConfirm: () => {

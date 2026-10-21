@@ -6,6 +6,8 @@ import { persistStorage } from "./storage";
 type VaultState = {
   tokens: VaultToken[];
   toggleLoaded: (id: string) => void;
+  /** idempotent: "I'm loading it now" on the result card, and its Undo */
+  setLoaded: (id: string, loaded: boolean) => void;
   add: (t: Omit<VaultToken, "id" | "bought" | "loadedOn">) => VaultToken;
   reset: () => void;
 };
@@ -16,6 +18,8 @@ export const useVaultStore = create<VaultState>()(
       tokens: SEED_TOKENS.map((t) => ({ ...t })),
       toggleLoaded: (id) =>
         set({ tokens: get().tokens.map((t) => (t.id === id ? { ...t, loadedOn: t.loadedOn ? null : new Date().toISOString() } : t)) }),
+      setLoaded: (id, loaded) =>
+        set({ tokens: get().tokens.map((t) => (t.id !== id || !!t.loadedOn === loaded ? t : { ...t, loadedOn: loaded ? new Date().toISOString() : null })) }),
       add: (t) => {
         const token: VaultToken = { ...t, id: `v${Date.now().toString(36)}`, bought: new Date().toISOString(), loadedOn: null };
         set({ tokens: [token, ...get().tokens] });

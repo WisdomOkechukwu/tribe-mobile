@@ -12,7 +12,7 @@ import { Icon } from "@/components/icon";
 import { KeypadDock } from "@/components/keypad-field";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
-import { assetByCode, ASSETS_FIAT_FIRST, NGN_PER_USD, type AssetCode } from "@/data/assets";
+import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
 import { CARD_FEE_USD, CARD_MIN_TOPUP_USD, cardFundingFee, type CardNetwork } from "@/data/seed";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore } from "@/stores/use-flow-store";
@@ -22,6 +22,7 @@ import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { parseFinish } from "@/utils/card-finish";
 import { formatAsset } from "@/utils/format";
+import { liveUsd, useQuoteTick } from "@/utils/rates";
 
 const NAMES = ["Everyday", "Subscriptions", "Shopping", "Travel", "Education"];
 const TOPUPS = ["10", "25", "50", "100"];
@@ -58,13 +59,14 @@ export default function CardCreateDetails() {
   const [typing, setTyping] = useState(false);
 
   const usd = Number(amount) || 0;
+  const tick = useQuoteTick();
   const fundingFee = cardFundingFee(usd);
   const total = usd + CARD_FEE_USD + fundingFee;
-  const cost = total / assetByCode(from).usd;
+  const cost = total / liveUsd(from, tick);
   const over = cost > balances[from] + 1e-9;
   const short = usd < CARD_MIN_TOPUP_USD;
   const name = label.trim();
-  const rate = from === "USD" ? null : from === "NGN" ? `$1 = ₦${NGN_PER_USD.toLocaleString()}` : `$1 = ${formatAsset(1 / assetByCode(from).usd, from)}`;
+  const rate = from === "USD" ? null : `$1 = ${formatAsset(1 / liveUsd(from, tick), from)}`;
 
   const pickFrom = () =>
     overlay.select({

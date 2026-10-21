@@ -11,6 +11,7 @@ import { CashpointMark } from "./cashpoint-mark";
 import { CoinIcon } from "./coin-icon";
 import { Icon } from "./icon";
 import { PairIcon } from "./pair-icon";
+import { SendArt } from "./send-art";
 import { Stripes } from "./stripes";
 import { Text } from "./text";
 import { CardLeading } from "./transaction-row";
@@ -72,6 +73,8 @@ export function TxArt({ tx, size = 64 }: { tx: Transaction; size?: number }) {
   if (tx.type === "card") return <CardLeading tx={tx} size={size} />;
   // earnings underneath (from), the balance they landed in in front (to)
   if (tx.type === "referral") return <PairIcon from="Referral earnings" to={tx.asset} back={(s) => <ReferralMark size={s} />} size={size} />;
+  // the coin (or swap pair, if converted) with a red up-arrow; the badge is cut from the Midnight band
+  if (tx.type === "send") return <SendArt tx={tx} size={tx.toAsset && tx.toAsset !== tx.asset ? size : size * 0.85} ring={palette.purple[900]} />;
   return <CoinIcon code={tx.asset} size={size * 0.85} />;
 }
 

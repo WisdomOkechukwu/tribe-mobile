@@ -170,7 +170,7 @@ export default function Pin() {
             ) : null
           }
         />
-        <Text variant="caption" tone="subtle" align="center">
+        <Text variant="caption" tone="muted" align="center">
           Once approved, your transaction can&apos;t be reversed.
         </Text>
       </View>

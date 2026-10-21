@@ -44,7 +44,8 @@ export function leaveFlow(nav: Nav) {
 /** "Make another transaction" makes sense: there's a flow with a real first screen to go back to. */
 export function canRestart(nav: Nav) {
   const m = flowModal(nav.getState() as NavState);
-  return !!m && m.route.state!.routes[0]?.name !== "review";
+  // opening a currency is a one-off: its funding step has nothing to "make another" of
+  return !!m && m.route.name !== "add-currency" && m.route.state!.routes[0]?.name !== "review";
 }
 
 /**

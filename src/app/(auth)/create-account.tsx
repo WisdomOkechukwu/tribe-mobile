@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { View } from "react-native";
 import { Button } from "@/components/button";
@@ -15,6 +16,10 @@ import { useSignupStore } from "@/stores/use-signup-store";
 import { withLoader } from "@/stores/use-ui-store";
 import { spacing, useColors } from "@/theme";
 import { isEmail } from "@/utils/hash";
+import { LEGAL_URL } from "@/data/links";
+
+// TODO(content): separate Terms and Privacy URLs once they exist; both open the legal page for now
+const openLegal = () => WebBrowser.openBrowserAsync(LEGAL_URL, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }).catch(() => {});
 
 /** Create account, step 1 of 3 (Create Account.png "Get started"): email + country, then a code. */
 export default function CreateAccount() {
@@ -79,8 +84,16 @@ export default function CreateAccount() {
           </Text>
         </View>
       </View>
-      <Text variant="caption" tone="subtle" align="center" style={{ marginTop: "auto" }}>
-        By continuing you agree to Tribe&apos;s Terms and Privacy Policy.
+      <Text variant="caption" tone="muted" align="center" style={{ marginTop: "auto" }}>
+        By continuing you agree to Tribe&apos;s{" "}
+        <Text variant="caption" tone="brand" onPress={openLegal} accessibilityRole="link">
+          Terms
+        </Text>{" "}
+        and{" "}
+        <Text variant="caption" tone="brand" onPress={openLegal} accessibilityRole="link">
+          Privacy Policy
+        </Text>
+        .
       </Text>
     </AuthShell>
   );

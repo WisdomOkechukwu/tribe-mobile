@@ -65,7 +65,11 @@ function untilLabel(iso: string) {
  * Recurring bills as a swipeable rail of subscription cards: logo, big amount, a countdown pill
  * and a pause switch on each, a monthly "on autopilot" total up top, and an Add card at the end.
  * Paused bills stay in the rail (dimmed) so pausing never makes a card vanish under your thumb.
+ * Only the 4 latest bills show; the header link becomes "See all N" when there are more.
  */
+/** The rail shows at most this many bills (the latest added). */
+const RAIL_MAX = 4;
+
 function RecurringRail() {
   const schedules = useRecurring().data;
   if (!schedules)
@@ -87,7 +91,11 @@ function RecurringRail() {
 function Rail({ schedules }: { schedules: Schedule[] }) {
   const c = useColors();
   const toggle = useRecurringStore((s) => s.toggle);
-  const list = [...schedules].sort((a, b) => Number(b.active) - Number(a.active) || a.nextRun.localeCompare(b.nextRun));
+  // the 4 most recently added, then active first by soonest renewal; the rest live on Manage
+  const list = [...schedules]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, RAIL_MAX)
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.nextRun.localeCompare(b.nextRun));
   const monthly = schedules.filter((x) => x.active).reduce((sum, x) => sum + x.amountNgn * PER_MONTH[x.frequency], 0);
 
   return (
@@ -99,7 +107,7 @@ function Rail({ schedules }: { schedules: Schedule[] }) {
             {monthly > 0 ? `₦${Math.round(monthly).toLocaleString()}/month on autopilot` : "Set it once, never top up late again"}
           </Text>
         </View>
-        <SectionLink label="Manage" onPress={() => router.push("/pay/recurring")} />
+        <SectionLink label={schedules.length > RAIL_MAX ? `See all ${schedules.length}` : "Manage"} onPress={() => router.push("/pay/recurring")} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -spacing.md }} contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.smd }}>

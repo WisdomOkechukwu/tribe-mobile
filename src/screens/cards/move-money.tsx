@@ -10,6 +10,7 @@ import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { Text } from "@/components/text";
 import { LEG_ICON, TransferLegs, type Leg } from "@/components/transfer-legs";
+import { liveUsd, useQuoteTick } from "@/utils/rates";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
 import { cardFundingFee } from "@/data/seed";
 import { useCardsStore } from "@/stores/use-cards-store";
@@ -33,6 +34,8 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
   const [cardId, setCardId] = useState(params.id ?? cards[0]?.id);
   const [account, setAccount] = useState<AssetCode>(mode === "fund" ? "NGN" : "USD");
   const [amount, setAmount] = useState("");
+  // prices follow the 30-second quote window, the same one review and execution use
+  const tick = useQuoteTick();
   const card = cards.find((k) => k.id === cardId) ?? cards[0];
   const fund = mode === "fund";
 
@@ -47,11 +50,11 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
   const asset = assetByCode(account);
   const usd = Number(amount) || 0;
   const feeUsd = fund ? cardFundingFee(usd) : 0;
-  const other = (usd + feeUsd) / asset.usd;
+  const other = (usd + feeUsd) / liveUsd(account, tick);
   const accountBal = balances[account];
   const over = fund ? other > accountBal + 1e-9 : usd > card.balance + 1e-9;
   const converted = account !== "USD";
-  const rate = converted ? `$1 = ${formatAsset(1 / asset.usd, account)}` : "No conversion";
+  const rate = converted ? `$1 = ${formatAsset(1 / liveUsd(account, tick), account)}` : "No conversion";
 
   const helper = over
     ? fund
@@ -60,7 +63,7 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
     : usd
       ? fund
         ? `${formatAsset(other, account)} from your ${asset.name} balance`
-        : `You'll receive ${formatAsset(usd / asset.usd, account)}`
+        : `You'll receive ${formatAsset(usd / liveUsd(account, tick), account)}`
       : "Cards are funded in US dollars";
 
   const pickCard = () =>

@@ -245,7 +245,7 @@ export default function Bill() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.brandSoft, borderRadius: radius.input, padding: spacing.smd }}>
           <Icon name="vault" size={15} color={c.brandText} />
           <Text variant="caption" style={{ flex: 1 }}>
-            Your token lands in the Token Vault the second you pay{payWith !== "NGN" ? `, paid from ${assetByCode(payWith).name}` : ""}.
+            You get your token the second you pay{payWith !== "NGN" ? `, paid from ${assetByCode(payWith).name}` : ""}. Not loading it straight away? It waits in your Token Vault.
           </Text>
         </View>
       )}

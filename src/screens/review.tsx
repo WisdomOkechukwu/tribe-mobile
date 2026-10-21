@@ -123,7 +123,7 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
         badge: art(40),
         amount: formatAsset(q.receive, a.to),
         line: `for ${formatAsset(a.amount, a.from)}`,
-        overline: "You get",
+        overline: a.fund ? `Adding to ${a.to}` : "You get",
         sub: `for ${formatAsset(a.amount, a.from)}`,
         legs: { from: coinLeg(a.from, "From", assetByCode(a.from).name, formatAsset(a.amount, a.from)), to: coinLeg(a.to, "To", assetByCode(a.to).name, formatAsset(q.receive, a.to), "success") },
         breakdown: "Swap breakdown",
@@ -136,12 +136,12 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
         live: true,
         note: "Check the breakdown before you swap. Once swapped, it can't be reversed.",
         noteIcon: "lock",
-        cta: "Swap",
+        cta: a.fund ? "Add money" : "Swap",
       };
     }
     case "bill": {
       const b = billerById(a.billerId);
-      const cost = (a.amountNgn * assetByCode("NGN").usd) / assetByCode(a.payWith).usd;
+      const cost = (a.amountNgn * liveUsd("NGN", tick)) / liveUsd(a.payWith, tick);
       const field = b.field === "meter" ? "Meter" : b.field === "smartcard" ? "Smartcard" : "Phone";
       const art = (size: number) => <PairIcon from={a.payWith} front={(sz) => <BillerThumb biller={b} size={sz} />} size={size} />;
       return {
@@ -153,12 +153,12 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
         sub: `${b.name}${a.plan ? ` · ${a.plan}` : ""}`,
         rows: [[field, a.target], ...(a.meterType ? ([["Meter type", a.meterType === "postpaid" ? "Postpaid" : "Prepaid"]] as [string, string][]) : []), ...(a.plan ? ([["Plan", a.plan]] as [string, string][]) : []), ["Paying from", `${assetByCode(a.payWith).name} wallet`], ["Fee", "Free"]],
         total: ["You pay", a.payWith !== "NGN" ? formatAsset(cost, a.payWith) : `₦${a.amountNgn.toLocaleString()}`],
-        note: b.category === "electricity" ? (a.meterType === "postpaid" ? "Postpaid bills settle your account balance. No token is issued." : "Your token is saved to the Token Vault the moment it's issued.") : undefined,
+        note: b.category === "electricity" ? (a.meterType === "postpaid" ? "Postpaid bills settle your account balance. No token is issued." : "Your token shows on the next screen. Load it then, or find it later in your Token Vault.") : undefined,
       };
     }
     case "gift-buy": {
       const brand = giftBrandById(a.brandId);
-      const cost = (a.usd * (1 + GIFT_CARD_BUY_MARKUP)) / assetByCode(a.payWith).usd;
+      const cost = (a.usd * (1 + GIFT_CARD_BUY_MARKUP)) / liveUsd(a.payWith, tick);
       const art = (size: number) => <PairIcon from={a.payWith} front={(sz) => <GiftMark brand={brand} size={sz} />} size={size} />;
       return {
         icon: art(64),
@@ -173,7 +173,7 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
     }
     case "gift-sell": {
       const brand = giftBrandById(a.brandId);
-      const amount = giftSellPayout(a.usd, brand, a.payout);
+      const amount = giftSellPayout(a.usd, brand, a.payout, tick);
       const art = (size: number) => <PairIcon from={a.payout} front={(sz) => <GiftMark brand={brand} size={sz} />} size={size} />;
       return {
         icon: art(64),
@@ -196,7 +196,7 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
     case "card-fund": {
       const card = useCardsStore.getState().cards.find((c) => c.id === a.cardId);
       const fee = cardFundingFee(a.usd);
-      const cost = (a.usd + fee) / assetByCode(a.from).usd;
+      const cost = (a.usd + fee) / liveUsd(a.from, tick);
       const name = card ? `${card.label} •• ${card.last4}` : "your card";
       // the wallet that pays at the back, the card in front
       const art = (size: number) => (card ? <CardPairIcon theme={card.theme} network={card.network} asset={a.from} size={size} /> : <CoinIcon code={a.from} size={size} />);
@@ -212,7 +212,7 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
         rows: [
           ["Net funding", `$${a.usd.toFixed(2)}`],
           ["Funding fee", `$${fee.toFixed(2)}`],
-          ["Rate", a.from === "USD" ? "1:1" : `$1 = ${formatAsset(1 / assetByCode(a.from).usd, a.from)}`],
+          ["Rate", a.from === "USD" ? "1:1" : `$1 = ${formatAsset(1 / liveUsd(a.from, tick), a.from)}`],
         ],
         total: ["Total to debit", formatAsset(cost, a.from)],
       };
@@ -235,14 +235,14 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
           ["Card creation fee", `$${CARD_FEE_USD.toFixed(2)}`],
           ["Funding fee", `$${cardFundingFee(a.usd).toFixed(2)}`],
         ],
-        total: ["Total to debit", formatAsset(total / assetByCode(a.from).usd, a.from)],
+        total: ["Total to debit", formatAsset(total / liveUsd(a.from, tick), a.from)],
         note: `Your card is ready the moment you confirm. Tap the ${PAY.name} mark on it to add it to ${PAY.wallet}.`,
       };
     }
     case "card-withdraw": {
       const card = useCardsStore.getState().cards.find((c) => c.id === a.cardId);
       const name = card ? `${card.label} •• ${card.last4}` : "your card";
-      const received = a.usd / assetByCode(a.to).usd;
+      const received = a.usd / liveUsd(a.to, tick);
       // the card at the back, the balance it lands in up front
       const art = (size: number) => (card ? <CardPairIcon theme={card.theme} network={card.network} asset={a.to} direction="in" size={size} /> : <CoinIcon code={a.to} size={size} />);
       return {
@@ -255,7 +255,7 @@ export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
         legs: card ? { from: { leading: <CardBadge theme={card.theme} network={card.network} size={LEG_ICON} />, label: "From", title: name, value: `$${a.usd.toFixed(2)}` }, to: coinLeg(a.to, "To", assetByCode(a.to).name, formatAsset(received, a.to), "success") } : undefined,
         breakdown: "Payment breakdown",
         rows: [
-          ["Rate", a.to === "USD" ? "1:1" : `$1 = ${formatAsset(1 / assetByCode(a.to).usd, a.to)}`],
+          ["Rate", a.to === "USD" ? "1:1" : `$1 = ${formatAsset(1 / liveUsd(a.to, tick), a.to)}`],
           ["Fee", "Free"],
         ],
         total: ["You receive", formatAsset(received, a.to)],

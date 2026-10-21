@@ -19,10 +19,13 @@ import { openCardCreation } from "@/utils/verification";
 export default function CardDetails() {
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const card = useCardsStore((s) => s.cards.find((k) => k.id === id) ?? s.cards[0]);
+  // only a bare /cards/details falls back to the first card: a stale id must never show another card's number
+  const card = useCardsStore((s) => (id ? s.cards.find((k) => k.id === id) : s.cards[0]));
+  const hasCards = useCardsStore((s) => s.cards.length > 0);
   const [shown, setShown] = useState(false);
   const tint = useCardPalette(card?.theme ?? "midnight");
 
+  if (!card && hasCards) return <EmptyState icon="card" title="This card no longer exists" body="It may have been deleted. Your other cards are on the Cards tab." />;
   if (!card) return <EmptyState icon="card" title="No card yet" body="Create your virtual card first. It takes about a minute." action={<Button title="Get your card" inline onPress={() => openCardCreation()} />} />;
   const look = cardLook(card.theme);
   const copyTint = { bg: tint.soft, fg: tint.accent };

@@ -18,6 +18,7 @@ import { PendingTimeline } from "@/components/pending-timeline";
 import { PressableScale } from "@/components/pressable-scale";
 import { PrivacyGuard } from "@/components/privacy-guard";
 import { Text } from "@/components/text";
+import { TokenSlip } from "@/components/token-slip";
 import { TribeLoader } from "@/components/tribe-loader";
 import { LEG_ICON, TransferLegs, type Leg } from "@/components/transfer-legs";
 import { assetByCode, type AssetCode } from "@/data/assets";
@@ -29,6 +30,7 @@ import { useFlowStore, type FlowResult, type RecurringOffer } from "@/stores/use
 import { PAY } from "@/utils/pay-platform";
 import { PayMark } from "@/components/pay-mark";
 import { useInboxStore } from "@/stores/use-inbox-store";
+import { useVaultStore } from "@/stores/use-vault-store";
 import { FREQUENCY_LABEL, nextDate, useRecurringStore, type Frequency } from "@/stores/use-recurring-store";
 import { toast } from "@/stores/use-ui-store";
 import { radius, spacing, useColors } from "@/theme";
@@ -160,11 +162,16 @@ function ResultIcon({ tx, pending }: { tx?: Transaction; pending: boolean }) {
   if (tx?.type === "cashpoint" && tx.direction === "out") return <CashpointMark size={size} />;
   const icon: IconName = !tx ? "repeat" : tx.type === "send" ? "paperplane" : tx.type === "swap" ? "swap" : tx.type === "card" ? "card" : tx.type === "bill" ? (tx.meta?.token ? "bolt" : "bill") : tx.type === "giftcard" ? "gift" : "receive";
   const [bg, fg] = pending ? [c.warningSoft, c.pending] : [c.brandSoft, c.brandText];
+  // a send shows the currency the recipient got in the halo (its row and receipt add the red up-arrow)
+  const inner = Math.round(size * 0.64);
+  const who = tx?.type === "send" ? <CoinIcon code={tx.toAsset ?? tx.asset} size={inner} /> : null;
   return (
     <Animated.View entering={reduce ? undefined : FadeIn.duration(220)} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
-      <View style={{ width: size * 0.64, height: size * 0.64, borderRadius: size * 0.32, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }}>
-        <Icon name={icon} size={size * 0.28} color={fg} />
-      </View>
+      {who ?? (
+        <View style={{ width: inner, height: inner, borderRadius: inner / 2, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }}>
+          <Icon name={icon} size={size * 0.28} color={fg} />
+        </View>
+      )}
       <View style={{ position: "absolute", right: 2, bottom: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: pending ? c.pending : c.success, borderWidth: 3, borderColor: c.bg, alignItems: "center", justifyContent: "center" }}>
         <Icon name={pending ? "clock" : "check"} size={12} color="#fff" weight="bold" />
       </View>
@@ -179,6 +186,44 @@ function Check({ on, label, onToggle }: { on: boolean; label: string; onToggle: 
       <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: on ? 0 : 1.5, borderColor: c.borderStrong, backgroundColor: on ? c.brand : "transparent", alignItems: "center", justifyContent: "center" }}>{on && <Icon name="check" size={11} color="#fff" weight="bold" />}</View>
       <Text variant="subhead">{label}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * "I'm loading it now" for a fresh electricity token. Untapped, the token waits in the Vault under
+ * To load; tapped, it's filed under Loaded (still kept for reference), with Undo right here.
+ */
+function LoadNow({ vaultId }: { vaultId: string }) {
+  const c = useColors();
+  const setLoaded = useVaultStore((s) => s.setLoaded);
+  const loaded = useVaultStore((s) => !!s.tokens.find((t) => t.id === vaultId)?.loadedOn);
+  const load = () => {
+    setLoaded(vaultId, true);
+    toast("Filed under Loaded in your Vault", "success");
+  };
+  return (
+    <View style={{ gap: spacing.smd }}>
+      <Text variant="caption" tone="muted" align="center" style={{ paddingHorizontal: spacing.sm }}>
+        {loaded ? "It's kept under Loaded in your Token Vault, in case you need it again." : "Not loading it right now? It waits in your Token Vault under To load, so you can find it any time."}
+      </Text>
+      {loaded ? (
+        <View accessibilityLiveRegion="polite" style={{ height: 54, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: spacing.md, paddingRight: spacing.sm, borderRadius: radius.full, backgroundColor: c.successSoft }}>
+          <Icon name="check" size={14} color={c.success} weight="bold" />
+          <Text variant="bodyStrong" style={{ flex: 1 }}>
+            Filed under Loaded
+          </Text>
+          <Pressable onPress={() => setLoaded(vaultId, false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Undo: keep the token under To load">
+            {({ pressed }) => (
+              <View style={{ backgroundColor: pressed ? c.border : c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6 }}>
+                <Text variant="subhead">Undo</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+      ) : (
+        <Button title="I'm loading it now" icon="check" onPress={load} />
+      )}
+    </View>
   );
 }
 
@@ -229,6 +274,8 @@ export default function Success() {
   const legs = useLegs(result?.tx);
   const [settled, setSettled] = useState(reduce);
   const [save, setSave] = useState(true);
+  // the meter as the Vault shows it (masked), for the token slip
+  const meter = useVaultStore((s) => s.tokens.find((t) => t.id === result?.vaultId)?.meter);
 
   useEffect(() => {
     if (settled) return;
@@ -273,7 +320,7 @@ export default function Success() {
   }, [result, nav]);
   if (!result) return null;
 
-  const { tx, headline, detail, extra, recurringOffer, beneficiary, retiredCard, walletCardId } = result;
+  const { tx, headline, detail, extra, recurringOffer, beneficiary, retiredCard, walletCardId, vaultId } = result;
   // a new card: straight to adding it to Apple Pay / Google Pay (Cards › Wallet & payments)
   const addToWallet = () => {
     clear();
@@ -344,6 +391,8 @@ export default function Success() {
 
         {cashpoint && tx ? (
           <CashpointTicket amount={formatAsset(tx.amount, "NGN")} code={tx.meta?.code} note="Anyone with this code can redeem it in the Tribe app." />
+        ) : vaultId && extra ? (
+          <TokenSlip token={extra.value} rows={meter ? [["Meter", meter]] : []} typeOn />
         ) : (
           extra && (
             <ListSection inset={spacing.md}>
@@ -352,6 +401,8 @@ export default function Success() {
           )
         )}
 
+        {/* right under the token: load it now, or it waits in the Vault */}
+        {vaultId && <LoadNow vaultId={vaultId} />}
         {recurringOffer && <RecurringOfferCard offer={recurringOffer} />}
         {beneficiary && <Check on={save} onToggle={() => setSave((v) => !v)} label={`Save ${beneficiary.name.split(" ")[0]} to beneficiaries`} />}
 
@@ -364,7 +415,7 @@ export default function Success() {
               <PayMark color={c.bg} height={18} />
             </PressableScale>
           )}
-          {tx ? <Button title="View details" variant={walletCardId ? "secondary" : "primary"} onPress={openReceipt} /> : <Button title="Done" onPress={done} />}
+          {tx ? <Button title="View details" variant={walletCardId || vaultId ? "secondary" : "primary"} onPress={openReceipt} /> : <Button title="Done" onPress={done} />}
           {another && <Button title="Make another transaction" variant="secondary" onPress={again} />}
           {tx && <Button title="Done" variant="tertiary" size="md" onPress={done} />}
         </View>

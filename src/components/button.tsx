@@ -8,6 +8,8 @@ type Variant = "primary" | "secondary" | "tertiary" | "destructive" | "accent" |
 type Size = "lg" | "md" | "sm";
 
 const HEIGHT: Record<Size, number> = { lg: 54, md: 44, sm: 34 };
+/** Labels up to this many characters always fit a full-width button, so they never auto-shrink. */
+const SHRINK_AFTER = 22;
 
 /**
  * The one button. Pill-shaped, full-width by default (wallet CTAs are bottom-anchored).
@@ -76,8 +78,10 @@ export function Button({
         ) : (
           <>
             {icon && <Icon name={icon} size={size === "sm" ? 14 : 18} color={fg} />}
-            {/* one line, always — shrink rather than wrap ("Withdra / w") */}
-            <Text variant={size === "sm" ? "subhead" : "bodyStrong"} style={{ color: fg, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {/* one line, always — shrink rather than wrap ("Withdra / w"). Only long labels may
+                shrink: on iOS (Fabric) adjustsFontSizeToFit can measure before the button has its
+                width and stick at a tiny size, ignoring minimumFontScale ("View details" on /success) */}
+            <Text variant={size === "sm" ? "subhead" : "bodyStrong"} style={{ color: fg, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit={title.length > SHRINK_AFTER} minimumFontScale={0.8}>
               {title}
             </Text>
           </>

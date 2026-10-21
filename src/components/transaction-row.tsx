@@ -14,8 +14,9 @@ import { useCardsStore } from "@/stores/use-cards-store";
 import { CardBadge, CardPairIcon } from "./card-face";
 import { CashpointMark } from "./cashpoint-mark";
 import { CoinIcon } from "./coin-icon";
-import { Icon, type IconName } from "./icon";
+import { Icon } from "./icon";
 import { PairIcon } from "./pair-icon";
+import { SendArt } from "./send-art";
 import { GLASS_TAB_BAR_HEIGHT } from "./glass-tab-bar";
 import { Text } from "./text";
 
@@ -53,26 +54,15 @@ export function TxLeading({ tx }: { tx: Transaction }) {
         size={SIZE}
       />
     );
-  // converted sends: what paid underneath, what they got in front
-  if (tx.type === "send" && tx.toAsset) return <PairIcon from={tx.asset} to={tx.toAsset} size={SIZE} />;
-  const badge: Partial<Record<Transaction["type"], { icon: IconName; bg: string; fg: string }>> = {
-    send: { icon: "send", bg: c.surfaceAlt, fg: c.text },
-  };
-  const b = badge[tx.type];
-  if (!b) {
-    // incoming: the asset's coin with a small green arrow
-    return (
-      <View>
-        <CoinIcon code={tx.asset} size={SIZE} />
-        <View style={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: 9, backgroundColor: c.success, borderWidth: 2, borderColor: c.surface, alignItems: "center", justifyContent: "center" }}>
-          <Icon name="receive" size={9} color="#fff" weight="bold" />
-        </View>
-      </View>
-    );
-  }
+  // sends: the coin (or swap pair, if converted) with a red up-arrow (the mirror of incoming below)
+  if (tx.type === "send") return <SendArt tx={tx} size={SIZE} />;
+  // incoming: the asset's coin with a small green arrow
   return (
-    <View style={{ width: SIZE, height: SIZE, borderRadius: SIZE / 2, backgroundColor: b.bg, alignItems: "center", justifyContent: "center" }}>
-      <Icon name={b.icon} size={17} color={b.fg} />
+    <View>
+      <CoinIcon code={tx.asset} size={SIZE} />
+      <View style={{ position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: 9, backgroundColor: c.success, borderWidth: 2, borderColor: c.surface, alignItems: "center", justifyContent: "center" }}>
+        <Icon name="receive" size={9} color="#fff" weight="bold" />
+      </View>
     </View>
   );
 }
@@ -104,7 +94,7 @@ export const TransactionRow = memo(function TransactionRow({ tx, interactive = t
   const incoming = tx.direction === "in";
   const isSwap = tx.type === "swap" && tx.toAsset;
   const failed = tx.status === "failed" || tx.status === "cancelled";
-  const status = { completed: ["Success", c.success, c.successSoft], pending: ["Pending", c.pending, c.warningSoft], failed: ["Failed", c.danger, c.dangerSoft], cancelled: ["Cancelled", c.textMuted, c.surfaceAlt] }[tx.status];
+  const status = { completed: ["Success", c.success, c.successSoft], pending: ["Pending", c.text, c.warningSoft], failed: ["Failed", c.danger, c.dangerSoft], cancelled: ["Cancelled", c.textMuted, c.surfaceAlt] }[tx.status];
 
   return (
     <Pressable
