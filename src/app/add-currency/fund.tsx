@@ -82,7 +82,6 @@ export default function FundNewCurrency() {
     <FlowScreen
       title={`Add money to ${a.code}`}
       cancel="back"
-      scroll={false}
       footer={
         <>
           <Button title={want && !priced ? "Getting the latest rate…" : over ? `Not enough ${assetByCode(from).name}` : "Continue"} disabled={!want || over || !priced} onPress={next} />
@@ -108,7 +107,7 @@ export default function FundNewCurrency() {
           error={over ? `More than your ${from} balance` : undefined}
           helper={want ? `You pay ${formatAsset(pay, from)} · fee included` : " "}
         />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: spacing.sm, paddingVertical: spacing.xs }}>
           <QuoteTimer />
           <Text variant="caption" tone="muted">
             {priced ? rateLine(from, a.code, 1, cost.rate) : "Getting the latest rate…"}
@@ -116,12 +115,14 @@ export default function FundNewCurrency() {
         </View>
       </View>
 
-      <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: spacing.sm, gap: spacing.md }}>
+      <View style={{ paddingBottom: spacing.sm }}>
         <AmountEntry
           value={amount}
           onChange={setAmount}
           decimals={decimals}
           showDisplay={false}
+          compact
+          keyHeight={58}
           presets={[
             { label: "25%", value: land(0.25) },
             { label: "50%", value: land(0.5) },
