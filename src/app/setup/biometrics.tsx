@@ -22,28 +22,32 @@ export default function Biometrics() {
       next();
     }
   };
+  const unavailable = available === false;
   return (
     <OnboardingShell
       title={`Faster with ${BIOMETRIC_LABEL}`}
       headline={["Faster with", `${BIOMETRIC_LABEL}.`]}
       icon={BIOMETRIC_ICON}
-      subtitle={available === false ? `This phone doesn't have ${BIOMETRIC_LABEL} set up. You can turn it on later in Security.` : "Approve payments with a glance. Your PIN still works as a backup."}
+      subtitle={unavailable ? `${BIOMETRIC_LABEL} isn't set up on this phone yet. You can turn it on any time in Me, then Security.` : "Approve payments with a glance. Your PIN still works as a backup."}
       footer={
         <>
-          {available !== false && <Button title={`Turn on ${BIOMETRIC_LABEL}`} onPress={turnOn} icon={BIOMETRIC_ICON} disabled={available === null} />}
-          <Button title={available === false ? "Continue" : "Not now"} variant={available === false ? "primary" : "tertiary"} onPress={next} />
+          {!unavailable && <Button title={`Turn on ${BIOMETRIC_LABEL}`} onPress={turnOn} icon={BIOMETRIC_ICON} disabled={available === null} />}
+          <Button title={unavailable ? "Continue" : "Not now"} variant={unavailable ? "primary" : "tertiary"} onPress={next} />
         </>
       }
     >
       <Hero>
-        <BiometricArt icon={BIOMETRIC_ICON} done={false} />
+        <BiometricArt icon={BIOMETRIC_ICON} done={false} scale={0.86} />
       </Hero>
-      <Perks
-        items={[
-          { icon: "bolt", title: "Pay with a glance", body: "Approve payments, swaps and Cashpoints without typing." },
-          { icon: "key", title: "Your PIN still works", body: "It's always there as a backup." },
-        ]}
-      />
+      {/* what it does, only when this phone can actually do it */}
+      {!unavailable && (
+        <Perks
+          items={[
+            { icon: "bolt", title: "Pay with a glance", body: "Approve payments, swaps and Cashpoints without typing." },
+            { icon: "key", title: "Your PIN still works", body: "It's always there as a backup." },
+          ]}
+        />
+      )}
     </OnboardingShell>
   );
 }

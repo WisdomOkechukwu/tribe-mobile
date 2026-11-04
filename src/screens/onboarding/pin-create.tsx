@@ -13,7 +13,7 @@ export const WEAK = /^(\d)\1+$|^(?:0123|1234|2345|3456|4567|5678|6789|9876|4321|
  * Create → confirm the 4-digit transaction PIN with segmented cells.
  * The confirm step announces itself with a toast, like Lock screen.png's "Enter your PIN again".
  */
-export function PinCreate({ length, title, headline, subtitle, icon = "lock", right, note, onDone }: { length: number; title: string; headline?: string[]; subtitle: string; icon?: "lock" | "lockLine" | "key"; right?: ReactNode; note?: ReactNode; onDone: (pin: string) => void }) {
+export function PinCreate({ length, title, headline, subtitle, icon = "lock", right, note, onDone }: { length: number; title: string; headline?: string[]; subtitle: string; icon?: "lock" | "lockLine" | "key"; right?: ReactNode; note?: ReactNode; onDone: (pin: string) => void | Promise<void> }) {
   const [first, setFirst] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const [error, setError] = useState(false);
@@ -29,7 +29,11 @@ export function PinCreate({ length, title, headline, subtitle, icon = "lock", ri
       }
       if (value === first) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        onDone(value);
+        // a refused PIN (too easy to guess on the server) starts again
+        Promise.resolve(onDone(value)).catch(() => {
+          setValue("");
+          setFirst(null);
+        });
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
         setError(true);

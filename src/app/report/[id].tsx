@@ -8,8 +8,10 @@ import { FlowScreen } from "@/components/flow-screen";
 import { ListSection } from "@/components/list";
 import { Text } from "@/components/text";
 import { TransactionRow } from "@/components/transaction-row";
-import { useInboxStore } from "@/stores/use-inbox-store";
-import { ISSUE_REASON, reasonsFor, useSupportStore, type IssueReason } from "@/stores/use-support-store";
+import { ISSUE_REASON, reasonsFor, type IssueReason } from "@/stores/use-support-store";
+import { openTicket } from "@/api/actions";
+import { errorMessage } from "@/api/http";
+import { useTransaction } from "@/api/queries";
 import { toast } from "@/stores/use-ui-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
@@ -37,8 +39,10 @@ function ReasonRow({ reason, selected, onPress }: { reason: IssueReason; selecte
 /** Report a problem with one transaction: pick what went wrong, add detail, send to support. */
 export default function ReportIssue() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const tx = useWalletStore((s) => s.transactions.find((t) => t.id === id));
-  const openTicket = useSupportStore((s) => s.open);
+  const cached = useWalletStore((s) => s.transactions.find((t) => t.id === id));
+  const detail = useTransaction(cached ? undefined : id);
+  const tx = cached ?? detail.data?.tx;
+  const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState<IssueReason | null>(null);
   const [details, setDetails] = useState("");
 
@@ -61,11 +65,19 @@ export default function ReportIssue() {
         <Button
           title="Send to support"
           disabled={!ready}
-          onPress={() => {
-            const ticket = openTicket({ txId: tx.id, reason: reason!, details: details.trim() });
-            useInboxStore.getState().push({ kind: "support", title: `Ticket ${ticket.id} opened`, body: `${ISSUE_REASON[reason!].label} · ${tx.title}. We'll reply here, usually within a few hours.`, href: `/transaction/${tx.id}`, txId: tx.id, badge: "chatLine" });
-            toast("Sent to support", "success");
-            router.back();
+          loading={busy}
+          onPress={async () => {
+            setBusy(true);
+            try {
+              const ticket = await openTicket({ txId: tx.id, reason: reason!, subject: `${ISSUE_REASON[reason!].label} · ${tx.title}`, details: details.trim() });
+              toast("Sent to support", "success");
+              // straight into the chat, where Tribe's reply will land
+              router.replace({ pathname: "/support/[id]", params: { id: ticket.id } });
+            } catch (e) {
+              toast(errorMessage(e), "danger");
+            } finally {
+              setBusy(false);
+            }
           }}
         />
       }

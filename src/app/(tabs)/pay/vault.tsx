@@ -1,7 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { EmptyState } from "@/components/bits";
 import { BillerThumb } from "@/components/brand-tiles";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
@@ -14,6 +13,9 @@ import { Text } from "@/components/text";
 import { TokenSlip } from "@/components/token-slip";
 import { billerById } from "@/data/catalog";
 import type { VaultToken } from "@/data/seed";
+import { setTokenLoaded } from "@/api/actions";
+import { toast } from "@/stores/use-ui-store";
+import { errorMessage } from "@/api/http";
 import { useVaultStore } from "@/stores/use-vault-store";
 import { useVaultTokens } from "@/api/queries";
 import { QueryError, Skeleton } from "@/components/skeletons";
@@ -87,7 +89,10 @@ function Summary({ waiting, kwh, loadedKwh }: { waiting: number; kwh: number; lo
  */
 function TokenTicket({ t }: { t: VaultToken }) {
   const c = useColors();
-  const toggle = useVaultStore((s) => s.toggleLoaded);
+  const toggle = (id: string) => {
+    const loaded = !!useVaultStore.getState().tokens.find((x) => x.id === id)?.loadedOn;
+    setTokenLoaded(id, !loaded).catch((e) => toast(errorMessage(e), "danger"));
+  };
   const paidWith = t.paidWith ?? "NGN";
   const naira = `₦${t.amount.toLocaleString()}`;
   const [fresh] = useState(() => Date.now() - new Date(t.bought).getTime() < FRESH_MS);
@@ -148,7 +153,10 @@ function TokenTicket({ t }: { t: VaultToken }) {
 /** A token already on the meter: one line with its last digits (to tell them apart) and Undo. */
 function LoadedToken({ t }: { t: VaultToken }) {
   const c = useColors();
-  const toggle = useVaultStore((s) => s.toggleLoaded);
+  const toggle = (id: string) => {
+    const loaded = !!useVaultStore.getState().tokens.find((x) => x.id === id)?.loadedOn;
+    setTokenLoaded(id, !loaded).catch((e) => toast(errorMessage(e), "danger"));
+  };
   const last4 = t.token.replace(/\s/g, "").slice(-4);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 64 }}>
@@ -174,6 +182,63 @@ function LoadedToken({ t }: { t: VaultToken }) {
         )}
       </Pressable>
     </View>
+  );
+}
+
+const HOW: { icon: IconName; title: string; body: string }[] = [
+  { icon: "bolt", title: "Buy PHED units", body: "Pay from your naira or crypto balance." },
+  { icon: "vault", title: "The token lands here", body: "Saved the moment you pay, so none get lost in SMS." },
+  { icon: "check", title: "Load it and tick it off", body: "Copy it into your meter, then mark it loaded." },
+];
+
+/**
+ * No tokens yet: the Summary's purple card (so the empty vault already looks like the vault),
+ * how it works in three rows, and one full-width way in.
+ */
+function EmptyVault({ onBuy }: { onBuy: () => void }) {
+  const c = useColors();
+  return (
+    <Screen>
+      <View style={{ backgroundColor: palette.purple[900], borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden", padding: spacing.mdl, gap: spacing.md }}>
+        <View pointerEvents="none" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "38%", overflow: "hidden" }}>
+          <Stripes band={12} gap={16} colors={[palette.orange[500], palette.purple[500]]} opacity={0.85} />
+        </View>
+        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: palette.purple[800], alignItems: "center", justifyContent: "center" }}>
+          <Icon name="vault" size={22} color={palette.orange[300]} />
+        </View>
+        <View style={{ gap: spacing.xs, maxWidth: "62%" }}>
+          <Text variant="overline" style={{ color: palette.orange[300] }}>
+            Token vault
+          </Text>
+          <Text variant="title" style={{ color: palette.white }}>
+            No tokens yet
+          </Text>
+          <Text variant="caption" style={{ color: palette.purple[100] }}>
+            Every PHED token you buy is kept here until it&apos;s on your meter.
+          </Text>
+        </View>
+      </View>
+
+      <ListSection title="How it works">
+        {HOW.map((h, i) => (
+          <View key={h.title} style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 64 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <Icon name={h.icon} size={17} color={c.brandText} />
+            </View>
+            <View style={{ flex: 1, gap: spacing.xxs }}>
+              <Text variant="bodyStrong" numberOfLines={1}>
+                {i + 1}. {h.title}
+              </Text>
+              <Text variant="caption" tone="muted">
+                {h.body}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </ListSection>
+
+      <Button title="Buy electricity" icon="bolt" onPress={onBuy} />
+    </Screen>
   );
 }
 
@@ -212,13 +277,7 @@ export default function Vault() {
     );
   }
 
-  if (!tokens.length) {
-    return (
-      <Screen>
-        <EmptyState icon="vault" title="No tokens yet" body="Buy PHED electricity and every token is saved here, so you never lose one." action={<Button title="Buy electricity" icon="bolt" inline onPress={buy} />} />
-      </Screen>
-    );
-  }
+  if (!tokens.length) return <EmptyVault onBuy={buy} />;
 
   return (
     <Screen>

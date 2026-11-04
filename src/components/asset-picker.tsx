@@ -4,7 +4,9 @@ import { Pressable, ScrollView, View } from "react-native";
 import { ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
 import { overlay } from "@/stores/use-overlay-store";
 import { usePrefsStore } from "@/stores/use-prefs-store";
-import { toast } from "@/stores/use-ui-store";
+import { runWithLoader, toast } from "@/stores/use-ui-store";
+import { openWallet } from "@/api/actions";
+import { errorMessage } from "@/api/http";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
@@ -35,7 +37,6 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
   const c = useColors();
   const balances = useWalletStore((s) => s.balances);
   const opened = useWalletStore((s) => s.opened);
-  const openAccount = useWalletStore((s) => s.openAccount);
   const dismissed = usePrefsStore((s) => s.dismissedPromos);
   const dismiss = usePrefsStore((s) => s.dismissPromo);
   const [q, setQ] = useState("");
@@ -53,8 +54,16 @@ function Picker({ o, close }: { o: PickerOptions; close: (after?: () => void) =>
     // creating a wallet needs full verification — explain what's left instead
     if (!opened.includes(code) && !unlocked) return close(() => guardWalletOpen(() => {}));
     if (!opened.includes(code)) {
-      openAccount(code);
-      toast(`${code} wallet created`, "success");
+      // opened on the API first, so the flow that follows can use it
+      close(() =>
+        runWithLoader(`Opening your ${code} wallet…`, openWallet(code))
+          .then(() => {
+            toast(`${code} wallet created`, "success");
+            o.onSelect(code);
+          })
+          .catch((e) => toast(errorMessage(e), "danger")),
+      );
+      return;
     }
     close(() => o.onSelect(code));
   };

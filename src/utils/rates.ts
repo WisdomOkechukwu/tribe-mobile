@@ -1,47 +1,61 @@
 import { useEffect, useState } from "react";
-import { assetByCode, type AssetCode } from "@/data/assets";
+import type { AssetCode } from "@/data/assets";
+import { useRatesStore } from "@/stores/use-rates-store";
 
-/** How long a swap quote is honoured before it refreshes (Swap.png's countdown). */
+/**
+ * Live prices for display. They come only from the API's rate collector (`GET rates` /
+ * `GET rates/stream`, kept in memory in `use-rates-store`). There is no on-device price: until
+ * the server's rates arrive these return NaN, and screens show a skeleton or "—" and keep money
+ * buttons disabled (`rateReady` / `hasRates`). Binding prices for money movements come from
+ * `POST quotes` (see use-flow-store), so the review shows an estimate that the quote then locks.
+ */
+
+/** USD value of one unit of `code`; NaN until the server's rate for it has arrived. */
+export function usdRate(code: AssetCode, version?: number) {
+  void version;
+  const live = useRatesStore.getState().rates[code]?.usd;
+  return live && live > 0 ? live : NaN;
+}
+
+/** Naira per US dollar; NaN until the server's rates have arrived. */
+export function ngnPerUsd(version?: number) {
+  void version;
+  const live = useRatesStore.getState().rates.USD?.ngn;
+  return live && live > 0 ? live : NaN;
+}
+
+/** Today's move in percent; undefined until the server's rate for it has arrived (hide it). */
+export function changeToday(code: AssetCode, version?: number): number | undefined {
+  void version;
+  return useRatesStore.getState().rates[code]?.change;
+}
+
+/** True once the server's rate for every one of `codes` has arrived. */
+export function rateReady(codes: AssetCode | AssetCode[], version?: number) {
+  return (Array.isArray(codes) ? codes : [codes]).every((c) => Number.isFinite(usdRate(c, version)));
+}
+
+/** True once a server rates snapshot is loaded (Naira per dollar included). */
+export function hasRates(version?: number) {
+  return Number.isFinite(ngnPerUsd(version));
+}
+
+/** How long the API honours a quote (POST quotes → expires_at). */
 export const QUOTE_SECONDS = 30;
 
-/** Quote window number: rates change only when this does. */
-export const quoteTick = (now = Date.now()) => Math.floor(now / (QUOTE_SECONDS * 1000));
-
-const seed = (code: string) => [...code].reduce((n, ch) => n + ch.charCodeAt(0), 0);
-
 /**
- * Demo "live" price: each 30-second window nudges it a little (crypto ±0.4%, fiat ±0.05%,
- * dollar stablecoins pinned), so the quote countdown means something. Deterministic per window,
- * so review, PIN and execution agree. A real build fetches quotes from Tribe's pricing service.
+ * Re-renders every second with the seconds left until `expiresAt` (a quote's expiry), or in the
+ * current 30-second window when there's no quote yet. Keep it in small leaf components.
  */
-export function liveUsd(code: AssetCode, tick = quoteTick()) {
-  const a = assetByCode(code);
-  if (code === "USD" || code === "USDT" || code === "USDC") return a.usd;
-  const swing = a.kind === "crypto" ? 0.004 : 0.0005;
-  return a.usd * (1 + swing * Math.sin(tick * 1.7 + seed(code)));
-}
-
-/**
- * Re-renders once per quote window (every 30 s), when rates change — not every second.
- * Screens that price things use this; only `QuoteTimer` ticks each second.
- */
-export function useQuoteTick() {
-  const [tick, setTick] = useState(() => quoteTick());
-  useEffect(() => {
-    const msLeft = QUOTE_SECONDS * 1000 - (Date.now() % (QUOTE_SECONDS * 1000));
-    const t = setTimeout(() => setTick(quoteTick()), msLeft + 20);
-    return () => clearTimeout(t);
-  }, [tick]);
-  return tick;
-}
-
-/** Re-renders every second with the seconds left in the current quote window. Keep it in small leaf components. */
-export function useQuoteClock() {
+export function useQuoteClock(expiresAt?: string | null) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-  const left = QUOTE_SECONDS - Math.floor((now / 1000) % QUOTE_SECONDS);
-  return { left, tick: quoteTick(now) };
+  if (expiresAt) {
+    const left = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1000));
+    return { left: Math.min(QUOTE_SECONDS, left) };
+  }
+  return { left: QUOTE_SECONDS - Math.floor((now / 1000) % QUOTE_SECONDS) };
 }

@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Share, View } from "react-native";
 import { Avatar } from "@/components/avatar";
-import { copyToClipboard, Note, Pill } from "@/components/bits";
+import { copyToClipboard, Note } from "@/components/bits";
 import { Button } from "@/components/button";
 import { Icon, type IconName } from "@/components/icon";
 import { ListRow, ListSection } from "@/components/list";
@@ -12,7 +12,7 @@ import { Segmented } from "@/components/segmented";
 import { CoinIcon } from "@/components/coin-icon";
 import { Stripes } from "@/components/stripes";
 import { Text } from "@/components/text";
-import { earnedFrom, earnedThisMonth, INVITEES, REFERRAL, referralCode, totalEarned } from "@/data/referrals";
+import { REFERRAL } from "@/data/referrals";
 import { useReferrals } from "@/api/queries";
 import { Skeleton, SkeletonList } from "@/components/skeletons";
 import { useSessionStore } from "@/stores/use-session-store";
@@ -35,11 +35,22 @@ const STEPS: { icon: IconName; title: string; body: string }[] = [
 export default function Invite() {
   const c = useColors();
   const tag = useSessionStore((s) => s.user.tag);
+  const myCode = useSessionStore((s) => s.referralCode);
   const referrals = useReferrals();
-  const { balance = 0, earnings = [], withdrawals = [] } = referrals.data ?? {};
+  const { balance = 0, earnings = [], withdrawals = [], code: serverCode, invited = 0 } = referrals.data ?? {};
   const [tab, setTab] = useState<Tab>("earnings");
-  const code = referralCode(tag);
-  const earning = INVITEES.filter((i) => i.status === "earning").length;
+  const code = serverCode || myCode || tag.toUpperCase();
+  // friends, from the rewards they earned you (GET referrals has the list of earnings, not of invitees)
+  const byFriend = new Map<string, { name: string; total: number; count: number; last: string }>();
+  for (const e of earnings) {
+    const f = byFriend.get(e.friend) ?? { name: e.friend, total: 0, count: 0, last: e.date };
+    byFriend.set(e.friend, { ...f, total: f.total + e.amount, count: f.count + 1, last: e.date > f.last ? e.date : f.last });
+  }
+  const friends = [...byFriend.values()].sort((a, b) => b.total - a.total);
+  const earning = friends.length;
+  const lifetime = earnings.reduce((sum, e) => sum + e.amount, 0);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const thisMonth = earnings.filter((e) => e.date >= monthStart).reduce((sum, e) => sum + e.amount, 0);
   const message = `Join me on Tribe: crypto, dollars and bills in one app. Sign up with my code ${code}: https://tribe.africa/r/${code}`;
 
   return (
@@ -72,9 +83,9 @@ export default function Invite() {
         </View>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {[
-            ["Lifetime", naira(totalEarned())],
-            ["This month", naira(earnedThisMonth())],
-            ["Friends earning", String(earning)],
+            ["Lifetime", naira(lifetime)],
+            ["This month", naira(thisMonth)],
+            ["Friends", String(Math.max(invited, earning))],
           ].map(([k, v]) => (
             <View key={k} style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: radius.input, padding: spacing.smd, gap: spacing.xs }}>
               <Text variant="caption" style={{ color: palette.purple[100], fontSize: 11 }}>
@@ -156,19 +167,20 @@ export default function Invite() {
 
       {tab === "friends" && (
         <ListSection>
-          {INVITEES.map((i) => (
+          {friends.map((f) => (
             <ListRow
-              key={i.id}
-              leading={<Avatar size={40} name={i.name} ring={false} />}
-              title={i.name}
-              subtitle={i.status === "earning" ? `${i.transactions} transactions · joined ${relativeDate(i.when)}` : i.status === "joined" ? `Joined ${relativeDate(i.when)} · no transactions yet` : `Invited ${relativeDate(i.when)}`}
-              trailing={i.status === "earning" ? <Text variant="amount" tone="success">+{naira(earnedFrom(i))}</Text> : <Pill label={i.status === "joined" ? "Joined" : "Invited"} tone={i.status === "joined" ? "brand" : "neutral"} />}
+              key={f.name}
+              leading={<Avatar size={40} name={f.name} ring={false} />}
+              title={f.name}
+              subtitle={`${f.count} reward${f.count === 1 ? "" : "s"} · last ${relativeDate(f.last).toLowerCase()}`}
+              trailing={<Text variant="amount" tone="success">+{naira(f.total)}</Text>}
             />
           ))}
+          {invited > friends.length && <ListRow icon="people" title={`${invited - friends.length} more joined with your code`} subtitle="They'll earn you rewards once they transact" />}
         </ListSection>
       )}
 
-      <Note icon="info">Rewards come from Tribe, never from your friend&apos;s money. Illustrative rate for this demo.</Note>
+      <Note icon="info">Rewards come from Tribe, never from your friend&apos;s money.</Note>
     </Screen>
   );
 }

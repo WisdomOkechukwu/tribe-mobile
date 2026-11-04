@@ -15,7 +15,7 @@ import { useFlowStore } from "@/stores/use-flow-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing } from "@/theme";
 import { formatAsset, quote, quoteFor, rateLine } from "@/utils/format";
-import { liveUsd, useQuoteTick } from "@/utils/rates";
+import { useLiveRates } from "@/api/live-rates";
 
 /** Close the add-currency modal, then open the new currency's Receive screen (account details / address). */
 const receiveInstead = (code: string) => {
@@ -35,9 +35,10 @@ export default function FundNewCurrency() {
   const a = assetByCode(code);
   const balances = useWalletStore((s) => s.balances);
   const begin = useFlowStore((s) => s.begin);
-  const tick = useQuoteTick();
+  // live rates while this screen is open (the estimate re-prices as they move)
+  const rates = useLiveRates();
   // where it comes from: your biggest cash balance first (then crypto), never the new currency itself
-  const worth = (code: AssetCode) => balances[code] * liveUsd(code, tick);
+  const worth = (code: AssetCode) => balances[code] * rates.usd(code) || 0;
   const funded = ASSETS.filter((x) => x.code !== a.code && balances[x.code] > 0).sort((x, y) => Number(y.kind === "fiat") - Number(x.kind === "fiat") || worth(y.code) - worth(x.code));
   const [from, setFrom] = useState<AssetCode | undefined>(() => funded[0]?.code);
   const [amount, setAmount] = useState("");
@@ -52,15 +53,17 @@ export default function FundNewCurrency() {
 
   const decimals = Math.min(a.decimals, 6);
   const want = Number(amount) || 0;
-  const cost = quoteFor(want, from, a.code, tick);
+  // the server's rates for both sides: until they arrive the estimate shows "—" and Continue waits
+  const priced = rates.has([from, a.code]);
+  const cost = quoteFor(want, from, a.code, rates.version);
   // "Max" can round up by one unit of the source: pay the whole balance instead
   const unit = 10 ** -assetByCode(from).decimals;
   const pay = cost.amount > balances[from] && cost.amount - balances[from] <= unit + 1e-12 ? balances[from] : cost.amount;
   const over = want > 0 && pay > balances[from] + 1e-9;
   // presets are shares of the source balance, shown as what lands
   const land = (share: number) => {
-    const got = quote(balances[from] * share, from, a.code, tick).receive;
-    return String(Math.floor(got * 10 ** decimals) / 10 ** decimals);
+    const got = quote(balances[from] * share, from, a.code, rates.version).receive;
+    return Number.isFinite(got) ? String(Math.floor(got * 10 ** decimals) / 10 ** decimals) : "";
   };
   const pickFrom = () =>
     openAssetPicker({
@@ -70,7 +73,8 @@ export default function FundNewCurrency() {
       onSelect: (v) => setFrom(v),
     });
   const next = () => {
-    begin({ kind: "swap", from, to: a.code, amount: pay, fund: true });
+    // what lands is exact (the server's quote prices what it costs), unless it's the whole balance
+    begin({ kind: "swap", from, to: a.code, amount: pay, receive: pay === cost.amount ? want : undefined, fund: true });
     router.push("/add-currency/review");
   };
 
@@ -81,7 +85,7 @@ export default function FundNewCurrency() {
       scroll={false}
       footer={
         <>
-          <Button title={over ? `Not enough ${assetByCode(from).name}` : "Continue"} disabled={!want || over} onPress={next} />
+          <Button title={want && !priced ? "Getting the latest rate…" : over ? `Not enough ${assetByCode(from).name}` : "Continue"} disabled={!want || over || !priced} onPress={next} />
           <Button title={`Receive ${a.code} instead`} variant="tertiary" size="md" onPress={() => receiveInstead(a.code)} />
         </>
       }
@@ -107,7 +111,7 @@ export default function FundNewCurrency() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
           <QuoteTimer />
           <Text variant="caption" tone="muted">
-            {rateLine(from, a.code, 1, cost.rate)}
+            {priced ? rateLine(from, a.code, 1, cost.rate) : "Getting the latest rate…"}
           </Text>
         </View>
       </View>

@@ -13,11 +13,13 @@ import { REFERRAL } from "@/data/referrals";
 import { overlay } from "@/stores/use-overlay-store";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { useSessionStore } from "@/stores/use-session-store";
-import { toast } from "@/stores/use-ui-store";
+import { logOut as signOutEverywhere } from "@/api/auth";
+import { runWithLoader, toast } from "@/stores/use-ui-store";
 import { palette, radius, spacing, useColors } from "@/theme";
 import { pickAppearance, pickDisplayCurrency } from "@/utils/pickers";
 import * as WebBrowser from "expo-web-browser";
 import { LEGAL_URL } from "@/data/links";
+import { useTierStates } from "@/utils/kyc-state";
 
 const APPEARANCE_LABEL = { system: "System", light: "Light", dark: "Dark" } as const;
 
@@ -41,9 +43,11 @@ export default function Me() {
   const c = useColors();
   const user = useSessionStore((s) => s.user);
   const tier = useSessionStore((s) => s.kycTier);
-  const kycStatus = useSessionStore((s) => s.kycStatus);
-  const devices = useSessionStore((s) => s.devices);
-  const logOut = useSessionStore((s) => s.logOut);
+  // any tier, not only the first: "Tier 2 in review", "Tier 3 needs attention"
+  const tierStates = useTierStates();
+  const inReview = tierStates.find((t) => t.state === "in_review");
+  const attention = tierStates.find((t) => t.state === "needs_attention");
+  const logOut = () => void runWithLoader("Signing you out…", signOutEverywhere());
   const display = usePrefsStore((s) => s.display);
   const setDisplay = usePrefsStore((s) => s.setDisplay);
   const appearance = usePrefsStore((s) => s.appearance);
@@ -73,7 +77,15 @@ export default function Me() {
               <Icon name="copy" size={11} color={c.textSubtle} />
             </PressableScale>
             <PressableScale onPress={() => router.push("/verify")} accessibilityLabel="Verification and limits" style={{ alignSelf: "flex-start" }}>
-              {tier ? <Pill label={`Tier ${tier} · Verified`} tone="success" icon="verified" /> : <Pill label={kycStatus === "pending" ? "Verification pending" : "Not verified · Verify now"} tone="warning" icon="shield" />}
+              {inReview ? (
+                <Pill label={`Tier ${inReview.tier} in review`} tone="warning" icon="clock" />
+              ) : attention ? (
+                <Pill label={`Tier ${attention.tier} needs attention`} tone="danger" icon="warning" />
+              ) : tier ? (
+                <Pill label={`Tier ${tier} · Verified`} tone="success" icon="verified" />
+              ) : (
+                <Pill label="Not verified · Verify now" tone="warning" icon="shield" />
+              )}
             </PressableScale>
           </View>
         </View>
@@ -103,13 +115,18 @@ export default function Me() {
 
       <ListSection title="Account">
         <ListRow icon="personLine" title="Personal details" subtitle="Name, photo, email and @tag" onPress={() => router.push("/me/edit")} />
-        <ListRow icon="shieldLine" title="Verification & limits" subtitle={tier ? `Tier ${tier} · higher limits on` : "Unverified · unlock higher limits"} onPress={() => router.push("/verify")} />
+        <ListRow
+          icon="shieldLine"
+          title="Verification & limits"
+          subtitle={inReview ? `Tier ${inReview.tier} in review` : attention ? `Tier ${attention.tier} needs attention` : tier ? `Tier ${tier} · higher limits on` : "Unverified · unlock higher limits"}
+          onPress={() => router.push("/verify")}
+        />
         <ListRow icon="docLine" title="Statements" subtitle="Monthly PDFs, sent to your email" onPress={() => router.push("/me/statements")} />
       </ListSection>
 
       <ListSection title="Security">
         <ListRow icon="lockLine" title="Security centre" subtitle="PIN, Face ID and 2-step verification" onPress={() => router.push("/me/security")} />
-        <ListRow icon="devicesLine" title="Devices" subtitle={`${devices.length} signed in`} onPress={() => router.push("/me/devices")} />
+        <ListRow icon="devicesLine" title="Devices" subtitle="One phone at a time" onPress={() => router.push("/me/devices")} />
       </ListSection>
 
       <ListSection title="Preferences">
@@ -120,18 +137,13 @@ export default function Me() {
       </ListSection>
 
       <ListSection title="Support">
-        <ListRow icon="chatLine" title="Help & chat" subtitle="Chat with support, 24/7" onPress={() => toast("Chat opens in the full app")} />
+        <ListRow icon="chatLine" title="Help & chat" subtitle="Chat with the Tribe team" onPress={() => router.push("/support")} />
         <ListRow icon="starLine" title="Rate Tribe" onPress={() => toast("Ratings open in the App Store")} />
         <ListRow icon="legalLine" title="Legal" subtitle="Terms, privacy and licences" onPress={() =>
             // the legal page in an in-app browser sheet (Safari View Controller / Custom Tabs), in our colours
             WebBrowser.openBrowserAsync(LEGAL_URL, { toolbarColor: c.bg, controlsColor: c.brand, presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }).catch(() => toast("Couldn't open the legal page", "danger"))
           }
         />
-      </ListSection>
-
-      {/* TODO(launch): testing only, remove with the mock data */}
-      <ListSection title="Testing" footer="Pretend money for trying things out. Nothing real moves.">
-        <ListRow icon="plusCircle" title="Test top-up" subtitle="Any amount, any currency" onPress={() => router.push("/test-topup")} />
       </ListSection>
 
       <ListSection>

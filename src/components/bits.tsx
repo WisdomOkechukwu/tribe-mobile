@@ -132,7 +132,8 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
       <Text variant="body" tone="muted" align="center" style={{ maxWidth: 290 }}>
         {body}
       </Text>
-      {action}
+      {/* wrapper shrinks to the action, so an `inline` button (alignSelf: flex-start) still centres */}
+      {action && <View style={{ marginTop: spacing.md }}>{action}</View>}
     </View>
   );
 }

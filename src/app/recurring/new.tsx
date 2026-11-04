@@ -13,7 +13,9 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
 import { assetByCode, type AssetCode } from "@/data/assets";
-import { BILLERS, billerById } from "@/data/catalog";
+import { billerById, type Biller } from "@/data/catalog";
+import { useBillers } from "@/api/queries";
+import { BillerRowSkeleton, QueryError } from "@/components/skeletons";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { type Frequency } from "@/stores/use-recurring-store";
 import { useSessionStore } from "@/stores/use-session-store";
@@ -49,6 +51,17 @@ type Active = "target" | "amount" | null;
  * paying wallet, how often and when it starts → review → PIN.
  */
 export default function NewRecurring() {
+  const query = useBillers();
+  if (query.data?.length) return <NewRecurringForm all={query.data} />;
+  return (
+    <FlowScreen title="New recurring bill">
+      {query.isError ? <QueryError onRetry={() => void query.refetch()} title="Couldn't load providers" /> : <BillerRowSkeleton count={5} size={48} />}
+    </FlowScreen>
+  );
+}
+
+function NewRecurringForm({ all }: { all: Biller[] }) {
+  const BILLERS = all;
   const c = useColors();
   const params = useLocalSearchParams<{ biller?: string }>();
   const phone = useSessionStore((s) => s.user.phone);
@@ -104,7 +117,7 @@ export default function NewRecurring() {
             title={amountNgn ? `Set up · ₦${amountNgn.toLocaleString()} ${EVERY[frequency]}` : "Set up"}
             disabled={!ok}
             onPress={() => {
-              begin({ kind: "recurring-create", billerId, target: b.field === "meter" ? `${target.slice(0, 4)} •••• ${target.slice(-2)}` : target, plan: plan?.name, amountNgn, payWith, frequency, start: start.value });
+              begin({ kind: "recurring-create", billerId, target, plan: plan?.name, planId: plan?.id, amountNgn, payWith, frequency, start: start.value });
               router.push("/recurring/review");
             }}
           />

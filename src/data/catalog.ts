@@ -1,16 +1,20 @@
 import type { AssetCode } from "./assets";
-import { liveUsd, quoteTick } from "@/utils/rates";
+import type { BillerResource, GiftBrandResource } from "@/api/types";
+import { useCatalogStore } from "@/stores/use-catalog-store";
+import { usdRate } from "@/utils/rates";
 import type { ImageSourcePropType } from "react-native";
 
-// Biller tiles have their background baked in (no alpha) — render the image AS the tile.
-// bg/fg are the brand colours for the loading/fallback face. All prices are illustrative.
+// Billers, plans, prices and gift-card rates come from the API (GET billers, GET gift-cards/brands,
+// kept in use-catalog-store). The app only bundles the art: biller tiles (background baked in,
+// rendered AS the tile) and brand marks, keyed by the API's ids.
 export type PlanPeriod = "daily" | "weekly" | "monthly";
 export type BillPlan = { id: string; name: string; price: number; period?: PlanPeriod };
 export type Biller = {
   id: string;
   name: string;
   category: "airtime" | "data" | "tv" | "electricity";
-  image: ImageSourcePropType;
+  /** bundled tile art; billers without one show their name on their colour */
+  image?: ImageSourcePropType;
   bg: string;
   fg: string;
   /** what the customer identifies themselves by */
@@ -19,55 +23,37 @@ export type Biller = {
   plans?: BillPlan[];
 };
 
-const d = (id: string, name: string, price: number, period: PlanPeriod): BillPlan => ({ id, name, price, period });
+const BILLER_ART: Record<string, ImageSourcePropType> = {
+  mtn: require("@/assets/billers/mtn.png"),
+  airtel: require("@/assets/billers/airtel.png"),
+  glo: require("@/assets/billers/glo.png"),
+  "9mobile": require("@/assets/billers/9mobile.png"),
+  dstv: require("@/assets/billers/dstv.jpg"),
+  gotv: require("@/assets/billers/gotv.jpg"),
+  phed: require("@/assets/billers/phed.png"),
+};
 
-export const BILLERS: Biller[] = [
-  {
-    id: "mtn", name: "MTN", category: "data", image: require("@/assets/billers/mtn.png"), bg: "#ffcb05", fg: "#1a1a1a", field: "phone",
-    plans: [
-      d("mtn-110mb", "110MB · 1 day", 100, "daily"),
-      d("mtn-1gb-d", "1GB · 1 day", 350, "daily"),
-      d("mtn-1gb", "1GB · 7 days", 800, "weekly"),
-      d("mtn-3gb-w", "3.5GB · 7 days", 1_500, "weekly"),
-      d("mtn-10gb", "10GB · 30 days", 3_500, "monthly"),
-      d("mtn-20gb", "20GB · 30 days", 5_500, "monthly"),
-      d("mtn-40gb", "40GB · 30 days", 11_000, "monthly"),
-    ],
-  },
-  {
-    id: "airtel", name: "Airtel", category: "airtime", image: require("@/assets/billers/airtel.png"), bg: "#e40000", fg: "#fff", field: "phone",
-    plans: [d("airtel-200mb", "200MB · 1 day", 200, "daily"), d("airtel-1gb-d", "1GB · 1 day", 350, "daily"), d("airtel-1gb", "1.5GB · 7 days", 1_000, "weekly"), d("airtel-6gb", "6GB · 7 days", 2_500, "weekly"), d("airtel-10gb", "10GB · 30 days", 3_000, "monthly"), d("airtel-25gb", "25GB · 30 days", 8_000, "monthly")],
-  },
-  {
-    id: "glo", name: "Glo", category: "data", image: require("@/assets/billers/glo.png"), bg: "#50b748", fg: "#fff", field: "phone",
-    plans: [d("glo-1gb-d", "1GB · 1 day", 300, "daily"), d("glo-2gb-w", "2.5GB · 7 days", 1_000, "weekly"), d("glo-5gb", "5.8GB · 30 days", 2_000, "monthly"), d("glo-18gb", "18GB · 30 days", 5_000, "monthly")],
-  },
-  {
-    id: "9mobile", name: "9mobile", category: "airtime", image: require("@/assets/billers/9mobile.png"), bg: "#006b3f", fg: "#fff", field: "phone",
-    plans: [d("9m-650mb", "650MB · 1 day", 200, "daily"), d("9m-2gb", "2GB · 7 days", 1_000, "weekly"), d("9m-4gb", "4.5GB · 30 days", 2_000, "monthly"), d("9m-11gb", "11GB · 30 days", 4_000, "monthly")],
-  },
-  {
-    id: "dstv", name: "DStv", category: "tv", image: require("@/assets/billers/dstv.jpg"), bg: "#00a2e5", fg: "#fff", field: "smartcard",
-    plans: [
-      { id: "dstv-padi", name: "Padi", price: 3_600 },
-      { id: "dstv-yanga", name: "Yanga", price: 5_100 },
-      { id: "dstv-confam", name: "Confam", price: 9_300 },
-      { id: "dstv-compact", name: "Compact", price: 15_700 },
-      { id: "dstv-premium", name: "Premium", price: 37_000 },
-    ],
-  },
-  {
-    id: "gotv", name: "GOtv", category: "tv", image: require("@/assets/billers/gotv.jpg"), bg: "#f2f2f2", fg: "#d6001c", field: "smartcard",
-    plans: [
-      { id: "gotv-smallie", name: "Smallie", price: 1_900 },
-      { id: "gotv-jinja", name: "Jinja", price: 3_900 },
-      { id: "gotv-jolli", name: "Jolli", price: 5_800 },
-      { id: "gotv-max", name: "Max", price: 7_200 },
-      { id: "gotv-supa", name: "Supa", price: 9_600 },
-    ],
-  },
-  { id: "phed", name: "PHED", category: "electricity", image: require("@/assets/billers/phed.png"), bg: "#1f4fa3", fg: "#fff", field: "meter" },
-];
+const toBiller = (r: BillerResource): Biller => ({
+  id: r.id,
+  name: r.name,
+  category: r.category,
+  field: r.field,
+  image: BILLER_ART[r.id],
+  bg: r.background || "#3b2a52",
+  fg: r.foreground || "#fff",
+  plans: r.plans?.map((p) => ({ id: p.id, name: p.name, price: Number(p.price) || 0, period: p.period })),
+});
+
+/** Every enabled biller, in the API's order. */
+export const allBillers = (list = useCatalogStore.getState().billers) => list.filter((b) => b.enabled !== false).map(toBiller);
+
+/** A stand-in while the catalogue loads (a stale deep link, a receipt for a retired biller). */
+const unknownBiller = (id: string): Biller => ({ id, name: id ? id.toUpperCase() : "Bill", category: "airtime", field: "phone", bg: "#3b2a52", fg: "#fff", image: BILLER_ART[id] });
+
+export function billerById(id: string): Biller {
+  const r = useCatalogStore.getState().billers.find((b) => b.id === id);
+  return r ? toBiller(r) : unknownBiller(id);
+}
 
 /** The first four digits of a Nigerian mobile number → its network (numbers can be ported: always overridable). */
 const NETWORK_PREFIXES: Record<string, string[]> = {
@@ -85,8 +71,6 @@ export function detectNetwork(phone: string): string | null {
   return Object.keys(NETWORK_PREFIXES).find((k) => NETWORK_PREFIXES[k].includes(prefix)) ?? null;
 }
 
-export const billerById = (id: string) => BILLERS.find((b) => b.id === id) ?? BILLERS[0];
-
 export type GiftBrand = {
   id: string;
   name: string;
@@ -94,32 +78,59 @@ export type GiftBrand = {
   fg: string;
   mark?: ImageSourcePropType;
   wordmark?: string;
-  /** illustrative ₦ paid per $1 when selling */
+  /** ₦ paid per $1 when selling */
   sellRate: number;
+  /** what buying adds on top of the face value (0.015 = 1.5%) */
+  markup: number;
+  minUsd: number;
+  maxUsd: number;
 };
 
 // Marks generated from simple-icons (CC0); Xbox and Amazon aren't in it → wordmarks.
-export const GIFT_BRANDS: GiftBrand[] = [
-  { id: "steam", name: "Steam", bg: "#0b0b0d", fg: "#fff", mark: require("@/assets/gift-marks/steam.png"), sellRate: 1_210 },
-  { id: "apple", name: "Apple", bg: "#1d1d1f", fg: "#fff", mark: require("@/assets/gift-marks/apple.png"), sellRate: 1_240 },
-  { id: "playstation", name: "PlayStation", bg: "#0a5fc2", fg: "#fff", mark: require("@/assets/gift-marks/playstation.png"), sellRate: 1_160 },
-  { id: "amazon", name: "Amazon", bg: "#232f3e", fg: "#ff9900", wordmark: "amazon", sellRate: 1_180 },
-  { id: "spotify", name: "Spotify", bg: "#1ed760", fg: "#0b0b0d", mark: require("@/assets/gift-marks/spotify.png"), sellRate: 1_020 },
-  { id: "netflix", name: "Netflix", bg: "#141414", fg: "#e50914", mark: require("@/assets/gift-marks/netflix.png"), sellRate: 1_050 },
-  { id: "xbox", name: "Xbox", bg: "#107c10", fg: "#fff", wordmark: "XBOX", sellRate: 1_130 },
-  { id: "googleplay", name: "Google Play", bg: "#f4f4f4", fg: "#1f1f1f", mark: require("@/assets/gift-marks/googleplay.png"), sellRate: 1_000 },
-  { id: "ebay", name: "eBay", bg: "#e0433a", fg: "#fff", mark: require("@/assets/gift-marks/ebay.png"), sellRate: 1_090 },
-  { id: "nike", name: "Nike", bg: "#111111", fg: "#fff", mark: require("@/assets/gift-marks/nike.png"), sellRate: 1_070 },
-  { id: "roblox", name: "Roblox", bg: "#000000", fg: "#fff", mark: require("@/assets/gift-marks/roblox.png"), sellRate: 1_100 },
-  { id: "target", name: "Target", bg: "#cc0000", fg: "#fff", mark: require("@/assets/gift-marks/target.png"), sellRate: 1_040 },
-];
+const BRAND_ART: Record<string, { mark?: ImageSourcePropType; wordmark?: string }> = {
+  steam: { mark: require("@/assets/gift-marks/steam.png") },
+  apple: { mark: require("@/assets/gift-marks/apple.png") },
+  playstation: { mark: require("@/assets/gift-marks/playstation.png") },
+  amazon: { wordmark: "amazon" },
+  spotify: { mark: require("@/assets/gift-marks/spotify.png") },
+  netflix: { mark: require("@/assets/gift-marks/netflix.png") },
+  xbox: { wordmark: "XBOX" },
+  googleplay: { mark: require("@/assets/gift-marks/googleplay.png") },
+  ebay: { mark: require("@/assets/gift-marks/ebay.png") },
+  nike: { mark: require("@/assets/gift-marks/nike.png") },
+  roblox: { mark: require("@/assets/gift-marks/roblox.png") },
+  target: { mark: require("@/assets/gift-marks/target.png") },
+};
 
-export const giftBrandById = (id: string) => GIFT_BRANDS.find((b) => b.id === id) ?? GIFT_BRANDS[0];
-export const GIFT_CARD_BUY_MARKUP = 0.015;
-export const GIFT_AMOUNTS = [10, 25, 50, 100, 200];
+const toBrand = (r: GiftBrandResource): GiftBrand => {
+  const art = BRAND_ART[r.id] ?? { wordmark: r.name };
+  return {
+    id: r.id,
+    name: r.name,
+    bg: r.background || "#111",
+    fg: r.foreground || "#fff",
+    ...art,
+    sellRate: Number(r.sell_rate_ngn) || 0,
+    markup: (Number(r.buy_markup_percent) || 0) / 100,
+    minUsd: r.minimum_usd || 5,
+    maxUsd: r.maximum_usd || 500,
+  };
+};
 
-/** What selling a card pays, in any currency: the ₦/$ rate, then converted at the quote window's (illustrative) rate. */
-export function giftSellPayout(usd: number, brand: GiftBrand, code: AssetCode, tick = quoteTick()) {
+export const allGiftBrands = (list = useCatalogStore.getState().brands) => list.filter((b) => b.enabled !== false).map(toBrand);
+
+export function giftBrandById(id: string, loadedAt?: number): GiftBrand {
+  void loadedAt;
+  const r = useCatalogStore.getState().brands.find((b) => b.id === id);
+  return r ? toBrand(r) : { id, name: id || "Gift card", bg: "#111", fg: "#fff", ...(BRAND_ART[id] ?? { wordmark: id }), sellRate: 0, markup: 0, minUsd: 5, maxUsd: 500 };
+}
+
+/** Quick picks, inside the brand's limits. */
+export const giftAmounts = (brand: GiftBrand) => [10, 25, 50, 100, 200].filter((v) => v >= brand.minUsd && v <= brand.maxUsd);
+
+/** What selling a card pays, in any currency: the ₦/$ rate, then converted at live rates (estimate). */
+export function giftSellPayout(usd: number, brand: GiftBrand, code: AssetCode, version?: number) {
+  void version;
   const ngn = usd * brand.sellRate;
-  return code === "NGN" ? ngn : (ngn * liveUsd("NGN", tick)) / liveUsd(code, tick);
+  return code === "NGN" ? ngn : (ngn * usdRate("NGN")) / usdRate(code);
 }

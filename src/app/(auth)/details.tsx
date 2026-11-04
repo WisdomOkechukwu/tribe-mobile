@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { Button } from "@/components/button";
 import { CoinIcon } from "@/components/coin-icon";
@@ -8,7 +8,7 @@ import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
 import { Text } from "@/components/text";
 import { countryByIso, SIGNUP_COUNTRIES } from "@/data/countries";
-import { DEMO } from "@/data/seed";
+import { tagAvailable } from "@/api/auth";
 import { AuthShell } from "@/screens/auth/shell";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSignupStore } from "@/stores/use-signup-store";
@@ -32,13 +32,29 @@ export default function Details() {
   const dial = countryByIso(dialIso);
 
   const cleanTag = tag.toLowerCase().replace(/[^a-z0-9_.]/g, "");
-  const tagState = cleanTag.length === 0 ? "empty" : cleanTag.length < 3 ? "short" : (DEMO.takenTags as readonly string[]).includes(cleanTag) ? "taken" : "free";
+  // the API says whether a @tag is free (checked as you type, after a short pause)
+  const [checked, setChecked] = useState<{ tag: string; available: boolean | null }>({ tag: "", available: null });
+  useEffect(() => {
+    if (cleanTag.length < 3) return;
+    const controller = new AbortController();
+    const t = setTimeout(() => {
+      tagAvailable(cleanTag, controller.signal)
+        .then((available) => setChecked({ tag: cleanTag, available }))
+        .catch(() => setChecked({ tag: cleanTag, available: null }));
+    }, 350);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+  }, [cleanTag]);
+  const known = checked.tag === cleanTag ? checked.available : undefined;
+  const tagState = cleanTag.length === 0 ? "empty" : cleanTag.length < 3 ? "short" : known === undefined ? "checking" : known === false ? "taken" : known === null ? "unknown" : "free";
   const digits = phone.replace(/\D/g, "").replace(/^0/, "");
-  const phoneTaken = (DEMO.takenPhones as readonly string[]).includes(digits);
-  const phoneOk = digits.length === dial.digits && !phoneTaken;
+  const phoneOk = digits.length === dial.digits;
   const code = referral.trim().toUpperCase();
   const refState = code.length === 0 ? "empty" : REFERRAL.test(code) ? "ok" : "bad";
-  const valid = first.trim().length > 1 && last.trim().length > 1 && tagState === "free" && phoneOk && refState !== "bad";
+  // "unknown" (the check failed): let register decide, it re-checks the tag
+  const valid = first.trim().length > 1 && last.trim().length > 1 && (tagState === "free" || tagState === "unknown") && phoneOk && refState !== "bad";
 
   const pickDial = () =>
     overlay.select({
@@ -84,7 +100,19 @@ export default function Details() {
               @
             </Text>
           }
-          hint={tagState === "empty" ? "Friends pay you to your @tag, instantly and free." : tagState === "free" ? `@${cleanTag} is yours` : tagState === "taken" ? `@${cleanTag} is taken. Try another.` : "At least 3 characters"}
+          hint={
+            tagState === "empty"
+              ? "Friends pay you to your @tag, instantly and free."
+              : tagState === "free"
+                ? `@${cleanTag} is yours`
+                : tagState === "taken"
+                  ? `@${cleanTag} is taken. Try another.`
+                  : tagState === "checking"
+                    ? `Checking @${cleanTag}…`
+                    : tagState === "unknown"
+                      ? "We'll check it when you create your account."
+                      : "At least 3 characters"
+          }
           hintTone={tagState === "free" ? "success" : tagState === "taken" ? "danger" : "muted"}
         />
         <Field
@@ -102,8 +130,8 @@ export default function Details() {
               <Icon name="chevronDown" size={10} color={c.textMuted} weight="bold" />
             </Pressable>
           }
-          hint={phoneTaken ? "This number already has a Tribe account." : "We'll verify this number after sign-up."}
-          hintTone={phoneTaken ? "danger" : "muted"}
+          hint="We'll verify this number after sign-up."
+          hintTone="muted"
         />
         <Field
           value={referral}

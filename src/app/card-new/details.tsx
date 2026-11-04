@@ -13,7 +13,8 @@ import { KeypadDock } from "@/components/keypad-field";
 import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
-import { CARD_FEE_USD, CARD_MIN_TOPUP_USD, cardFundingFee, type CardNetwork } from "@/data/seed";
+import { CARD_FEE_USD, CARD_MIN_TOPUP_USD, cardCreateTotal, cardFundingFee, type CardNetwork } from "@/data/seed";
+import { exceeds } from "@/utils/decimal";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
@@ -22,7 +23,8 @@ import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { parseFinish } from "@/utils/card-finish";
 import { formatAsset } from "@/utils/format";
-import { liveUsd, useQuoteTick } from "@/utils/rates";
+import { useLiveRates } from "@/api/live-rates";
+import { Skeleton } from "@/components/skeletons";
 
 const NAMES = ["Everyday", "Subscriptions", "Shopping", "Travel", "Education"];
 const TOPUPS = ["10", "25", "50", "100"];
@@ -51,6 +53,7 @@ export default function CardCreateDetails() {
   const user = useSessionStore((s) => s.user);
   const count = useCardsStore((s) => s.cards.length);
   const balances = useWalletStore((s) => s.balances);
+  const balancesRaw = useWalletStore((s) => s.balancesRaw);
   const opened = useWalletStore((s) => s.opened);
   const begin = useFlowStore((s) => s.begin);
   const [label, setLabel] = useState(count ? "Subscriptions" : "Everyday");
@@ -59,14 +62,18 @@ export default function CardCreateDetails() {
   const [typing, setTyping] = useState(false);
 
   const usd = Number(amount) || 0;
-  const tick = useQuoteTick();
+  // live rates while this screen is open (the estimate re-prices as they move)
+  const rates = useLiveRates();
   const fundingFee = cardFundingFee(usd);
-  const total = usd + CARD_FEE_USD + fundingFee;
-  const cost = total / liveUsd(from, tick);
-  const over = cost > balances[from] + 1e-9;
+  const total = cardCreateTotal(usd);
+  // the server's rate for `from` (never a stored price): until it arrives, no estimate and no Review
+  const priced = from === "USD" || rates.has(from);
+  const cost = from === "USD" ? total : total / rates.usd(from);
+  // estimate in another currency (the API converts at its rate), exact in USD
+  const over = from === "USD" ? exceeds(total, balancesRaw.USD ?? "0") : priced && cost > balances[from];
   const short = usd < CARD_MIN_TOPUP_USD;
   const name = label.trim();
-  const rate = from === "USD" ? null : `$1 = ${formatAsset(1 / liveUsd(from, tick), from)}`;
+  const rate = from === "USD" || !priced ? null : `$1 = ${formatAsset(1 / rates.usd(from), from)}`;
 
   const pickFrom = () =>
     overlay.select({
@@ -87,8 +94,8 @@ export default function CardCreateDetails() {
           {typing && <KeypadDock label="First top-up" onKey={(d) => setAmount((v) => pushDigit(v, d, 0))} onDelete={() => setAmount((v) => v.slice(0, -1))} onDone={() => setTyping(false)} />}
           <Button
             colors={over || short ? undefined : { bg: tint.accent, fg: tint.accentFg }}
-            title={short ? `Add at least $${CARD_MIN_TOPUP_USD} to continue` : over ? `Not enough in your ${assetByCode(from).name} wallet` : `Review · ${formatAsset(cost, from)}`}
-            disabled={!name || over || short}
+            title={short ? `Add at least $${CARD_MIN_TOPUP_USD} to continue` : !priced ? "Getting the latest rate…" : over ? `Not enough in your ${assetByCode(from).name} wallet` : `Review · ${formatAsset(cost, from)}`}
+            disabled={!name || over || short || !priced}
             onPress={() => {
               begin({ kind: "card-create", label: name, theme, network, usd, from });
               router.push("/card-new/review");
@@ -234,9 +241,13 @@ export default function CardCreateDetails() {
               <Text variant="caption" tone="muted">
                 From your {assetByCode(from).name} wallet
               </Text>
-              <Text variant="title" style={{ color: over ? c.danger : c.text }}>
-                {formatAsset(cost, from)}
-              </Text>
+              {priced ? (
+                <Text variant="title" style={{ color: over ? c.danger : c.text }}>
+                  {formatAsset(cost, from)}
+                </Text>
+              ) : (
+                <Skeleton width={110} height={22} style={{ marginVertical: 2 }} />
+              )}
             </View>
             <View style={{ alignItems: "flex-end", gap: spacing.xxs }}>
               <Text variant="caption" tone="muted">

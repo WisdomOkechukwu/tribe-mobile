@@ -11,7 +11,7 @@ import { Button } from "@/components/button";
 import { Glyph, type GlyphName } from "@/components/glyphs";
 import { Icon, type IconName } from "@/components/icon";
 import { Text } from "@/components/text";
-import { findTribeUser } from "@/data/contacts";
+import { lookupTag } from "@/api/actions";
 import { useSendDraft } from "@/stores/use-send-draft";
 import { useSessionStore } from "@/stores/use-session-store";
 import { palette, radius, spacing, useColors } from "@/theme";
@@ -100,7 +100,11 @@ export default function Scan() {
   const goSend = (tag: string) => {
     const d = useSendDraft.getState();
     d.start({ scope: "local", asset: "NGN", country: "NG" });
-    d.setRecipient({ kind: "tribe", name: findTribeUser(tag)?.name ?? `@${tag}`, handle: `@${tag}` });
+    // name from the API when it answers quickly; the @tag is enough to send
+    d.setRecipient({ kind: "tribe", name: `@${tag}`, handle: `@${tag}` });
+    lookupTag(tag)
+      .then((u) => useSendDraft.getState().recipient?.handle === `@${tag}` && d.setRecipient({ kind: "tribe", name: u.name, handle: `@${tag}` }))
+      .catch(() => {});
     router.replace("/send/amount");
   };
 

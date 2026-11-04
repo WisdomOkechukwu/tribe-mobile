@@ -32,9 +32,9 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Cards</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: "creditcard", selected: "creditcard.fill" }} md="credit_card" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="me">
-        <NativeTabs.Trigger.Label>Me</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }} md="account_circle" />
+      <NativeTabs.Trigger name="history">
+        <NativeTabs.Trigger.Label>History</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: "clock.arrow.circlepath", selected: "clock.arrow.circlepath" }} md="history" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

@@ -1,15 +1,11 @@
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { ApiError, errorMessage } from "@/api/http";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button } from "@/components/button";
-import { PasswordField } from "@/components/password-field";
 import { NumberPad, PinCells } from "@/components/pin-pad";
-import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
-import { overlay } from "@/stores/use-overlay-store";
-import { useSessionStore } from "@/stores/use-session-store";
 import { toast } from "@/stores/use-ui-store";
 import { spacing, useColors } from "@/theme";
 
@@ -17,24 +13,15 @@ type Step = "current" | "new" | "confirm";
 
 const WEAK = /^(\d)\1+$|^(?:1234|123456|0000|000000|4321|654321)$/;
 
-/** Password check in a sheet — the way back in when you've forgotten a PIN. */
-function PasswordSheet({ close, onOk }: { close: (after?: () => void) => void; onOk: () => void }) {
-  const check = useSessionStore((s) => s.checkPassword);
-  const [pw, setPw] = useState("");
-  const [bad, setBad] = useState(false);
-  return (
-    <View style={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.md, gap: spacing.md }}>
-      <PasswordField value={pw} onChangeText={(v) => (setPw(v), setBad(false))} placeholder="Your password" autoFocus hint={bad ? "That password isn't right." : undefined} hintTone="danger" />
-      <Button title="Continue" disabled={!pw} onPress={() => (check(pw) ? close(onOk) : setBad(true))} />
-    </View>
-  );
-}
-
 /**
- * current → new → confirm on the brand pad, for either PIN (transaction: 4, lock: 6).
- * Forgot the current one? The password gets you to "new". No current PIN yet → starts at "new".
+ * current → new → confirm on the brand pad. The API checks the current PIN when the new one is
+ * saved (`onSave(current, next)`), so a wrong current PIN comes back from the server and the flow
+ * starts over at "current". No PIN yet (`hasPin` false) → starts at "new".
  */
-export function PinChangeFlow({ length, current, onSave }: { length: number; current: string | null; onSave: (pin: string) => void }) {
+export function PinChangeFlow({ length, hasPin, onSave }: { length: number; hasPin: boolean; onSave: (current: string | null, next: string) => Promise<void> }) {
+  const current = hasPin ? "set" : null;
+  const [typedCurrent, setTypedCurrent] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>(current ? "current" : "new");
@@ -62,11 +49,11 @@ export function PinChangeFlow({ length, current, onSave }: { length: number; cur
         }, 700);
       };
       if (step === "current") {
-        if (value !== current) return fail(`That's not your current ${name}`);
+        setTypedCurrent(value);
         setStep("new");
         setValue("");
       } else if (step === "new") {
-        if (value === current) return fail("Pick a PIN you haven't used");
+        if (value === typedCurrent) return fail("Pick a PIN you haven't used");
         if (WEAK.test(value)) return fail("Too easy to guess. Try another.");
         setFresh(value);
         setStep("confirm");
@@ -74,25 +61,18 @@ export function PinChangeFlow({ length, current, onSave }: { length: number; cur
         toast("Enter your PIN again", "success");
       } else {
         if (value !== fresh) return fail("PINs didn't match. Start again.", "new");
-        onSave(value);
+        setBusy(true);
+        onSave(typedCurrent, value)
+          .catch((e) => {
+            const wrongCurrent = e instanceof ApiError && (e.code === "WRONG_PIN" || !!e.field("current_pin"));
+            const weak = e instanceof ApiError ? e.field("new_pin") : undefined;
+            fail(wrongCurrent ? `That's not your current ${name}` : (weak ?? errorMessage(e)), wrongCurrent && current ? "current" : "new");
+          })
+          .finally(() => setBusy(false));
       }
     }, 140);
     return () => clearTimeout(t);
-  }, [value, step, current, fresh, length, name, onSave]);
-
-  const forgot = () =>
-    overlay.sheet({
-      title: `Forgot your ${name}?`,
-      content: (close) => (
-        <PasswordSheet
-          close={close}
-          onOk={() => {
-            setStep("new");
-            setValue("");
-          }}
-        />
-      ),
-    });
+  }, [value, step, current, fresh, typedCurrent, length, name, onSave]);
 
   const s = copy[step];
   return (
@@ -112,19 +92,26 @@ export function PinChangeFlow({ length, current, onSave }: { length: number; cur
       </View>
       <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
         <PinCells length={length} value={value} error={!!error} />
-        <Text variant="subhead" tone={error ? "danger" : "muted"} align="center" style={{ minHeight: 18 }}>
-          {error ?? " "}
-        </Text>
-        {step === "current" && (
-          <PressableScale onPress={forgot} hitSlop={10} accessibilityRole="button" style={{ alignSelf: "center" }}>
+        {busy ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, minHeight: 18 }}>
+            <ActivityIndicator size="small" color={c.brandText} />
             <Text variant="subhead" tone="brand">
-              Forgot it? Use your password
+              Saving…
             </Text>
-          </PressableScale>
+          </View>
+        ) : (
+          <Text variant="subhead" tone={error ? "danger" : "muted"} align="center" style={{ minHeight: 18 }}>
+            {error ?? " "}
+          </Text>
+        )}
+        {step === "current" && (
+          <Text variant="caption" tone="muted" align="center">
+            Forgot it? Contact support to reset your PIN.
+          </Text>
         )}
       </View>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
-        <NumberPad onKey={(d) => setValue((v) => (v.length < length ? v + d : v))} onDelete={() => setValue((v) => v.slice(0, -1))} />
+        <NumberPad onKey={(d) => !busy && setValue((v) => (v.length < length ? v + d : v))} onDelete={() => setValue((v) => v.slice(0, -1))} />
       </View>
     </View>
   );

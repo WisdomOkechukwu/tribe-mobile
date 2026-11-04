@@ -1,13 +1,18 @@
-import { liveUsd, quoteTick } from "@/utils/rates";
-import { assetByCode, NGN_PER_USD, SWAP_FEE, type AssetCode } from "@/data/assets";
+import { ngnPerUsd, usdRate } from "@/utils/rates";
+import { assetByCode, SWAP_FEE, type AssetCode } from "@/data/assets";
 
 export type DisplayCurrency = "USD" | "NGN";
 
-/** Value of `amount` units of `code` in the display currency. */
-export function toDisplay(amount: number, code: AssetCode, display: DisplayCurrency) {
-  const usd = amount * assetByCode(code).usd;
-  return display === "USD" ? usd : usd * NGN_PER_USD;
+/** Value of `amount` units of `code` in the display currency, at live rates (display only); NaN until the server's rates arrive. */
+/** `version` (from useLiveRates / useRatesVersion) only tells the React Compiler the value changed with the rates. */
+export function toDisplay(amount: number, code: AssetCode, display: DisplayCurrency, version?: number) {
+  void version;
+  const usd = amount * usdRate(code, version);
+  return display === "USD" ? usd : usd * ngnPerUsd(version);
 }
+
+/** A USD figure in the display currency. */
+export const usdToDisplay = (usd: number, display: DisplayCurrency, version?: number) => (display === "USD" ? usd : usd * ngnPerUsd(version));
 
 /**
  * Display-currency money. Dollars always show cents; Naira shows kobo below ₦1,000 and whole
@@ -28,6 +33,8 @@ const SHORT_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "sh
 const FULL_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function formatMoney(value: number, display: DisplayCurrency, opts: { compact?: boolean; sign?: boolean; exact?: boolean } = {}) {
+  // no server rate yet (NaN): never print a made-up number
+  if (!Number.isFinite(value)) return "—";
   const symbol = display === "USD" ? "$" : "₦";
   const abs = Math.abs(value);
   const decimals = display === "USD" || abs < 1000 || opts.exact ? 2 : 0;
@@ -41,6 +48,7 @@ export function formatMoney(value: number, display: DisplayCurrency, opts: { com
 
 /** Native units, e.g. "0.0142 BTC", "₦308,654.50". */
 export function formatAsset(amount: number, code: AssetCode, opts: { sign?: "+" | "−" } = {}) {
+  if (!Number.isFinite(amount)) return "—";
   const a = assetByCode(code);
   const d = amount >= 1000 ? Math.min(a.decimals, 2) : a.decimals;
   const num = fmtNumber(amount, Math.min(a.kind === "fiat" ? 2 : 0, d), d);
@@ -55,20 +63,26 @@ export function rateLine(from: AssetCode, to: AssetCode, paid: number, received:
   return r >= 1 ? `${unit(from)} = ${formatAsset(r, to)}` : `${unit(to)} = ${formatAsset(1 / r, from)}`;
 }
 
-/** `tick` = the quote window; pass `useQuoteTick()`'s value from screens so they re-price on time. */
-export function quote(amount: number, from: AssetCode, to: AssetCode, tick = quoteTick()) {
+/**
+ * An ESTIMATE at live mid rates, for amount screens. The binding price (with the API's margin and
+ * fee) comes from POST quotes on the review screen. `rate`/`receive` are NaN until the server's
+ * rates for both assets arrive (check `rateReady`).
+ */
+export function quote(amount: number, from: AssetCode, to: AssetCode, version?: number) {
+  void version;
   const fee = amount * SWAP_FEE;
-  // live (demo) prices — the swap screen's countdown refreshes them
-  const rate = liveUsd(from, tick) / liveUsd(to, tick);
-  return { fee, rate, receive: Math.max(0, (amount - fee) * rate) };
+  const rate = usdRate(from, version) / usdRate(to, version);
+  return { fee, rate, receive: Number.isFinite(rate) ? Math.max(0, (amount - fee) * rate) : NaN };
 }
 
 /**
  * `quote` run backwards: what to pay in `from` so the recipient gets exactly `receive` of `to`.
  * Rounded up to `from`'s smallest unit, so they never get a little less than asked.
  */
-export function quoteFor(receive: number, from: AssetCode, to: AssetCode, tick = quoteTick()) {
-  const rate = liveUsd(from, tick) / liveUsd(to, tick);
+export function quoteFor(receive: number, from: AssetCode, to: AssetCode, version?: number) {
+  void version;
+  const rate = usdRate(from, version) / usdRate(to, version);
+  if (!Number.isFinite(rate)) return { amount: NaN, fee: NaN, rate };
   const unit = 10 ** assetByCode(from).decimals;
   const amount = Math.ceil((receive / (rate * (1 - SWAP_FEE))) * unit - 1e-6) / unit;
   return { amount: Math.max(0, amount), fee: amount * SWAP_FEE, rate };

@@ -11,9 +11,24 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
 import type { CardPattern, CardTheme } from "@/data/seed";
-import { CARD_PATTERNS, CARD_SWATCHES, CUSTOM_SHADES, palette, radius, spacing, useColors, type CustomShade } from "@/theme";
-import { colourName, customFinish } from "@/utils/card-finish";
+import { useCardDesigns } from "@/api/queries";
+import { CUSTOM_SHADES, palette, radius, spacing, useColors, type CustomShade } from "@/theme";
+import { availableDesigns, colourName, customFinish, type AvailableDesigns, type PatternOption, type SwatchOption } from "@/utils/card-finish";
 import { hexToHsl, hslToHex } from "@/utils/color";
+
+/**
+ * The designs the admin has turned on (GET card-designs, kept in the catalog store). Mounting it
+ * refetches a stale copy, so admin changes show up when a picker opens. `loading` is true only
+ * on a first load with nothing cached; until then (or if it fails) the app's own lists stand in.
+ */
+export function useDesignCatalog() {
+  const q = useCardDesigns();
+  const avail: AvailableDesigns = availableDesigns(q.data);
+  return { avail, loading: q.data === undefined && q.isLoading, refetch: q.refetch };
+}
+
+/** "That card design is not available." from the API: the picker is out of date. */
+export const isDesignRejected = (e: unknown) => !!(e && typeof e === "object" && "fieldErrors" in e && (e as { fieldErrors?: Record<string, string[]> }).fieldErrors?.design_finish?.length);
 
 /** A user-made finish while it's being designed. */
 export type CustomDesign = { hex: string; pattern: CardPattern; shade: CustomShade };
@@ -138,14 +153,14 @@ function HueSlider({ hue, shade, label, onPreview, onCommit }: { hue: number; sh
 }
 
 /** A preset finish as a round swatch (Finish step, Card design). */
-export function FinishSwatch({ theme, on, onPress }: { theme: CardTheme; on: boolean; onPress: () => void }) {
+export function FinishSwatch({ theme, name, on, onPress }: { theme: CardTheme; name?: string; on: boolean; onPress: () => void }) {
   const c = useColors();
   // unique per instance: on web every SVG shares one DOM
   const gid = `sw-${theme}-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const look = cardLook(theme);
   const [a, b] = look.swatch;
   return (
-    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${look.name} finish`} style={{ width: 38, height: 38, borderRadius: 19, padding: 3, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
+    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${name ?? look.name} finish`} style={{ width: 38, height: 38, borderRadius: 19, padding: 3, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
       <Svg width={28} height={28}>
         <Defs>
           <LinearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
@@ -165,14 +180,15 @@ export function FinishSwatch({ theme, on, onPress }: { theme: CardTheme; on: boo
 }
 
 /**
- * Every pattern as a mini card in the colours you've picked, in one swipeable row. Used for the
- * presets and for "Make your own". `bleed` lets the row run to the edges of a padded parent.
+ * The offered patterns as mini cards in the colours you've picked, in one swipeable row (admin
+ * order and names). Used for the presets and for "Make your own". `bleed` lets the row run to
+ * the edges of a padded parent. A value that isn't offered any more simply shows unselected.
  */
-export function PatternStrip({ value, finishFor, onChange, bleed = 0 }: { value: CardPattern; finishFor: (p: CardPattern) => string; onChange: (p: CardPattern) => void; bleed?: number }) {
+export function PatternStrip({ patterns, value, finishFor, onChange, bleed = 0 }: { patterns: PatternOption[]; value: CardPattern; finishFor: (p: CardPattern) => string; onChange: (p: CardPattern) => void; bleed?: number }) {
   const c = useColors();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} style={{ marginHorizontal: -bleed }} contentContainerStyle={{ paddingHorizontal: bleed, gap: spacing.sm }}>
-      {CARD_PATTERNS.map((p) => {
+      {patterns.map((p) => {
         const on = p.id === value;
         return (
           <PressableScale
@@ -183,20 +199,26 @@ export function PatternStrip({ value, finishFor, onChange, bleed = 0 }: { value:
             }}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={`${p.label} pattern`}
+            accessibilityLabel={`${p.name} pattern`}
             style={{ alignItems: "center", gap: spacing.xs }}
           >
             <View style={{ padding: 3, borderRadius: radius.xs + 3, borderWidth: 2, borderColor: on ? c.brand : "transparent" }}>
               <CardThumb theme={finishFor(p.id)} width={84} />
             </View>
             <Text variant="caption" tone={on ? "text" : "muted"} style={on ? { fontFamily: "Poppins_600SemiBold" } : undefined}>
-              {p.label}
+              {p.name}
             </Text>
           </PressableScale>
         );
       })}
     </ScrollView>
   );
+}
+
+function rowsOf<T>(list: T[], n: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < list.length; i += n) rows.push(list.slice(i, i + n));
+  return rows;
 }
 
 function ColourDot({ hex, name, on, onPress }: { hex: string; name: string; on: boolean; onPress: () => void }) {
@@ -209,11 +231,11 @@ function ColourDot({ hex, name, on, onPress }: { hex: string; name: string; on: 
 }
 
 /**
- * "Make your own": twelve curated colours, any hue from the slider (as a pastel, a full colour or
- * a deep one), and every pattern. Swatch, shade and pattern taps commit at once; the slider
+ * "Make your own": the admin's ready-made colours, any hue from the slider (as a pastel, a full
+ * colour or a deep one), and the offered patterns. Swatch, shade and pattern taps commit at once; the slider
  * previews while you drag (`onPreview`) and commits when you let go.
  */
-export function CardDesigner({ design, width, onChange, onPreview }: { design: CustomDesign; width: number; onChange: (d: CustomDesign) => void; onPreview: (hex: string | null) => void }) {
+export function CardDesigner({ design, width, swatches, patterns, onChange, onPreview }: { design: CustomDesign; width: number; swatches: SwatchOption[]; patterns: PatternOption[]; onChange: (d: CustomDesign) => void; onPreview: (hex: string | null) => void }) {
   const c = useColors();
   const hue = hexToHsl(design.hex).h;
   const pick = (next: Partial<CustomDesign>) => {
@@ -223,19 +245,24 @@ export function CardDesigner({ design, width, onChange, onPreview }: { design: C
 
   return (
     <View style={{ width, alignSelf: "center", backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
-      <View style={{ gap: spacing.sm }}>
-        <Text variant="subhead" tone="muted">
-          Colour
-        </Text>
-        {/* two even rows of six */}
-        {[CARD_SWATCHES.slice(0, 6), CARD_SWATCHES.slice(6)].map((row) => (
-          <View key={row[0].hex} style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            {row.map((s) => (
-              <ColourDot key={s.hex} hex={s.hex} name={s.name} on={s.hex === design.hex} onPress={() => pick({ hex: s.hex })} />
-            ))}
-          </View>
-        ))}
-      </View>
+      {swatches.length > 0 && (
+        <View style={{ gap: spacing.sm }}>
+          <Text variant="subhead" tone="muted">
+            Colour
+          </Text>
+          {/* even rows of six (a short last row keeps the grid with spacers) */}
+          {rowsOf(swatches, 6).map((row) => (
+            <View key={row[0].hex} style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              {row.map((s) => (
+                <ColourDot key={s.hex} hex={s.hex} name={s.name} on={s.hex.toUpperCase() === design.hex.toUpperCase()} onPress={() => pick({ hex: s.hex })} />
+              ))}
+              {Array.from({ length: 6 - row.length }, (_, i) => (
+                <View key={`gap-${i}`} style={{ width: 40 }} />
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={{ gap: spacing.sm }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -258,7 +285,7 @@ export function CardDesigner({ design, width, onChange, onPreview }: { design: C
         <Text variant="subhead" tone="muted">
           Pattern
         </Text>
-        <PatternStrip value={design.pattern} finishFor={(p) => customFinish(design.hex, p)} onChange={(pattern) => pick({ pattern })} bleed={spacing.md} />
+        <PatternStrip patterns={patterns} value={design.pattern} finishFor={(p) => customFinish(design.hex, p)} onChange={(pattern) => pick({ pattern })} bleed={spacing.md} />
       </View>
     </View>
   );
