@@ -9,8 +9,6 @@ import { PrivacyGuard } from "@/components/privacy-guard";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { useCardsStore } from "@/stores/use-cards-store";
-import { revealCard } from "@/api/actions";
-import { askForPin } from "@/screens/cards/pin-sheet";
 import { spacing } from "@/theme";
 import { openCardCreation } from "@/utils/verification";
 
@@ -24,9 +22,7 @@ export default function CardDetails() {
   // only a bare /cards/details falls back to the first card: a stale id must never show another card's number
   const card = useCardsStore((s) => (id ? s.cards.find((k) => k.id === id) : s.cards[0]));
   const hasCards = useCardsStore((s) => s.cards.length > 0);
-  // the full number and CVV, fetched with the PIN and kept only while this screen is open
-  const [secret, setSecret] = useState<{ id: string; number: string; cvv: string } | null>(null);
-  const shown = !!secret && secret.id === card?.id;
+  const [shown, setShown] = useState(false);
   const tint = useCardPalette(card?.theme ?? "midnight");
 
   if (!card && hasCards) return <EmptyState icon="card" title="This card no longer exists" body="It may have been deleted. Your other cards are on the Cards tab." />;
@@ -39,14 +35,9 @@ export default function CardDetails() {
       <Stack.Screen options={{ headerStyle: { backgroundColor: tint.page }, contentStyle: { backgroundColor: tint.page } }} />
       <PrivacyGuard />
       <View style={{ alignItems: "center" }}>
-        <VirtualCardFace card={shown ? { ...card, number: secret.number.replace(/(.{4})(?=.)/g, "$1 "), cvv: secret.cvv } : card} revealed={shown} width={width - spacing.md * 2} />
+        <VirtualCardFace card={card} revealed={shown} width={width - spacing.md * 2} />
       </View>
-      <Button title={shown ? "Hide details" : "Show card number & CVV"} icon={shown ? "eyeOff" : "eye"} size="md" colors={{ bg: tint.accent, fg: tint.accentFg }} onPress={() =>
-          shown
-            ? setSecret(null)
-            : askForPin({ title: "Show card details", work: (pin) => revealCard(card.id, pin), onDone: (r) => setSecret({ id: card.id, number: r.number, cvv: r.cvv }) })
-        }
-      />
+      <Button title={shown ? "Hide details" : "Show card number & CVV"} icon={shown ? "eyeOff" : "eye"} size="md" colors={{ bg: tint.accent, fg: tint.accentFg }} onPress={() => setShown((v) => !v)} />
 
       <ListSection title="Card details" inset={spacing.md}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, padding: spacing.md }}>
@@ -59,8 +50,8 @@ export default function CardDetails() {
           </View>
         </View>
         <CopyField tint={copyTint} label="Card name" value={card.holder} />
-        <CopyField tint={copyTint} label="Card number" value={shown ? secret.number.replace(/(.{4})(?=.)/g, "$1 ") : `•••• •••• •••• ${card.last4}`} copyValue={shown ? secret.number : undefined} mono />
-        <CopyField tint={copyTint} label="CVV" value={shown ? secret.cvv : "•••"} copyValue={shown ? secret.cvv : undefined} mono />
+        <CopyField tint={copyTint} label="Card number" value={shown ? card.number : `•••• •••• •••• ${card.last4}`} copyValue={card.number.replace(/\s/g, "")} mono />
+        <CopyField tint={copyTint} label="CVV" value={shown ? card.cvv : "•••"} copyValue={card.cvv} mono />
         <CopyField tint={copyTint} label="Expiry date" value={card.expiry} />
         <CopyField tint={copyTint} label="Card type" value={`${card.network === "visa" ? "Visa" : "Mastercard"} · Virtual · USD`} />
       </ListSection>

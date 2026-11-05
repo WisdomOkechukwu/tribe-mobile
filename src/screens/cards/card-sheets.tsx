@@ -8,8 +8,7 @@ import { VirtualCardFace } from "@/components/card-face";
 import { Icon, type IconName } from "@/components/icon";
 import { Text } from "@/components/text";
 import type { VirtualCard } from "@/data/seed";
-import { setCardFrozen } from "@/api/actions";
-import { errorMessage } from "@/api/http";
+import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { toast } from "@/stores/use-ui-store";
@@ -76,12 +75,9 @@ function FreezeSheet({ card, close }: { card: VirtualCard; close: Close }) {
   const frozen = card.frozen;
   const confirm = () =>
     close(() => {
-      setCardFrozen(card, !frozen)
-        .then(() => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          toast(frozen ? `${card.label} is active again` : `${card.label} is frozen`, "success");
-        })
-        .catch((e) => toast(errorMessage(e), "danger"));
+      useCardsStore.getState().toggleFreeze(card.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      toast(frozen ? `${card.label} is active again` : `${card.label} is frozen`, "success");
     });
   return (
     <CardSheet

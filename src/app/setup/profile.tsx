@@ -11,9 +11,7 @@ import { BandSkip, OnboardingShell } from "@/screens/onboarding/shell";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
-import { runWithLoader, toast } from "@/stores/use-ui-store";
-import { applyForGlobalAccounts } from "@/api/auth";
-import { errorMessage } from "@/api/http";
+import { toast, withLoader } from "@/stores/use-ui-store";
 import { radius, spacing, useColors } from "@/theme";
 
 const INCOME = ["Salary", "Business income", "Freelance or creator work", "Investments", "Friends and family", "Student allowance", "Pension", "Other"];
@@ -71,16 +69,12 @@ export default function KnowYou() {
           title="Submit for review"
           disabled={!complete}
           onPress={async () => {
-            const all = { ...answers, address: address.trim() };
-            try {
-              await runWithLoader("Submitting your request…", applyForGlobalAccounts(all as Record<string, string>));
-              set({ answers: all });
+            await withLoader("Submitting your request…", () => {
+              set({ answers: { ...answers, address: address.trim() } });
               requestGlobal();
-              toast("Submitted. We'll let you know when your accounts are ready.", "success");
-              continueSetup();
-            } catch (e) {
-              toast(errorMessage(e), "danger");
-            }
+            });
+            toast("Submitted. We'll let you know when your accounts are ready.", "success");
+            continueSetup();
           }}
         />
         </>

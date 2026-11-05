@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Keyboard } from "react-native";
 import { create } from "zustand";
 import type { IconName } from "@/components/icon";
 
@@ -33,11 +32,7 @@ export const useOverlayStore = create<OverlayState>()((set) => ({
 }));
 
 type WithoutMeta<T> = T extends Overlay ? Omit<T, "id" | "kind"> : never;
-/** a picker or sheet over a text field shouldn't sit under (or behind) the keyboard */
-const open = (o: Overlay) => {
-  Keyboard.dismiss();
-  useOverlayStore.getState().open(o);
-};
+const open = (o: Overlay) => useOverlayStore.getState().open(o);
 
 export const overlay = {
   select: (o: WithoutMeta<Extract<Overlay, { kind: "select" }>>) => open({ ...o, id: Date.now(), kind: "select" }),

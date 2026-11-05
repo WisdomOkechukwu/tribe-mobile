@@ -15,7 +15,7 @@ import { useInbox, useTransactions } from "@/api/queries";
 import { Loaded, SkeletonList } from "@/components/skeletons";
 import type { ReactNode } from "react";
 import type { InboxItem, InboxKind } from "@/data/inbox";
-import { markAllInboxRead, markInboxRead } from "@/api/actions";
+import { useInboxStore } from "@/stores/use-inbox-store";
 import { palette, radius, spacing, useColors, type ThemeColors } from "@/theme";
 import { relativeDate } from "@/utils/format";
 
@@ -37,13 +37,6 @@ const KIND_BADGE: Partial<Record<InboxKind, IconName>> = { vault: "bolt", securi
 
 const SIZE = 44;
 
-/** Each tier's mark: sparkles (you're in), flame (heating up), crown (top tier). */
-const TIER_LOOK: Record<number, { icon: IconName; bg: string; fg: string }> = {
-  1: { icon: "sparkles", bg: palette.purple[500], fg: palette.white },
-  2: { icon: "flame", bg: palette.orange[500], fg: palette.white },
-  3: { icon: "crown", bg: palette.warning[500], fg: palette.purple[900] },
-};
-
 /** Older notifications only carry a link; the transaction id is in it. */
 const txIdOf = (n: InboxItem) => n.txId ?? n.href?.match(/^\/transaction\/(.+)$/)?.[1];
 
@@ -59,23 +52,6 @@ function Leading({ n }: { n: InboxItem }) {
   const tx = useTransactions().data?.find((t) => t.id === id);
   const k = KIND[n.kind];
   const badge = n.badge ?? KIND_BADGE[n.kind];
-
-  // a verification decision: each tier has its own mark (sparkles, flame, crown) on its own colour;
-  // approved gets a tick, a rejection shows the same mark in red with a warning
-  if (n.tier) {
-    const ok = n.tier.approved;
-    const look = TIER_LOOK[n.tier.level] ?? TIER_LOOK[1];
-    return (
-      <View style={{ width: SIZE + 12, height: SIZE, alignItems: "center", justifyContent: "center" }}>
-        <View style={{ width: SIZE - 4, height: SIZE - 4, borderRadius: (SIZE - 4) / 2, backgroundColor: ok ? look.bg : c.dangerSoft, alignItems: "center", justifyContent: "center", transform: [{ rotate: ok ? "-8deg" : "0deg" }] }}>
-          <Icon name={look.icon} size={19} color={ok ? look.fg : c.danger} />
-        </View>
-        <View style={{ position: "absolute", right: 2, bottom: -2, width: 20, height: 20, borderRadius: 10, backgroundColor: ok ? c.success : c.danger, borderWidth: 2, borderColor: c.surface, alignItems: "center", justifyContent: "center" }}>
-          <Icon name={ok ? "check" : "warning"} size={9} color={palette.white} weight="bold" />
-        </View>
-      </View>
-    );
-  }
 
   let art: ReactNode;
   if (tx) art = <TxLeading tx={tx} />;
@@ -114,7 +90,7 @@ function Leading({ n }: { n: InboxItem }) {
 
 function Row({ n }: { n: InboxItem }) {
   const c = useColors();
-  const markRead = markInboxRead;
+  const markRead = useInboxStore((s) => s.markRead);
   return (
     <Pressable
       onPress={() => {
@@ -153,7 +129,7 @@ export default function Notifications() {
   const c = useColors();
   const inbox = useInbox();
   const items = inbox.data ?? [];
-  const markAllRead = markAllInboxRead;
+  const markAllRead = useInboxStore((s) => s.markAllRead);
   const unread = items.filter((n) => !n.read).length;
 
   const groups = groupByDay(items);

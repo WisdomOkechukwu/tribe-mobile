@@ -1,5 +1,4 @@
-import { ASSETS, type AssetCode } from "./assets";
-import { useCatalogStore } from "@/stores/use-catalog-store";
+import type { AssetCode } from "./assets";
 
 /**
  * How money leaves Tribe for someone outside it (Send - Global currencies.png "Select channel").
@@ -160,32 +159,8 @@ export const CHANNELS: Channel[] = [
   },
 ];
 
-/**
- * Send channels come from the API (GET channels: name, ETA, fee, currencies), kept in the catalog
- * store. The app bundles each channel's form (the fields above), matched by id; a channel the app
- * has no form for gets the generic bank form.
- */
-const GENERIC: FieldSpec[] = [NAME, { key: "account", label: "Account number", kind: "code", range: [6, 34], placeholder: "Account number / IBAN" }, { key: "bank", label: "Bank name", placeholder: "Bank name" }];
-
-function merged(): Channel[] {
-  const server = useCatalogStore.getState().channels;
-  if (!server.length) return CHANNELS;
-  return server.map((r) => {
-    const local = CHANNELS.find((ch) => ch.id === r.id);
-    return {
-      id: r.id,
-      name: r.name,
-      blurb: local?.blurb ?? r.eta,
-      eta: r.eta,
-      feeUsd: Number(r.fee_usd) || 0,
-      currencies: r.currencies.filter((c): c is AssetCode => ASSETS.some((a) => a.code === c)),
-      fields: local?.fields ?? GENERIC,
-    };
-  });
-}
-
-export const channelsFor = (code: AssetCode, loadedAt?: number) => (void loadedAt, merged()).filter((ch) => ch.currencies.includes(code));
-export const channelById = (id?: string, loadedAt?: number) => (void loadedAt, merged()).find((ch) => ch.id === id);
+export const channelsFor = (code: AssetCode) => CHANNELS.filter((ch) => ch.currencies.includes(code));
+export const channelById = (id?: string) => CHANNELS.find((ch) => ch.id === id);
 
 /** Is one field's value complete? */
 export function fieldOk(f: FieldSpec, raw = "") {

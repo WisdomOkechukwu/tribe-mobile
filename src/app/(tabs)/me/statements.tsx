@@ -12,13 +12,9 @@ import { Text } from "@/components/text";
 import { ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSessionStore } from "@/stores/use-session-store";
-import { runWithLoader, toast } from "@/stores/use-ui-store";
-import { requestStatement } from "@/api/actions";
-import { errorMessage } from "@/api/http";
+import { toast, withLoader } from "@/stores/use-ui-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing } from "@/theme";
-
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 type Period = "last-month" | "3m" | "6m" | "year" | "custom";
 const PERIODS: Period[] = ["last-month", "3m", "6m", "year", "custom"];
@@ -37,12 +33,12 @@ function presetRange(p: Exclude<Period, "custom">): [Date, Date] {
 
 /**
  * Statements: pick the account, then the period (a preset or your own dates on our calendar),
- * and the API emails it as a PDF to the address on the account (POST statements, queued).
+ * and we email it as a PDF to the address on the account (mock).
  */
 export default function Statements() {
   const chipText = useChipText();
   const opened = useWalletStore((s) => s.opened);
-  const email = useSessionStore((s) => s.user.email);
+  const email = useSessionStore((s) => s.account?.email ?? s.user.email);
   const accounts = ASSETS_FIAT_FIRST.filter((x) => opened.includes(x.code));
   const [code, setCode] = useState<AssetCode>(accounts[0]?.code ?? "NGN");
   const [period, setPeriod] = useState<Period>("last-month");
@@ -71,11 +67,7 @@ export default function Statements() {
       title: "Email your statement?",
       body: `Your ${a.code} statement for ${span} goes to ${email} as a PDF. It usually arrives within a few minutes.`,
       confirmLabel: "Send to my email",
-      // the API queues it (202) and the worker emails the PDF
-      onConfirm: () =>
-        void runWithLoader("Preparing your statement…", requestStatement({ asset: code, from: ymd(range[0]), to: ymd(range[1]) }))
-          .then(() => toast(`On its way to ${email}`, "success"))
-          .catch((e) => toast(errorMessage(e), "danger")),
+      onConfirm: () => withLoader("Preparing your statement…", () => toast(`Statement sent to ${email}`, "success")),
     });
   };
 

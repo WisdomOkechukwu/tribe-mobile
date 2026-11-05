@@ -2,12 +2,12 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
-import { useWindowDimensions, View } from "react-native";
-import Animated from "react-native-reanimated";
+import { ScrollView, useWindowDimensions, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Icon } from "@/components/icon";
 import { KeyboardFrame } from "@/components/keyboard-frame";
 import { PressableScale } from "@/components/pressable-scale";
-import { BAR_ROW, StickyBandBar, useBandScroll } from "@/components/sticky-band-bar";
 import { Stripes } from "@/components/stripes";
 import { Text } from "@/components/text";
 import { palette, radius, spacing, useColors } from "@/theme";
@@ -66,7 +66,6 @@ export function AuthShell({
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { y, onScroll } = useBandScroll();
   const { height } = useWindowDimensions();
   const label = step ? `Step ${step.at} of ${step.of}` : kicker;
 
@@ -76,8 +75,16 @@ export function AuthShell({
       <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "34%", overflow: "hidden" }}>
         <Stripes band={14} gap={18} colors={[palette.orange[500], palette.purple[500]]} opacity={0.9} />
       </View>
-      {/* the back button and the Tribe mark live in the sticky bar (below); this row keeps their space */}
-      <View style={{ minHeight: BAR_ROW }} />
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 }}>
+        {back ? (
+          <PressableScale accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : null)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="back" size={17} color="#fff" />
+          </PressableScale>
+        ) : (
+          <MarkDisc />
+        )}
+        {back && <MarkDisc />}
+      </View>
       <View style={{ gap: spacing.smd }}>
         {(label || step) && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
@@ -102,34 +109,32 @@ export function AuthShell({
   );
 
   const sheet = (
-    <View style={{ marginTop: -OVERLAP, flexGrow: 1, flexShrink: scroll ? 0 : 1, backgroundColor: c.bg, borderTopLeftRadius: radius.panel, borderTopRightRadius: radius.panel, borderCurve: "continuous", padding: spacing.mdl, paddingTop: spacing.lg, gap: spacing.lg }}>
+    <Animated.View entering={FadeInDown.springify().damping(18)} style={{ marginTop: -OVERLAP, flexGrow: 1, flexShrink: scroll ? 0 : 1, backgroundColor: c.bg, borderTopLeftRadius: radius.panel, borderTopRightRadius: radius.panel, borderCurve: "continuous", padding: spacing.mdl, paddingTop: spacing.lg, gap: spacing.lg }}>
       {subtitle && (
         <Text variant="body" tone="muted">
           {subtitle}
         </Text>
       )}
       {children}
-    </View>
+    </Animated.View>
   );
 
   return (
     <KeyboardFrame backgroundColor={c.bg}>
       <StatusBar style="light" />
-      <View style={{ flex: 1 }}>
-        {scroll ? (
-          <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-            {top}
-            {sheet}
-          </Animated.ScrollView>
-        ) : (
-          <View style={{ flex: 1 }}>
-            {top}
-            {sheet}
-          </View>
-        )}
-        {/* pinned: stays put while the band and sheet scroll under it */}
-        <StickyBandBar y={y} color={BAND} onBack={back ? () => (router.canGoBack() ? router.back() : null) : undefined} leading={<MarkDisc />} right={back ? <MarkDisc /> : undefined} />
-      </View>
+      {scroll ? (
+        <ScrollView showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
+          {/* pull-down bounce shows purple, not a light gap above the band */}
+          <View style={{ position: "absolute", top: -1000, left: 0, right: 0, height: 1000, backgroundColor: BAND }} />
+          {top}
+          {sheet}
+        </ScrollView>
+      ) : (
+        <View style={{ flex: 1 }}>
+          {top}
+          {sheet}
+        </View>
+      )}
       {footer && <View style={{ backgroundColor: c.bg, paddingHorizontal: spacing.mdl, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom, spacing.md), gap: spacing.sm }}>{footer}</View>}
     </KeyboardFrame>
   );

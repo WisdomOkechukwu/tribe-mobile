@@ -10,14 +10,12 @@ import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import type { VirtualCard } from "@/data/seed";
 import { useCardsStore } from "@/stores/use-cards-store";
+import { useInboxStore } from "@/stores/use-inbox-store";
 import { overlay } from "@/stores/use-overlay-store";
-import { runWithLoader, toast } from "@/stores/use-ui-store";
-import { setCardInWallet } from "@/api/actions";
-import { errorMessage } from "@/api/http";
+import { toast, withLoader } from "@/stores/use-ui-store";
 import { radius, spacing, useColors } from "@/theme";
 import { PAY } from "@/utils/pay-platform";
 import { openCardCreation } from "@/utils/verification";
-import { useCards } from "@/api/queries";
 
 const HOW: [IconName, string][] =
   PAY.id === "apple"
@@ -37,10 +35,10 @@ function addToWallet(card: VirtualCard) {
     toast("Unfreeze it first", "danger");
     return;
   }
-  // simulated wallet provisioning; the "in wallet" flag is saved on the card (PATCH cards/:id)
-  runWithLoader(`Adding to ${PAY.name}…`, setCardInWallet(card, true))
-    .then(() => toast(`${card.label} added to ${PAY.name}`, "success"))
-    .catch((e) => toast(errorMessage(e), "danger"));
+  withLoader(`Adding to ${PAY.name}…`, () => useCardsStore.getState().addToWallet(card.id), 1100).then(() => {
+    toast(`${card.label} added to ${PAY.name}`, "success");
+    useInboxStore.getState().push({ kind: "card", title: `Added to ${PAY.name}`, body: `${card.label} •• ${card.last4} is ready to tap and pay.`, href: "/cards", badge: "check" });
+  });
 }
 
 function manage(card: VirtualCard, isDefault: boolean) {
@@ -66,9 +64,8 @@ function manage(card: VirtualCard, isDefault: boolean) {
         cancelLabel: "Keep it",
         destructive: true,
         onConfirm: () => {
-          setCardInWallet(card, false)
-            .then(() => toast(`Removed from ${PAY.name}`))
-            .catch((e) => toast(errorMessage(e), "danger"));
+          useCardsStore.getState().removeFromWallet(card.id);
+          toast(`Removed from ${PAY.name}`);
         },
       });
     },
@@ -85,8 +82,6 @@ export default function WalletPayments() {
   const c = useColors();
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  // cards aren't kept on the device: make sure they're loaded (the store fills from this)
-  useCards();
   const cards = useCardsStore((s) => s.cards);
   const walletDefault = useCardsStore((s) => s.walletDefault);
   const focus = cards.find((k) => k.id === id) ?? cards[0];

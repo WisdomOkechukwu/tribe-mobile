@@ -10,7 +10,7 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { assetByCode } from "@/data/assets";
 import { COUNTRIES, REGIONS, type Country } from "@/data/countries";
-import { useBeneficiaries } from "@/api/queries";
+import { useBeneficiariesStore } from "@/stores/use-beneficiaries-store";
 import { useSendDraft } from "@/stores/use-send-draft";
 import { radius, spacing, useColors } from "@/theme";
 
@@ -32,7 +32,7 @@ function CodePill({ code }: { code: string }) {
 export default function SendGlobal() {
   const c = useColors();
   const start = useSendDraft((s) => s.start);
-  const beneficiaries = useBeneficiaries().data ?? [];
+  const beneficiaries = useBeneficiariesStore((s) => s.items);
   const [q, setQ] = useState("");
   const term = q.trim().toLowerCase();
   const all = COUNTRIES.filter((k) => k.iso !== "NG");

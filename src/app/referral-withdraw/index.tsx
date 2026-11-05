@@ -16,10 +16,7 @@ import { useReferralStore } from "@/stores/use-referral-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { palette, radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
-import { usdRate } from "@/utils/rates";
-import { useLiveRates } from "@/api/live-rates";
-import { useReferrals } from "@/api/queries";
-import { exceeds } from "@/utils/decimal";
+import { liveUsd } from "@/utils/rates";
 
 /**
  * Withdraw referral earnings into ANY currency: Naira, dollars, pounds, euros or crypto.
@@ -27,29 +24,23 @@ import { exceeds } from "@/utils/decimal";
  */
 export default function ReferralWithdraw() {
   const c = useColors();
-  // the balance comes from the API (never kept on the device): "—" until it's loaded
-  const loaded = !!useReferrals().data;
-  const { version, has } = useLiveRates();
   const balance = useReferralStore((s) => s.balance);
-  const balanceRaw = useReferralStore((s) => s.balanceRaw);
   const balances = useWalletStore((s) => s.balances);
   const begin = useFlowStore((s) => s.begin);
   const [to, setTo] = useState<AssetCode>("NGN");
   const [amount, setAmount] = useState("");
   const value = Number(amount) || 0;
   const a = assetByCode(to);
-  // the server's rates for NGN and the target: until they arrive, "—" and Continue waits
-  const priced = to === "NGN" || has(["NGN", to]);
-  const received = to === "NGN" ? value : (value * usdRate("NGN", version)) / usdRate(to, version);
-  const over = loaded && exceeds(amount || "0", balanceRaw);
+  const received = (value * liveUsd("NGN")) / liveUsd(to);
+  const over = value > balance + 1e-9;
   const under = value > 0 && value < REFERRAL.minWithdrawNgn;
-  const rate = to === "NGN" ? "No conversion" : !priced ? "Getting the latest rate…" : usdRate(to) > usdRate("NGN") ? `1 ${to} = ${formatAsset(usdRate(to) / usdRate("NGN"), "NGN")}` : `₦1 = ${formatAsset(usdRate("NGN") / usdRate(to), to)}`;
+  const rate = to === "NGN" ? "No conversion" : liveUsd(to) > liveUsd("NGN") ? `1 ${to} = ${formatAsset(liveUsd(to) / liveUsd("NGN"), "NGN")}` : `₦1 = ${formatAsset(liveUsd("NGN") / liveUsd(to), to)}`;
 
   const from: Leg = {
     label: "From",
     title: "Referral balance",
     valueLabel: "Available",
-    value: loaded ? `₦${balance.toLocaleString()}` : "—",
+    value: `₦${balance.toLocaleString()}`,
     leading: (
       <View style={{ width: LEG_ICON, height: LEG_ICON, borderRadius: LEG_ICON / 2, backgroundColor: palette.orange[500], alignItems: "center", justifyContent: "center" }}>
         <Icon name="people" size={18} color="#fff" />
@@ -65,8 +56,8 @@ export default function ReferralWithdraw() {
       scroll={false}
       footer={
         <Button
-          title={value && !priced ? "Getting the latest rate…" : "Continue"}
-          disabled={!value || over || under || !loaded || !priced}
+          title="Continue"
+          disabled={!value || over || under}
           onPress={() => {
             begin({ kind: "referral-withdraw", amountNgn: value, to });
             router.push("/referral-withdraw/review");

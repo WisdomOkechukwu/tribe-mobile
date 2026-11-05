@@ -15,39 +15,34 @@ import { PressableScale } from "@/components/pressable-scale";
 import { PrivacyGuard } from "@/components/privacy-guard";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
-import type { Cashpoint as CashpointCode } from "@/api/client";
-import { cancelCashpoint } from "@/api/actions";
-import { errorMessage } from "@/api/http";
-import { useCashpoints } from "@/api/queries";
-import { exceeds } from "@/utils/decimal";
+import type { Transaction } from "@/data/seed";
 import { useFlowStore } from "@/stores/use-flow-store";
+import { useInboxStore } from "@/stores/use-inbox-store";
 import { overlay } from "@/stores/use-overlay-store";
-import { runWithLoader, toast } from "@/stores/use-ui-store";
+import { toast } from "@/stores/use-ui-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset, relativeDate } from "@/utils/format";
 
 type Mode = "generate" | "redeem";
+const REDEEM_DEMO_VALUE = 5_000;
 const fmt = (code?: string) => (code ?? "").replace(/\D/g, "").replace(/(.{4})(?=.)/g, "$1 ");
 
 /** Active (unredeemed) codes in our own sheet: share again or cancel for a refund. */
-function openActiveCodes(active: CashpointCode[]) {
+function openActiveCodes(active: Transaction[]) {
   overlay.sheet({ title: "Your active codes", content: (close) => <ActiveCodes items={active} close={close} /> });
 }
 
-function ActiveCodes({ items, close }: { items: CashpointCode[]; close: (after?: () => void) => void }) {
-  const cancel = (id: string) =>
-    runWithLoader("Cancelling your code…", cancelCashpoint(id))
-      .then(() => toast("Code cancelled · Naira refunded"))
-      .catch((e) => toast(errorMessage(e), "danger"));
+function ActiveCodes({ items, close }: { items: Transaction[]; close: (after?: () => void) => void }) {
+  const cancel = useWalletStore((s) => s.cancelCashpoint);
   if (!items.length) return <EmptyState icon="cashpoint" title="No active codes" body="Codes you generate wait here until someone redeems them." />;
   return (
     <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: spacing.mdl, paddingBottom: spacing.sm, gap: spacing.lg }} bounces={false}>
       {items.map((t) => (
         <View key={t.id} style={{ gap: spacing.sm }}>
-          <CashpointTicket amount={formatAsset(t.amount, "NGN")} code={t.code} note={`Made ${relativeDate(t.createdAt)} · waiting to be redeemed`} />
+          <CashpointTicket amount={formatAsset(t.amount, "NGN")} code={t.meta?.code} note={`Made ${relativeDate(t.date)} · waiting to be redeemed`} />
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <Button title="Share" icon="share" size="md" style={{ flex: 1 }} onPress={() => Share.share({ message: `Here's ${formatAsset(t.amount, "NGN")} on Tribe.\nCashpoint code: ${fmt(t.code)}\nRedeem it in the Tribe app — even if you're new.` })} />
+            <Button title="Share" icon="share" size="md" style={{ flex: 1 }} onPress={() => Share.share({ message: `Here's ${formatAsset(t.amount, "NGN")} on Tribe.\nCashpoint code: ${fmt(t.meta?.code)}\nRedeem it in the Tribe app — even if you're new.` })} />
             <Button
               title="Cancel code"
               variant="destructive"
@@ -62,7 +57,10 @@ function ActiveCodes({ items, close }: { items: CashpointCode[]; close: (after?:
                     confirmLabel: "Cancel code",
                     cancelLabel: "Keep it",
                     destructive: true,
-                    onConfirm: () => void cancel(t.id),
+                    onConfirm: () => {
+                      cancel(t.id);
+                      toast("Code cancelled · Naira refunded");
+                    },
                   }),
                 )
               }
@@ -123,20 +121,18 @@ export default function Cashpoint() {
   const c = useColors();
   const params = useLocalSearchParams<{ mode?: Mode }>();
   const ngn = useWalletStore((s) => s.balances.NGN);
-  const ngnRaw = useWalletStore((s) => s.balancesRaw.NGN ?? "0");
-  const cashpoints = useCashpoints();
+  const transactions = useWalletStore((s) => s.transactions);
+  const redeem = useWalletStore((s) => s.redeemCashpoint);
   const begin = useFlowStore((s) => s.begin);
-  const execute = useFlowStore((s) => s.execute);
-  const [redeeming, setRedeeming] = useState(false);
-  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const complete = useFlowStore((s) => s.complete);
   const [mode, setMode] = useState<Mode>(params.mode === "redeem" ? "redeem" : "generate");
   const [amount, setAmount] = useState("");
   const [code, setCode] = useState("");
 
   const value = Number(amount) || 0;
-  const over = exceeds(amount || "0", ngnRaw);
+  const over = value > ngn;
   const tooSmall = value > 0 && value < 500;
-  const active = (cashpoints.data ?? []).filter((k) => k.status === "active");
+  const active = transactions.filter((t) => t.type === "cashpoint" && t.direction === "out" && t.status === "pending");
   const full = code.length === 12;
 
   const paste = async () => {
@@ -169,22 +165,13 @@ export default function Cashpoint() {
           />
         ) : (
           <Button
-            title="Redeem"
+            title={full ? `Redeem ${formatAsset(REDEEM_DEMO_VALUE, "NGN")}` : "Redeem"}
             disabled={!full}
-            loading={redeeming}
-            onPress={async () => {
-              // no PIN: redeeming only adds money. The API locks the code so only one person gets it.
-              setRedeeming(true);
-              setRedeemError(null);
-              try {
-                begin({ kind: "cashpoint-redeem", code });
-                await execute();
-                router.push("/success");
-              } catch (e) {
-                setRedeemError(errorMessage(e));
-              } finally {
-                setRedeeming(false);
-              }
+            onPress={() => {
+              const tx = redeem(code, REDEEM_DEMO_VALUE);
+              useInboxStore.getState().push({ kind: "cashpoint", title: "Cashpoint redeemed", body: `${formatAsset(REDEEM_DEMO_VALUE, "NGN")} landed in your Naira balance.`, href: `/transaction/${tx.id}` });
+              complete({ tx, headline: "Cashpoint redeemed", detail: `${formatAsset(REDEEM_DEMO_VALUE, "NGN")} just landed in your Naira wallet.` });
+              router.push("/success");
             }}
           />
         )
@@ -233,12 +220,12 @@ export default function Cashpoint() {
               </Text>
             </View>
           </View>
-          <CodeField code={code} onPaste={paste} onClear={() => (setCode(""), setRedeemError(null))} />
-          <Text variant="subhead" tone={redeemError ? "danger" : full ? "success" : "muted"} align="center">
-            {redeemError ?? (full ? "All 12 digits in · tap Redeem" : `${12 - code.length} digit${12 - code.length === 1 ? "" : "s"} to go`)}
+          <CodeField code={code} onPaste={paste} onClear={() => setCode("")} />
+          <Text variant="subhead" tone={full ? "success" : "muted"} align="center">
+            {full ? `Valid code · ${formatAsset(REDEEM_DEMO_VALUE, "NGN")}` : `${12 - code.length} digit${12 - code.length === 1 ? "" : "s"} to go`}
           </Text>
           <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: spacing.xs }}>
-            <NumberPad onKey={(d) => (setRedeemError(null), setCode((v) => (v.length < 12 ? v + d : v)))} onDelete={() => setCode((v) => v.slice(0, -1))} />
+            <NumberPad onKey={(d) => setCode((v) => (v.length < 12 ? v + d : v))} onDelete={() => setCode((v) => v.slice(0, -1))} />
           </View>
         </Animated.View>
       )}

@@ -8,8 +8,7 @@ import { Icon } from "@/components/icon";
 import { ListRow, ListSection } from "@/components/list";
 import { Text } from "@/components/text";
 import { assetByCode } from "@/data/assets";
-import { CARD_FEE_USD, cardCreateTotal, cardFundingFee } from "@/data/seed";
-import { useLiveRates } from "@/api/live-rates";
+import { CARD_FEE_USD, cardFundingFee } from "@/data/seed";
 import { ReviewScreen, ReviewTicket, useKeptPending } from "@/screens/review";
 import { type PendingAction } from "@/stores/use-flow-store";
 import { useSessionStore } from "@/stores/use-session-store";
@@ -35,12 +34,9 @@ function CardReview({ action: a }: { action: Extract<PendingAction, { kind: "car
   const user = useSessionStore((s) => s.user);
 
   const fundingFee = cardFundingFee(a.usd);
-  const total = cardCreateTotal(a.usd);
+  const total = a.usd + CARD_FEE_USD + fundingFee;
   const from = assetByCode(a.from);
-  const { usd: usdOf, has } = useLiveRates();
-  // the server's rate for the paying wallet: until it arrives the estimate shows "—" and Create waits
-  const priced = a.from === "USD" || has(a.from);
-  const cost = a.from === "USD" ? total : total / usdOf(a.from);
+  const cost = total / from.usd;
   const network = a.network === "visa" ? "Visa" : "Mastercard";
 
   return (
@@ -48,7 +44,7 @@ function CardReview({ action: a }: { action: Extract<PendingAction, { kind: "car
       title="Review"
       cancel="back"
       tint={tint.page}
-      footer={<Button colors={priced ? { bg: tint.accent, fg: tint.accentFg } : undefined} icon="lock" title={priced ? `Create card · ${usd(total)}` : "Getting the latest rate…"} disabled={!priced} onPress={() => router.push("/pin")} />}
+      footer={<Button colors={{ bg: tint.accent, fg: tint.accentFg }} icon="lock" title={`Create card · ${usd(total)}`} onPress={() => router.push("/pin")} />}
     >
       <FlowProgress steps={CARD_STEPS} at={3} color={tint.accent} />
 
@@ -98,7 +94,7 @@ function CardReview({ action: a }: { action: Extract<PendingAction, { kind: "car
           // the wallet that pays at the back, the new card in front
           leading={<CardPairIcon theme={a.theme} network={a.network} asset={a.from} size={42} />}
           title={`${from.name} wallet`}
-          subtitle={a.from === "USD" ? "No conversion" : priced ? `$1 ≈ ${formatAsset(1 / usdOf(a.from), a.from)}` : "Getting the latest rate…"}
+          subtitle={a.from === "USD" ? "No conversion" : `$1 = ${formatAsset(1 / from.usd, a.from)}`}
           value={formatAsset(cost, a.from)}
         />
       </ListSection>

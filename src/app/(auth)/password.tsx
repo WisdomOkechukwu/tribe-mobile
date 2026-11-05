@@ -6,11 +6,10 @@ import { PasswordField } from "@/components/password-field";
 import { PasswordRules } from "@/components/password-rules";
 import { passwordOk } from "@/data/security";
 import { AuthShell } from "@/screens/auth/shell";
-import { register, resetPassword } from "@/api/auth";
-import { ApiError, errorMessage } from "@/api/http";
-import { Note } from "@/components/bits";
-import { useIsOnline } from "@/services/network";
+import { startNewAccount } from "@/stores/reset";
+import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
+import { withLoader } from "@/stores/use-ui-store";
 import { spacing } from "@/theme";
 
 /**
@@ -20,10 +19,8 @@ import { spacing } from "@/theme";
 export default function Password() {
   const { mode = "signup", email = "" } = useLocalSearchParams<{ mode?: "signup" | "reset"; email?: string }>();
   const draft = useSignupStore((s) => s.draft);
-  const token = useSignupStore((s) => s.verificationToken);
-  const online = useIsOnline();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const createAccount = useSessionStore((s) => s.createAccount);
+  const resetPassword = useSessionStore((s) => s.resetPassword);
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   const [strict, setStrict] = useState(false);
@@ -33,26 +30,17 @@ export default function Password() {
   const submit = async () => {
     if (!passwordOk(pw)) return setStrict(true);
     if (pw !== confirm) return;
-    if (!token) return setError("Your email check expired. Go back and enter a new code.");
-    setBusy(true);
-    setError(null);
-    try {
-      if (reset) {
-        await resetPassword(email, token, pw);
-        router.replace("/password-done");
-        return;
-      }
-      await register(draft, pw, token);
-      useSignupStore.getState().set({ verificationToken: null, debugCode: null });
-      // signed in now: the route guard moves on to "pick your world"
-    } catch (e) {
-      // a taken @tag / phone shows on the details step; anything else here
-      if (e instanceof ApiError && (e.field("tag") || e.field("phone") || e.field("first_name") || e.field("last_name"))) {
-        setError(e.field("tag") ?? e.field("phone") ?? e.field("first_name") ?? e.field("last_name") ?? null);
-      } else setError(e instanceof ApiError && e.field("password") ? e.field("password")! : errorMessage(e));
-    } finally {
-      setBusy(false);
+    if (reset) {
+      await withLoader("Updating your password…", () => resetPassword(email, pw));
+      router.replace("/password-done");
+      return;
     }
+    await withLoader("Creating your account…", () => {
+      // no virtual card yet: the Cards tab starts with the creation flow
+      startNewAccount();
+      createAccount({ email: draft.email, country: draft.country, password: pw, user: { firstName: draft.firstName, lastName: draft.lastName, tag: draft.tag, phone: draft.phone } });
+    });
+    // signed in now: the route guard moves on to "pick your world"
   };
 
   return (
@@ -62,11 +50,10 @@ export default function Password() {
       kicker={reset ? "Reset password" : undefined}
       headline={reset ? ["Set a new", "password."] : ["Set a strong", "password."]}
       subtitle={reset ? "Pick one you haven't used on Tribe before." : "Protect your account with a password only you know."}
-      footer={<Button title={!online ? "You're offline" : reset ? "Change password" : "Create account"} disabled={!pw || !confirm || mismatch || !online} loading={busy} onPress={submit} />}
+      footer={<Button title={reset ? "Change password" : "Create account"} disabled={!pw || !confirm || mismatch} onPress={submit} />}
     >
       <View style={{ gap: spacing.md }}>
-        {error && <Note icon="warning">{error}</Note>}
-        <PasswordField value={pw} onChangeText={setPw} placeholder={reset ? "New password" : "Password"} autoComplete="new-password" textContentType="newPassword" />
+        <PasswordField value={pw} onChangeText={setPw} placeholder={reset ? "New password" : "Password"} autoComplete="new-password" textContentType="newPassword" autoFocus />
         <PasswordRules value={pw} strict={strict} />
         <PasswordField
           value={confirm}

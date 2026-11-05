@@ -12,9 +12,7 @@ import { PressableScale } from "@/components/pressable-scale";
 import { ChipRow, useChipText } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { assetByCode } from "@/data/assets";
-import { openWallet } from "@/api/actions";
-import { errorMessage } from "@/api/http";
-import { toast } from "@/stores/use-ui-store";
+import { useInboxStore } from "@/stores/use-inbox-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
 import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
@@ -27,6 +25,7 @@ export default function OpenCurrency() {
   const chipText = useChipText();
   const { code } = useLocalSearchParams<{ code: string }>();
   const a = assetByCode(code);
+  const openAccount = useWalletStore((s) => s.openAccount);
   const isOpen = useWalletStore((s) => s.opened.includes(a.code));
   const [purpose, setPurpose] = useState(PURPOSES[0]);
   const [agreed, setAgreed] = useState(false);
@@ -49,13 +48,13 @@ export default function OpenCurrency() {
   const open = () => guardWalletOpen(openNow);
   const openNow = () => {
     setWorking(true);
-    openWallet(a.code)
-      .then(() => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        router.replace({ pathname: "/add-currency/done", params: { code: a.code } });
-      })
-      .catch((e) => toast(errorMessage(e), "danger"))
-      .finally(() => setWorking(false));
+    // Demo: a real build calls the partner bank / custody API here.
+    setTimeout(() => {
+      openAccount(a.code);
+      useInboxStore.getState().push({ kind: "money", title: `${a.code} account open`, body: `Your ${a.name} ${fiat ? "account details are" : "address is"} ready to share.`, href: `/asset/${a.code}`, asset: a.code, badge: "plus" });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.replace({ pathname: "/add-currency/done", params: { code: a.code } });
+    }, 1100);
   };
 
   return (

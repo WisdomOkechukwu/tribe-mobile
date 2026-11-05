@@ -19,7 +19,6 @@ import { guideSteps, type GuideKind } from "@/data/guides";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { toast } from "@/stores/use-ui-store";
 import { useAccounts, useTransactions } from "@/api/queries";
-import { useLiveRates } from "@/api/live-rates";
 import { Loaded, Skeleton, SkeletonList } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { formatAsset, formatMoney, toDisplay } from "@/utils/format";
@@ -162,11 +161,7 @@ export default function AssetDetail() {
   const hidden = usePrefsStore((s) => s.hideBalances);
   const txs = all.filter((t) => t.asset === a.code || t.toAsset === a.code);
   const crypto = a.kind === "crypto";
-  // live while this page is open
-  const rates = useLiveRates();
-  const change = rates.change(a.code);
-  const priced = rates.has(a.code);
-  const up = (change ?? 0) >= 0;
+  const up = a.change24h >= 0;
   const guideHidden = usePrefsStore((s) => s.dismissedPromos.includes(guideKey(a.code)));
   const restore = usePrefsStore((s) => s.restorePromo);
   const seeAll = () => router.push({ pathname: "/activity", params: { asset: a.code } }, { withAnchor: true });
@@ -187,21 +182,17 @@ export default function AssetDetail() {
           ) : (
             <Skeleton width={170} height={34} style={{ marginVertical: 4 }} />
           )}
-          {loaded && !hidden && (crypto || a.code !== display) && (rates.has([a.code, "NGN"]) ? (
+          {loaded && !hidden && (crypto || a.code !== display) && (
             <Text variant="subhead" tone="muted">
-              ≈ {formatMoney(toDisplay(balance, a.code, display, rates.version), display)}
+              ≈ {formatMoney(toDisplay(balance, a.code, display), display)}
             </Text>
-          ) : (
-            <Skeleton width={90} height={14} style={{ marginVertical: 3 }} />
-          ))}
-          {crypto && (priced && change !== undefined && rates.ready ? (
+          )}
+          {crypto && (
             <Text variant="subhead" style={{ color: up ? c.success : c.danger }}>
-              1 {a.code} = {formatMoney(toDisplay(1, a.code, display, rates.version), display)} · {up ? "+" : ""}
-              {change.toFixed(1)}% today
+              1 {a.code} = {formatMoney(toDisplay(1, a.code, display), display)} · {up ? "+" : ""}
+              {a.change24h.toFixed(1)}% today
             </Text>
-          ) : (
-            <Skeleton width={150} height={14} style={{ marginVertical: 3 }} />
-          ))}
+          )}
         </View>
 
         {!loaded ? (
