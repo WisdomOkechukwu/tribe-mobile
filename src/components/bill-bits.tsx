@@ -1,7 +1,5 @@
 import { Pressable, View } from "react-native";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
-import { usdRate } from "@/utils/rates";
-import { useRatesVersion } from "@/api/live-rates";
 import type { BillPlan, Biller } from "@/data/catalog";
 import { overlay } from "@/stores/use-overlay-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
@@ -32,8 +30,8 @@ export function billCategory(b: Biller, param?: string): BillCategory {
 /** Plans are only for data bundles and TV packages; airtime and electricity are amount-only. */
 export const showsPlans = (b: Biller, cat: BillCategory) => !!b.plans?.length && (cat === "data" || cat === "tv");
 
-/** What a ₦ bill costs in another wallet, at live rates (an estimate; the API prices it on payment). NaN until the server's rates arrive. */
-export const costIn = (amountNgn: number, code: AssetCode, version?: number) => (code === "NGN" ? amountNgn : (amountNgn * usdRate("NGN", version)) / usdRate(code, version));
+/** NGN → `code`, at the illustrative rate (bills are always priced in Naira). */
+export const costIn = (amountNgn: number, code: AssetCode) => (amountNgn * assetByCode("NGN").usd) / assetByCode(code).usd;
 
 /** Wallets that can pay: opened, with money in them, Naira first. */
 export function useFundedWallets() {
@@ -66,9 +64,7 @@ export function openWalletPicker({ value, amountNgn, onSelect }: { value: AssetC
 export function PayFromRow({ payWith, amountNgn, onPress }: { payWith: AssetCode; amountNgn: number; onPress: () => void }) {
   const c = useColors();
   const balance = useWalletStore((s) => s.balances[payWith]);
-  // re-price when the server's rates arrive or move
-  const v = useRatesVersion();
-  const cost = costIn(amountNgn, payWith, v);
+  const cost = costIn(amountNgn, payWith);
   const over = cost > balance;
   return (
     <View style={{ gap: spacing.sm }}>
@@ -93,7 +89,7 @@ export function PayFromRow({ payWith, amountNgn, onPress }: { payWith: AssetCode
       </Pressable>
       {amountNgn > 0 && payWith !== "NGN" && (
         <Text variant="caption" tone={over ? "danger" : "muted"} style={{ paddingHorizontal: spacing.xs }}>
-          {over ? `Not enough in your ${assetByCode(payWith).name} wallet` : Number.isFinite(cost) ? `You'll pay ${formatAsset(cost, payWith)} · no fee` : "Getting the latest rate…"}
+          {over ? `Not enough in your ${assetByCode(payWith).name} wallet` : `You'll pay ${formatAsset(cost, payWith)} · no fee`}
         </Text>
       )}
       {amountNgn > 0 && payWith === "NGN" && over && (

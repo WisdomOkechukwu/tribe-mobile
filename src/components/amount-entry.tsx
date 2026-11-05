@@ -33,7 +33,6 @@ export function AmountEntry({
   showDisplay = true,
   pad = true,
   compact = false,
-  keyHeight,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -49,8 +48,6 @@ export function AmountEntry({
   pad?: boolean;
   /** shorter keys, for short screens that also show cards above the pad (Send) */
   compact?: boolean;
-  /** Custom key height when the screen needs a size between compact and full. */
-  keyHeight?: number;
 }) {
   const c = useColors();
   return (
@@ -79,12 +76,11 @@ export function AmountEntry({
       {pad && (
       <NumberPad
         compact={compact}
-        keyHeight={keyHeight}
         onKey={(d) => onChange(pushDigit(value, d, decimals))}
         onDelete={() => onChange(value.slice(0, -1))}
         extra={
           decimals > 0 ? (
-            <PressableScale haptic={false} onPress={() => onChange(pushDigit(value, ".", decimals))} accessibilityLabel="Decimal point" style={{ width: 76, height: keyHeight ?? (compact ? 46 : 64), alignItems: "center", justifyContent: "center" }}>
+            <PressableScale haptic={false} onPress={() => onChange(pushDigit(value, ".", decimals))} accessibilityLabel="Decimal point" style={{ width: 76, height: compact ? 46 : 64, alignItems: "center", justifyContent: "center" }}>
               <Text variant="display" style={{ fontSize: 30 }}>
                 .
               </Text>

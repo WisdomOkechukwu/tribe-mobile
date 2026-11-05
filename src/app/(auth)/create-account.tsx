@@ -11,10 +11,9 @@ import { Text } from "@/components/text";
 import { countryByIso, SIGNUP_COUNTRIES } from "@/data/countries";
 import { AuthShell, SwitchLink } from "@/screens/auth/shell";
 import { overlay } from "@/stores/use-overlay-store";
+import { useSessionStore } from "@/stores/use-session-store";
 import { useSignupStore } from "@/stores/use-signup-store";
-import { checkEmail, sendEmailCode } from "@/api/auth";
-import { errorMessage } from "@/api/http";
-import { useIsOnline } from "@/services/network";
+import { withLoader } from "@/stores/use-ui-store";
 import { spacing, useColors } from "@/theme";
 import { isEmail } from "@/utils/hash";
 import { LEGAL_URL } from "@/data/links";
@@ -27,38 +26,26 @@ export default function CreateAccount() {
   const c = useColors();
   const draft = useSignupStore((s) => s.draft);
   const setDraft = useSignupStore((s) => s.setDraft);
-  const online = useIsOnline();
+  const exists = useSessionStore((s) => s.emailExists);
   const [email, setEmail] = useState(draft.email);
   const [iso, setIso] = useState(draft.country);
   const [taken, setTaken] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const country = iso ? countryByIso(iso) : null;
+  const country = countryByIso(iso);
 
   const pickCountry = () =>
     overlay.select({
       title: "Where do you live?",
       subtitle: "You'll verify with an ID from this country.",
-      value: iso || undefined,
+      value: iso,
       options: SIGNUP_COUNTRIES.map((k) => ({ value: k.iso, label: k.name, leading: <CoinIcon code={k.flag} size={34} /> })),
       onSelect: setIso,
     });
 
   const next = async () => {
-    const clean = email.trim().toLowerCase();
-    setBusy(true);
-    setError(null);
-    try {
-      if (!(await checkEmail(clean))) return setTaken(true);
-      setDraft({ email: clean, country: iso });
-      const { debugCode } = await sendEmailCode(clean, "signup");
-      useSignupStore.getState().set({ debugCode: debugCode ?? null, verificationToken: null });
-      router.push({ pathname: "/verify-email", params: { mode: "signup" } });
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
+    if (exists(email)) return setTaken(true);
+    setDraft({ email: email.trim().toLowerCase(), country: iso });
+    await withLoader("Sending your code…", () => {});
+    router.push({ pathname: "/verify-email", params: { mode: "signup" } });
   };
 
   return (
@@ -68,7 +55,7 @@ export default function CreateAccount() {
       subtitle="Crypto, global accounts, bills and cards in one app. Setting up takes about two minutes."
       footer={
         <>
-          <Button title={online ? "Continue" : "You're offline"} disabled={!isEmail(email) || !country || !online} loading={busy} onPress={next} />
+          <Button title="Continue" disabled={!isEmail(email)} onPress={next} />
           <SwitchLink prompt="Already on Tribe?" action="Sign in" onPress={() => router.replace("/sign-in")} />
         </>
       }
@@ -79,19 +66,19 @@ export default function CreateAccount() {
           onChangeText={(v) => {
             setEmail(v);
             setTaken(false);
-            setError(null);
           }}
           placeholder="Email address"
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
           textContentType="emailAddress"
+          autoFocus
           leading={<Icon name="envelope" size={16} color={c.textMuted} />}
-          hint={taken ? "This email already has a Tribe account. Sign in instead." : (error ?? undefined)}
+          hint={taken ? "This email already has a Tribe account. Sign in instead." : undefined}
           hintTone="danger"
         />
         <View style={{ gap: spacing.sm }}>
-          <Dropdown value={country?.name} placeholder="Select your country" leading={country ? <CoinIcon code={country.flag} size={28} /> : <Icon name="globe" size={18} color={c.textMuted} />} onPress={pickCountry} />
+          <Dropdown value={country.name} leading={<CoinIcon code={country.flag} size={28} />} onPress={pickCountry} />
           <Text variant="caption" tone="muted" style={{ paddingHorizontal: 4 }}>
             You&apos;ll verify with an ID document from this country.
           </Text>

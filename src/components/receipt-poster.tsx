@@ -88,8 +88,8 @@ export function ReceiptPoster({ tx, width }: { tx: Transaction; width: number })
   const money = headline(tx);
   return (
     <View style={{ backgroundColor: palette.purple[900], padding: spacing.mdl, paddingBottom: spacing.lg, gap: spacing.md, overflow: "hidden" }}>
-      <View pointerEvents="none" style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "30%", overflow: "hidden", opacity: 0.9 }}>
-        <Stripes band={14} gap={7} count={16} />
+      <View pointerEvents="none" style={{ position: "absolute", right: -24, top: -36, width: "48%", height: 170, overflow: "hidden", opacity: 0.9 }}>
+        <Stripes band={14} gap={7} count={10} />
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
         <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: palette.white, alignItems: "center", justifyContent: "center" }}>
@@ -217,16 +217,14 @@ export function ReceiptStub({ tx, colors: k, onCopy }: { tx: Transaction; colors
 
         {/* the foot: barcode from the reference, the reference itself, where it's from */}
         <View style={{ height: 1, borderTopWidth: 1.5, borderStyle: "dashed", borderColor: k.line, marginTop: spacing.xs }} />
-        <View style={{ gap: spacing.sm }}>
-          <View style={{ alignItems: "center" }}>
-            <Barcode value={tx.reference} color={k.ink} width={220} height={34} />
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontFamily: fonts.regular, fontSize: 10.5, color: k.muted }}>Reference</Text>
-              <Text selectable style={{ fontFamily: fonts.semibold, fontSize: 12.5, lineHeight: 17, letterSpacing: 0.8, color: k.ink }}>{tx.reference}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Barcode value={tx.reference} color={k.ink} />
+          <View style={{ flex: 1, alignItems: "flex-end", gap: 2 }}>
+            <Text style={{ fontFamily: fonts.regular, fontSize: 10.5, color: k.muted }}>Reference</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+              <Text selectable style={{ fontFamily: fonts.semibold, fontSize: 13, letterSpacing: 1.2, color: k.ink }}>{tx.reference}</Text>
+              {copyBtn({ label: "Reference", value: tx.reference, copy: tx.reference })}
             </View>
-            {copyBtn({ label: "Reference", value: tx.reference, copy: tx.reference })}
           </View>
         </View>
         <Text style={{ fontFamily: fonts.medium, fontSize: 11, color: k.muted, textAlign: "center" }}>Money moves, sorted · tribe.africa</Text>

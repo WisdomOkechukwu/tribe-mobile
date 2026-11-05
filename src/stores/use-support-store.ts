@@ -40,9 +40,8 @@ export function reasonsFor(type: TxType): IssueReason[] {
 export type SupportTicket = { id: string; txId: string; reason: IssueReason; details: string; createdAt: string; status: "open" | "resolved" };
 
 type SupportState = {
-  /** tickets opened from this phone (POST support/tickets), so a receipt can show its ticket */
   tickets: SupportTicket[];
-  add: (ticket: SupportTicket) => void;
+  open: (p: Pick<SupportTicket, "txId" | "reason" | "details">) => SupportTicket;
   reset: () => void;
 };
 
@@ -50,7 +49,11 @@ export const useSupportStore = create<SupportState>()(
   persist(
     (set, get) => ({
       tickets: [],
-      add: (ticket) => set({ tickets: [ticket, ...get().tickets.filter((t) => t.id !== ticket.id)] }),
+      open: (p) => {
+        const ticket: SupportTicket = { ...p, id: `SUP-${Date.now().toString().slice(-6)}`, createdAt: new Date().toISOString(), status: "open" };
+        set({ tickets: [ticket, ...get().tickets] });
+        return ticket;
+      },
       reset: () => set({ tickets: [] }),
     }),
     { name: "tribe:support", storage: persistStorage, version: 1 },

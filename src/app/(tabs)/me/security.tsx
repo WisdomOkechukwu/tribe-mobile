@@ -3,51 +3,37 @@ import { Platform } from "react-native";
 import { BrandSwitch } from "@/components/brand-switch";
 import { ListRow, ListSection } from "@/components/list";
 import { Screen } from "@/components/screen";
-import { logOut, updateProfile } from "@/api/auth";
-import { errorMessage } from "@/api/http";
-import { BIOMETRIC_LABEL, authenticate, biometricsAvailable, forgetBiometricPin } from "@/services/biometrics";
+import { resetDemoData } from "@/stores/reset";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { toast } from "@/stores/use-ui-store";
 import { useColors } from "@/theme";
 import { overlay } from "@/stores/use-overlay-store";
+import { authenticate, biometricsAvailable, BIOMETRIC_LABEL } from "@/services/biometrics";
 
 /** Security centre: PIN, biometrics, 2-step, devices and account deletion. */
 export default function Security() {
   const c = useColors();
   const biometrics = useSessionStore((s) => s.biometrics);
+  const setBiometrics = useSessionStore((s) => s.setBiometrics);
   const twoFactor = useSessionStore((s) => s.twoFactor);
-  // saved on the profile (PATCH profile); the switch moves at once and rolls back on failure
-  const save = (patch: { biometrics_enabled?: boolean; two_factor_enabled?: boolean }, undo: () => void) =>
-    updateProfile(patch).catch((e) => {
-      undo();
-      toast(errorMessage(e), "danger");
-    });
-  const setBiometrics = (on: boolean) => {
-    const before = useSessionStore.getState().biometrics;
-    useSessionStore.getState().setBiometrics(on);
-    if (!on) void forgetBiometricPin();
-    return save({ biometrics_enabled: on }, () => useSessionStore.getState().setBiometrics(before));
-  };
-  const setTwoFactor = (on: boolean) => {
-    const before = useSessionStore.getState().twoFactor;
-    useSessionStore.getState().setTwoFactor(on);
-    void save({ two_factor_enabled: on }, () => useSessionStore.getState().setTwoFactor(before));
-  };
+  const setTwoFactor = useSessionStore((s) => s.setTwoFactor);
+  const devices = useSessionStore((s) => s.devices);
+  const wipe = useSessionStore((s) => s.wipe);
   const hidden = usePrefsStore((s) => s.hideBalances);
   const toggleHidden = usePrefsStore((s) => s.toggleHideBalances);
-  const pin = useSessionStore((s) => s.hasPin);
+  const pin = useSessionStore((s) => s.pin);
   const bioName = BIOMETRIC_LABEL;
   const score = [biometrics, twoFactor, !!pin].filter(Boolean).length;
   const toggleBio = async (on: boolean) => {
     if (!on) {
-      void setBiometrics(false);
+      setBiometrics(false);
       return toast(`${bioName} off`);
     }
     if (!(await biometricsAvailable())) return toast(`Set up ${bioName} in your phone's settings first`, "danger");
     if (await authenticate(`Turn on ${bioName} for Tribe`)) {
-      void setBiometrics(true);
-      toast(`${bioName} on. Your next PIN approval sets it up.`, "success");
+      setBiometrics(true);
+      toast(`${bioName} on`, "success");
     }
   };
 
@@ -74,11 +60,11 @@ export default function Security() {
       </ListSection>
 
       <ListSection title="Privacy">
-        <ListRow icon="devicesLine" title="Devices" subtitle="One phone at a time" onPress={() => router.push("/me/devices")} />
+        <ListRow icon="devicesLine" title="Devices" subtitle={`${devices.length} signed in`} onPress={() => router.push("/me/devices")} />
         <ListRow icon="eyeOff" title="Hide balances" subtitle="Mask amounts on every screen" trailing={<BrandSwitch label="Hide balances" value={hidden} onValueChange={toggleHidden} />} />
       </ListSection>
 
-      <ListSection footer="Deleting closes every account and card. Our support team confirms it with you first.">
+      <ListSection footer={`Deleting closes every account and card.${__DEV__ ? " In this demo it just resets everything." : ""}`}>
         <ListRow
           icon="trashLine"
           destructive
@@ -87,13 +73,12 @@ export default function Security() {
             overlay.confirm({
               icon: "trash",
               title: "Delete your account?",
-              body: "We'll sign you out and our support team will email you to confirm. Every balance must be empty first.",
+              body: __DEV__ ? "This demo will reset all data and sign you out." : "This permanently closes your accounts and cards and deletes your data. Every balance must be empty first.",
               confirmLabel: "Delete",
               destructive: true,
-              // TODO(backend): no account-deletion endpoint yet; signing out is all the app can do
               onConfirm: () => {
-                toast("We'll email you to confirm the deletion");
-                void logOut();
+                resetDemoData();
+                wipe();
               },
             })
           }

@@ -21,10 +21,6 @@ export type SignupDraft = {
  */
 type SignupState = {
   draft: SignupDraft;
-  /** from POST auth/email/verify: proves the email for register / password reset */
-  verificationToken: string | null;
-  /** dev builds only: the API returns the emailed code locally, so testers can read it */
-  debugCode: string | null;
   /** the Tribe world picked after signup (SBU.png) — decides where Home lands first */
   world: WorldId | null;
   /** name returned by the BVN lookup */
@@ -35,9 +31,8 @@ type SignupState = {
   reset: () => void;
 };
 
-// no country until the user picks one on create-account
-const EMPTY_DRAFT: SignupDraft = { email: "", country: "", firstName: "", lastName: "", tag: "", phone: "", referral: "", heardFrom: "" };
-const initial = { draft: EMPTY_DRAFT, verificationToken: null, debugCode: null, world: null, bvnName: null, answers: {} };
+const EMPTY_DRAFT: SignupDraft = { email: "", country: "NG", firstName: "", lastName: "", tag: "", phone: "", referral: "", heardFrom: "" };
+const initial = { draft: EMPTY_DRAFT, world: null, bvnName: null, answers: {} };
 
 export const useSignupStore = create<SignupState>()((set) => ({
   ...initial,

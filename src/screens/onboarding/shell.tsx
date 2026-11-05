@@ -1,14 +1,13 @@
 import { router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
-import { useWindowDimensions, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/button";
 import { Icon, type IconName } from "@/components/icon";
 import { KeyboardFrame } from "@/components/keyboard-frame";
 import { PressableScale } from "@/components/pressable-scale";
-import { BAR_ROW, StickyBandBar, useBandScroll } from "@/components/sticky-band-bar";
 import { Text } from "@/components/text";
 import { Stripes } from "@/components/stripes";
 import { MarkDisc } from "@/screens/auth/shell";
@@ -33,8 +32,8 @@ export function IconBadge({ icon, tone = "brand", size = 72 }: { icon: IconName;
 /** Finish setup, in four stages (phone, PIN, identity, global accounts); the meter follows the route. */
 const STAGES: { label: string; routes: string[] }[] = [
   { label: "Phone", routes: ["/setup/phone", "/setup/otp", "/setup/phone-done"] },
-  { label: "Payment PIN", routes: ["/setup/create-pin", "/setup/pin-done", "/setup/biometrics"] },
-  { label: "Identity", routes: ["/setup/bvn"] },
+  { label: "Payment PIN", routes: ["/setup/pin-intro", "/setup/create-pin", "/setup/pin-done", "/setup/biometrics"] },
+  { label: "Identity", routes: ["/setup/bvn", "/setup/bvn-done"] },
   { label: "Global accounts", routes: ["/setup/profile"] },
 ];
 
@@ -88,7 +87,6 @@ export function OnboardingShell({
   right,
   stripes = true,
   kicker,
-  slim = false,
 }: {
   title: string;
   /** explicit poster lines (the last one orange); defaults to the title with its last word orange */
@@ -108,8 +106,6 @@ export function OnboardingShell({
   stripes?: boolean;
   /** overline when the screen isn't a setup step */
   kicker?: string;
-  /** form steps: the band shrinks to its top row and label, so the form (and a keypad) get the room */
-  slim?: boolean;
 }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -118,27 +114,32 @@ export function OnboardingShell({
   // -1 outside setup (e.g. a skipped step finished later from Home): no meter then
   const stage = STAGES.findIndex((st) => st.routes.includes(pathname));
   const lines = headline ?? splitHeadline(title);
-  const { y, onScroll } = useBandScroll();
   const size = compact ? 26 : 30;
 
   const band = (
-    <View style={{ backgroundColor: BAND, overflow: "hidden", paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.mdl, paddingBottom: OVERLAP + (slim ? spacing.sm : spacing.md), gap: slim ? spacing.sm : compact ? spacing.md : spacing.lg }}>
+    <View style={{ backgroundColor: BAND, overflow: "hidden", paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.mdl, paddingBottom: OVERLAP + spacing.md, gap: compact ? spacing.md : spacing.lg }}>
       {stripes && (
         <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "30%", overflow: "hidden" }}>
           <Stripes band={12} gap={16} colors={[palette.orange[500], palette.purple[500]]} opacity={0.9} />
         </View>
       )}
-      {/* the back button (or the Tribe mark) and `right` live in the sticky bar (below); this row keeps their space */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, minHeight: BAR_ROW }}>
-        <View style={{ width: BAR_ROW }} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, minHeight: 40 }}>
+        {back ? (
+          <PressableScale accessibilityLabel="Back" onPress={onBack ?? (() => (router.canGoBack() ? router.back() : null))} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="back" size={17} color={palette.white} />
+          </PressableScale>
+        ) : (
+          <MarkDisc />
+        )}
         {stage >= 0 && <StageMeter at={stage} />}
+        <View style={{ flex: 1 }} />
+        {right}
       </View>
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.md }}>
         <Animated.View entering={FadeInDown.duration(360)} style={{ flex: 1, gap: spacing.sm }}>
           <Text variant="overline" style={{ color: palette.orange[300] }}>
             {stage >= 0 ? `Finish setup · ${STAGES[stage].label}` : (kicker ?? "Welcome to Tribe")}
           </Text>
-          {!slim && (
           <Text variant="poster" accessibilityRole="header" maxFontSizeMultiplier={1.2} style={{ color: palette.white, fontSize: size, lineHeight: size + 2 }}>
             {lines.map((line, i) => (
               <Text key={line} variant="poster" style={{ fontSize: size, lineHeight: size + 2, color: i === lines.length - 1 ? palette.orange[400] : palette.white }}>
@@ -147,42 +148,39 @@ export function OnboardingShell({
               </Text>
             ))}
           </Text>
-          )}
         </Animated.View>
-        {icon && !slim && <StepSticker icon={icon} />}
+        {icon && <StepSticker icon={icon} />}
       </View>
     </View>
   );
 
   const sheet = (
-    <View style={{ marginTop: -OVERLAP, flexGrow: 1, flexShrink: scroll ? 0 : 1, backgroundColor: c.bg, borderTopLeftRadius: radius.panel, borderTopRightRadius: radius.panel, borderCurve: "continuous", padding: spacing.mdl, paddingTop: spacing.lg, gap: spacing.lg }}>
+    <Animated.View entering={FadeInDown.springify().damping(18)} style={{ marginTop: -OVERLAP, flexGrow: 1, flexShrink: scroll ? 0 : 1, backgroundColor: c.bg, borderTopLeftRadius: radius.panel, borderTopRightRadius: radius.panel, borderCurve: "continuous", padding: spacing.mdl, paddingTop: spacing.lg, gap: spacing.lg }}>
       {subtitle && (
         <Text variant="body" tone="muted">
           {subtitle}
         </Text>
       )}
       {children}
-    </View>
+    </Animated.View>
   );
 
   return (
     <KeyboardFrame backgroundColor={c.bg}>
       <StatusBar style="light" />
-      <View style={{ flex: 1 }}>
-        {scroll ? (
-          <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" bounces={false} overScrollMode="never" contentContainerStyle={{ flexGrow: 1 }}>
-            {band}
-            {sheet}
-          </Animated.ScrollView>
-        ) : (
-          <View style={{ flex: 1 }}>
-            {band}
-            {sheet}
-          </View>
-        )}
-        {/* pinned: stays put while the band and sheet scroll under it */}
-        <StickyBandBar y={y} color={BAND} onBack={back ? (onBack ?? (() => (router.canGoBack() ? router.back() : null))) : undefined} leading={<MarkDisc />} right={right} />
-      </View>
+      {scroll ? (
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" contentContainerStyle={{ flexGrow: 1 }}>
+          {/* pull-down bounce shows purple, not a light gap above the band */}
+          <View style={{ position: "absolute", top: -1000, left: 0, right: 0, height: 1000, backgroundColor: BAND }} />
+          {band}
+          {sheet}
+        </ScrollView>
+      ) : (
+        <View style={{ flex: 1 }}>
+          {band}
+          {sheet}
+        </View>
+      )}
       {footer && <View style={{ backgroundColor: c.bg, paddingHorizontal: spacing.mdl, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom, spacing.md), gap: spacing.sm }}>{footer}</View>}
     </KeyboardFrame>
   );

@@ -1,6 +1,5 @@
 import type { CardFinish, CardPattern, CardTheme } from "@/data/seed";
-import type { CardDesignResource, CardDesignsResource } from "@/api/types";
-import { CARD_PATTERNS, CARD_PRESETS, CARD_SWATCHES, CARD_THEME_ORDER, palette, type CardLook } from "@/theme";
+import { CARD_PATTERNS, CARD_PRESETS, CARD_SWATCHES, palette, type CardLook } from "@/theme";
 import { bestInk, contrast, hexToHsl, hslToHex, mix, withAlpha } from "./color";
 
 /**
@@ -166,73 +165,4 @@ export function cardLook(f?: string | null): CardLook {
     cache.set(key, look);
   }
   return look;
-}
-
-// ─── what the admin offers ──────────────────────────────────────────────
-
-export type ThemeOption = { id: CardTheme; name: string };
-export type PatternOption = { id: CardPattern; name: string };
-export type SwatchOption = { name: string; hex: string };
-/** The designs pickers offer, in the admin's order and with the admin's names. */
-export type AvailableDesigns = { themes: ThemeOption[]; patterns: PatternOption[]; swatches: SwatchOption[] };
-
-const FALLBACK_DESIGNS: AvailableDesigns = {
-  themes: CARD_THEME_ORDER.map((id) => ({ id, name: CARD_PRESETS[id].name })),
-  patterns: CARD_PATTERNS.map((p) => ({ id: p.id, name: p.label })),
-  swatches: CARD_SWATCHES,
-};
-
-const byOrder = (a: CardDesignResource, b: CardDesignResource) => a.sort_order - b.sort_order || a.name.localeCompare(b.name);
-
-/**
- * GET /card-designs → what the pickers show: enabled designs whose keys this app can paint,
- * sorted as the admin sorted them (unknown keys are skipped). Before the catalogue has ever
- * loaded (or when it's empty) the app's own lists stand in.
- */
-export function availableDesigns(catalog: CardDesignsResource | null | undefined): AvailableDesigns {
-  if (!catalog) return FALLBACK_DESIGNS;
-  const on = (list: CardDesignResource[] | null | undefined) => (list ?? []).filter((d) => d.enabled).sort(byOrder);
-  const themes = on(catalog.themes).flatMap((d): ThemeOption[] => (isPresetFinish(d.finish) ? [{ id: d.finish, name: d.name || CARD_PRESETS[d.finish].name }] : []));
-  const patterns = on(catalog.patterns).flatMap((d): PatternOption[] => (d.pattern && PATTERN_IDS.includes(d.pattern) ? [{ id: d.pattern as CardPattern, name: d.name }] : []));
-  const swatches = on(catalog.swatches).flatMap((d): SwatchOption[] => (d.hex_color && /^#?[0-9a-fA-F]{6}$/.test(d.hex_color) ? [{ name: d.name, hex: `#${d.hex_color.replace("#", "").toUpperCase()}` }] : []));
-  // nothing usable at all (empty or never seeded): don't leave the customer with an empty picker
-  if (!themes.length && !patterns.length) return FALLBACK_DESIGNS;
-  return { themes: dedupe(themes, (t) => t.id), patterns: dedupe(patterns, (p) => p.id), swatches: dedupe(swatches, (s) => s.hex) };
-}
-
-function dedupe<T>(list: T[], key: (x: T) => string): T[] {
-  const seen = new Set<string>();
-  return list.filter((x) => !seen.has(key(x)) && !!seen.add(key(x)));
-}
-
-/** The patterns a preset may wear: the enabled ones, plus its own (a bare preset is always valid). */
-export function patternsFor(theme: CardTheme, avail: AvailableDesigns): PatternOption[] {
-  const own = defaultPattern(theme);
-  if (avail.patterns.some((p) => p.id === own)) return avail.patterns;
-  return [{ id: own, name: CARD_PATTERNS.find((p) => p.id === own)?.label ?? own }, ...avail.patterns];
-}
-
-/** Would the API accept this finish now? (mirrors the server: theme on, pattern on; a bare theme implies its own pattern) */
-export function isFinishOffered(f: string, avail: AvailableDesigns): boolean {
-  if (isPresetFinish(f)) return avail.themes.some((t) => t.id === f);
-  const preset = readPreset(f);
-  if (preset) return avail.themes.some((t) => t.id === preset.theme) && patternsFor(preset.theme, avail).some((p) => p.id === preset.pattern);
-  const custom = readCustom(f);
-  return !!custom && avail.patterns.some((p) => p.id === custom.pattern);
-}
-
-/** A finish's name with the admin's wording ("Sunset dots", "Coral waves"); falls back to cardLook(). */
-export function finishName(f: string, avail: AvailableDesigns): string {
-  const look = cardLook(f);
-  const patternWord = (p: CardPattern) => avail.patterns.find((x) => x.id === p)?.name.toLowerCase();
-  const preset = isPresetFinish(f) ? { theme: f, pattern: defaultPattern(f) } : readPreset(f);
-  if (preset) {
-    const base = avail.themes.find((t) => t.id === preset.theme)?.name ?? CARD_PRESETS[preset.theme].name;
-    if (preset.pattern === defaultPattern(preset.theme)) return base;
-    return `${base} ${preset.pattern === "plain" ? "solid" : (patternWord(preset.pattern) ?? CARD_PATTERNS.find((x) => x.id === preset.pattern)?.word ?? "")}`.trim();
-  }
-  const custom = readCustom(f);
-  if (!custom) return look.name;
-  const colour = avail.swatches.find((s) => s.hex === custom.hex)?.name ?? colourName(custom.hex);
-  return custom.pattern === "plain" ? colour : `${colour} ${patternWord(custom.pattern) ?? CARD_PATTERNS.find((x) => x.id === custom.pattern)?.word ?? ""}`.trim();
 }

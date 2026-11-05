@@ -4,10 +4,8 @@ import { Button } from "@/components/button";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
 import { AuthShell, SwitchLink } from "@/screens/auth/shell";
-import { forgotPassword } from "@/api/auth";
-import { errorMessage } from "@/api/http";
-import { useIsOnline } from "@/services/network";
-import { useSignupStore } from "@/stores/use-signup-store";
+import { useSessionStore } from "@/stores/use-session-store";
+import { withLoader } from "@/stores/use-ui-store";
 import { useColors } from "@/theme";
 import { isEmail } from "@/utils/hash";
 
@@ -15,23 +13,14 @@ import { isEmail } from "@/utils/hash";
 export default function Forgot() {
   const c = useColors();
   const params = useLocalSearchParams<{ email?: string }>();
-  const online = useIsOnline();
+  const exists = useSessionStore((s) => s.emailExists);
   const [email, setEmail] = useState(params.email ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  // the API always answers "sent" (it never says which emails have accounts)
   const request = async () => {
-    setBusy(true);
-    try {
-      const { debugCode } = await forgotPassword(email);
-      useSignupStore.getState().set({ debugCode: debugCode ?? null, verificationToken: null });
-      router.push({ pathname: "/verify-email", params: { mode: "reset", email: email.trim().toLowerCase() } });
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
+    if (!exists(email)) return setError("We can't find an account with that email.");
+    await withLoader("Sending your code…", () => {});
+    router.push({ pathname: "/verify-email", params: { mode: "reset", email: email.trim().toLowerCase() } });
   };
 
   return (
@@ -41,7 +30,7 @@ export default function Forgot() {
       subtitle="Enter the email on your Tribe account and we'll send you a code to reset it."
       footer={
         <>
-          <Button title={online ? "Send code" : "You're offline"} disabled={!isEmail(email) || !online} loading={busy} onPress={request} />
+          <Button title="Send code" disabled={!isEmail(email)} onPress={request} />
           <SwitchLink prompt="Remember it?" action="Sign in" onPress={() => router.back()} />
         </>
       }
@@ -57,6 +46,7 @@ export default function Forgot() {
         autoCapitalize="none"
         autoComplete="email"
         textContentType="emailAddress"
+        autoFocus={!email}
         leading={<Icon name="envelope" size={16} color={c.textMuted} />}
         hint={error ?? undefined}
         hintTone="danger"

@@ -9,8 +9,7 @@ import { Icon, type IconName } from "@/components/icon";
 import { ListRow, ListSection } from "@/components/list";
 import { TransactionGroup } from "@/components/transaction-row";
 import { ASSETS } from "@/data/assets";
-import { allBillers, allGiftBrands } from "@/data/catalog";
-import { useBillers, useGiftBrands } from "@/api/queries";
+import { BILLERS, GIFT_BRANDS } from "@/data/catalog";
 import { openAddMoneySheet } from "@/screens/home/sheets";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
@@ -37,14 +36,12 @@ export default function Search() {
   const c = useColors();
   const [q, setQ] = useState("");
   const transactions = useWalletStore((s) => s.transactions);
-  const BILLERS = useBillers().data ?? allBillers();
-  const GIFT_BRANDS = useGiftBrands().data ?? allGiftBrands();
   const term = q.trim().toLowerCase();
   const has = (s: string) => s.toLowerCase().includes(term);
   const go = (href?: Href, run?: () => void) => {
     router.back();
     if (href) router.push(href, { withAnchor: true });
-    else if (run) setTimeout(run, 250); // after the modal has closed
+    else if (run) setTimeout(run, 250);
   };
 
   const assets = term ? ASSETS.filter((a) => has(a.name) || has(a.code)) : [];

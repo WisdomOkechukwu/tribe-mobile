@@ -1,5 +1,5 @@
-/** Email codes (sign-up and password reset). The new-phone code is 6 digits too. */
-export const EMAIL_CODE_LENGTH = 6;
+/** Email codes (sign-up and password reset). */
+export const EMAIL_CODE_LENGTH = 4;
 
 export type PasswordRule = { id: string; label: string; test: (v: string) => boolean };
 

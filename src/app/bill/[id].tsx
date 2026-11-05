@@ -5,7 +5,6 @@ import { pushDigit } from "@/components/amount-entry";
 import { AmountCard, AmountGrid, BILL_FIELD, billCategory, BundleGrid, costIn, CustomerCard, openSavedNumbers, openWalletPicker, PayFromRow, ProviderRow, useFundedWallets, type BillCategory } from "@/components/bill-bits";
 import { BillerThumb } from "@/components/brand-tiles";
 import { Button } from "@/components/button";
-import { useLiveRates } from "@/api/live-rates";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { KeyField, KeypadDock } from "@/components/keypad-field";
@@ -13,9 +12,7 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
 import { assetByCode, type AssetCode } from "@/data/assets";
-import { billerById, detectNetwork, type Biller, type PlanPeriod } from "@/data/catalog";
-import { useBillers } from "@/api/queries";
-import { BillerRowSkeleton, QueryError, Skeleton } from "@/components/skeletons";
+import { BILLERS, billerById, detectNetwork, type PlanPeriod } from "@/data/catalog";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
@@ -31,6 +28,7 @@ const PERIODS: { value: PlanPeriod; label: string }[] = [
   { value: "monthly", label: "Monthly" },
 ];
 const NGN_PER_KWH = 438.6;
+const PHONE_BILLERS = BILLERS.filter((b) => b.field === "phone");
 
 type Active = "target" | "amount" | null;
 
@@ -52,31 +50,6 @@ const grouped = (v: string, groups: readonly number[]) => {
  * wallet pays. Every number is typed on our docked keypad, never the system keyboard.
  */
 export default function Bill() {
-  const query = useBillers();
-  const { category } = useLocalSearchParams<{ category?: string }>();
-  if (query.data?.length) return <BillForm all={query.data} />;
-  const title = category === "electricity" ? "Electricity" : category === "tv" ? "TV" : category === "data" ? "Data" : "Airtime";
-  return (
-    <FlowScreen title={title}>
-      {query.isError ? (
-        <QueryError onRetry={() => void query.refetch()} title="Couldn't load providers" />
-      ) : (
-        <View style={{ gap: spacing.lg }} accessibilityLabel="Loading providers">
-          <BillerRowSkeleton />
-          <Skeleton width="100%" height={56} radius={16} />
-          <Skeleton width="60%" height={14} />
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} width="31%" height={64} radius={14} />
-            ))}
-          </View>
-        </View>
-      )}
-    </FlowScreen>
-  );
-}
-
-function BillForm({ all }: { all: Biller[] }) {
   const c = useColors();
   // target/amount pre-fill "Pay again"; category says which Pay icon you came from
   const { id, target: preTarget, amount: preAmount, category: catParam } = useLocalSearchParams<{ id: string; target?: string; amount?: string; category?: string }>();
@@ -89,7 +62,7 @@ function BillForm({ all }: { all: Biller[] }) {
   // Airtime and Data are separate screens (the Pay icon you tapped decides)
   const [cat] = useState<BillCategory>(() => billCategory(billerById(id), catParam));
   const phoneCat = cat === "airtime" || cat === "data";
-  const billers = phoneCat ? all.filter((x) => x.field === "phone") : all.filter((x) => x.category === cat);
+  const billers = phoneCat ? PHONE_BILLERS : BILLERS.filter((b) => b.category === cat);
   const entry = billerById(id);
   const [target, setTarget] = useState(preTarget ?? (entry.field === "phone" ? myPhone : ""));
   // the provider you tapped wins until you type a new number (then the prefix decides again)
@@ -111,11 +84,8 @@ function BillForm({ all }: { all: Biller[] }) {
   const [active, setActive] = useState<Active>(!targetOk ? "target" : null);
 
   const amountNgn = planned ? (plan?.price ?? 0) : Number(amount) || 0;
-  // live rates while this screen is open; a wallet other than Naira waits for the server's rate
-  const rates = useLiveRates();
-  const priced = payWith === "NGN" || rates.has(["NGN", payWith]);
-  const over = costIn(amountNgn, payWith, rates.version) > balances[payWith];
-  const ok = targetOk && amountNgn >= 100 && !over && priced;
+  const over = costIn(amountNgn, payWith) > balances[payWith];
+  const ok = targetOk && amountNgn >= 100 && !over;
   const masked = b.field === "meter" ? `${target.slice(0, 4)} •••• ${target.slice(-2)}` : target;
 
   const changeTarget = (next: string) => {
@@ -159,7 +129,7 @@ function BillForm({ all }: { all: Biller[] }) {
       : cat === "tv"
         ? { name: "ADA OKAFOR", lines: [`${b.name} · Compact (active)`, "Renews 2 Nov"] }
         : { name: "ADA OKAFOR", lines: ["16 Admiralty Way, Lekki", `${b.name} · ${meterType === "prepaid" ? "Prepaid" : "Postpaid"} meter`] };
-  const wallet = payWith !== "NGN" ? (n: number) => `≈ ${formatAsset(costIn(n, payWith, rates.version), payWith)}` : undefined;
+  const wallet = payWith !== "NGN" ? (n: number) => `≈ ${formatAsset(costIn(n, payWith), payWith)}` : undefined;
 
   return (
     <FlowScreen
@@ -168,10 +138,10 @@ function BillForm({ all }: { all: Biller[] }) {
         <>
           {active && <KeypadDock label={active === "target" ? field.label : "Amount"} onKey={onKey} onDelete={onDelete} onDone={() => setActive(null)} />}
           <Button
-            title={amountNgn && !priced ? "Getting the latest rate…" : amountNgn ? `Pay ₦${amountNgn.toLocaleString()}` : "Pay"}
+            title={amountNgn ? `Pay ₦${amountNgn.toLocaleString()}` : "Pay"}
             disabled={!ok}
             onPress={() => {
-              begin({ kind: "bill", billerId: b.id, amountNgn, payWith, target: masked, account: target, category: cat, meterType: cat === "electricity" ? meterType : undefined, plan: plan?.name, planId: plan?.id });
+              begin({ kind: "bill", billerId: b.id, amountNgn, payWith, target: masked, account: target, category: cat, meterType: cat === "electricity" ? meterType : undefined, plan: plan?.name });
               router.push("/bill/review");
             }}
           />

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { EmptyState, Note } from "@/components/bits";
 import { Avatar } from "@/components/avatar";
@@ -15,22 +15,17 @@ import { PairIcon } from "@/components/pair-icon";
 import { QuoteTimer } from "@/components/quote-timer";
 import { Text } from "@/components/text";
 import { LEG_ICON, TransferLegs, type Leg } from "@/components/transfer-legs";
-import { assetByCode, SWAP_FEE, type AssetCode } from "@/data/assets";
+import { assetByCode, SWAP_FEE } from "@/data/assets";
 import { countryByIso } from "@/data/countries";
-import { CARD_FEE_USD, cardCreateTotal, cardFundingFee, cardFundTotal } from "@/data/seed";
-import type { QuoteResource } from "@/api/types";
-import { useLiveRates } from "@/api/live-rates";
-import { errorMessage } from "@/api/http";
-import { RateFlash } from "@/components/rate-flash";
-import { useIsOnline } from "@/services/network";
+import { CARD_FEE_USD, cardFundingFee } from "@/data/seed";
 import { FREQUENCY_LABEL } from "@/stores/use-recurring-store";
-import { billerById, giftBrandById, giftSellPayout } from "@/data/catalog";
+import { billerById, GIFT_CARD_BUY_MARKUP, giftBrandById, giftSellPayout } from "@/data/catalog";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore, type PendingAction } from "@/stores/use-flow-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset, quote } from "@/utils/format";
 import { PAY } from "@/utils/pay-platform";
-import { rateReady, usdRate } from "@/utils/rates";
+import { liveUsd, quoteTick, useQuoteTick } from "@/utils/rates";
 
 type Summary = {
   /** the hero art (64): what pays sits at the back, what it becomes in front */
@@ -67,34 +62,6 @@ type Summary = {
 const rateText = (from: string, to: string, rate: number) => (rate >= 1 ? `1 ${from} = ${formatAsset(rate, to as never)}` : `1 ${to} = ${formatAsset(1 / rate, from as never)}`);
 const coinLeg = (code: string, label: string, title: string, value: string, tone?: "success"): Leg => ({ leading: <CoinIcon code={code} size={LEG_ICON} />, label, title, value, valueTone: tone });
 
-/**
- * The assets whose server rate an action's estimate is worked out with. Until they've arrived the
- * review shows "—" and the approve button waits: nothing is ever priced from a stored rate.
- */
-export function ratesFor(a: PendingAction): AssetCode[] {
-  switch (a.kind) {
-    case "send":
-      return a.toAsset && a.toAsset !== a.asset ? [a.asset, a.toAsset] : [];
-    case "swap":
-      return [a.from, a.to];
-    case "bill":
-      return a.payWith === "NGN" ? [] : ["NGN", a.payWith];
-    case "gift-buy":
-      return a.payWith === "USD" ? [] : [a.payWith];
-    case "gift-sell":
-      return a.payout === "NGN" ? [] : ["NGN", a.payout];
-    case "card-fund":
-    case "card-create":
-      return a.from === "USD" ? [] : [a.from];
-    case "card-withdraw":
-      return a.to === "USD" ? [] : [a.to];
-    case "referral-withdraw":
-      return a.to === "NGN" ? [] : ["NGN", a.to];
-    default:
-      return [];
-  }
-}
-
 /** "Recipient's details" card on the send review. */
 function RecipientCard({ name, handle, sub }: { name: string; handle: string; sub?: string }) {
   const c = useColors();
@@ -119,27 +86,16 @@ function RecipientCard({ name, handle, sub }: { name: string; handle: string; su
   );
 }
 
-/**
- * Everything the review and PIN screens show about a pending money action. Swaps and converted
- * sends show the locked `quote` from the API once it's in; everything else is worded from live
- * rates (the API prices it the same way when it runs).
- */
-export function actionSummary(a: PendingAction, q?: QuoteResource | null, version?: number): Summary {
-  // `version`: the live rates the estimates were worked out at (tells the React Compiler to re-run)
-  void version;
+/** Everything the review and PIN screens show about a pending money action. */
+export function actionSummary(a: PendingAction, tick = quoteTick()): Summary {
   switch (a.kind) {
     case "send": {
       const toAsset = a.toAsset ?? a.asset;
+      const toAmount = a.toAmount ?? a.amount;
       const converted = toAsset !== a.asset;
-      const quoted = converted && q ? q : null;
-      const toAmount = quoted ? Number(quoted.to_amount) : (a.toAmount ?? a.amount);
-      const paid = quoted ? Number(quoted.from_amount) : a.amount + a.fee;
       const art = (size: number) => (converted ? <PairIcon from={a.asset} to={toAsset} size={size} /> : <CoinIcon code={a.asset} size={size} />);
-      const rows: [string, string][] = quoted
-        ? [["Amount", formatAsset(Number(quoted.from_amount) - Number(quoted.fee), a.asset)], ["Fee", Number(quoted.fee) ? formatAsset(Number(quoted.fee), a.asset) : "Free"], ["Rate", rateText(a.asset, toAsset, Number(quoted.rate))]]
-        : [["Amount", formatAsset(a.amount, a.asset)], ["Send fee", a.fee ? formatAsset(a.fee, a.asset) : "Free"]];
-      if (converted && !quoted) rows.push(["Rate", rateText(a.asset, toAsset, quote(1, a.asset, toAsset).rate)], ["Conversion fee", `${SWAP_FEE * 100}%`]);
-      if (quoted?.uses_ngn_rail) rows.push(["Route", quoted.route.map((l) => l.from_asset).concat(toAsset).join(" → ")]);
+      const rows: [string, string][] = [["Amount", formatAsset(a.amount, a.asset)], ["Send fee", a.fee ? formatAsset(a.fee, a.asset) : "Free"]];
+      if (converted) rows.push(["Rate", rateText(a.asset, toAsset, quote(1, a.asset, toAsset, tick).rate)], ["Conversion fee", `${SWAP_FEE * 100}%`]);
       rows.push(["Channel", a.channel], ["Arrives", a.eta ?? "Within minutes"]);
       return {
         icon: art(64),
@@ -148,10 +104,10 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         line: `to ${a.name ?? a.to}`,
         overline: "You're sending",
         sub: `To ${a.name ?? a.to}${converted ? `, paid from your ${assetByCode(a.asset).name} balance` : ""}`,
-        legs: converted ? { from: coinLeg(a.asset, "You pay", assetByCode(a.asset).name, formatAsset(paid, a.asset)), to: coinLeg(toAsset, "They get", assetByCode(toAsset).name, formatAsset(toAmount, toAsset), "success") } : undefined,
+        legs: converted ? { from: coinLeg(a.asset, "You pay", assetByCode(a.asset).name, formatAsset(a.amount + a.fee, a.asset)), to: coinLeg(toAsset, "They get", assetByCode(toAsset).name, formatAsset(toAmount, toAsset), "success") } : undefined,
         breakdown: "Payment breakdown",
         rows,
-        total: ["Total to debit", formatAsset(paid, a.asset)],
+        total: ["Total to debit", formatAsset(a.amount + a.fee, a.asset)],
         live: converted,
         after: <RecipientCard name={a.name ?? a.to} handle={a.to} sub={a.country ? countryByIso(a.country).name : a.network} />,
         note: "Check the details before you approve. Once sent, it can't be reversed.",
@@ -160,30 +116,23 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
       };
     }
     case "swap": {
-      const est = quote(a.amount, a.from, a.to);
-      // the API's locked price once it's in; a live-rate estimate until then
-      const receive = q ? Number(q.to_amount) : est.receive;
-      const fee = q ? Number(q.fee) : est.fee;
-      const rate = q ? Number(q.rate) : est.rate;
-      // what leaves the wallet: the quote's figure once it's in (a typed "lands" amount is priced by the server)
-      const paid = q ? Number(q.from_amount) : a.amount;
+      const q = quote(a.amount, a.from, a.to, tick);
       const art = (size: number) => <PairIcon from={a.from} to={a.to} size={size} />;
       return {
         icon: art(64),
         badge: art(40),
-        amount: `${q ? "" : "≈ "}${formatAsset(receive, a.to)}`,
-        line: `for ${formatAsset(paid, a.from)}`,
+        amount: formatAsset(q.receive, a.to),
+        line: `for ${formatAsset(a.amount, a.from)}`,
         overline: a.fund ? `Adding to ${a.to}` : "You get",
-        sub: `for ${formatAsset(paid, a.from)}`,
-        legs: { from: coinLeg(a.from, "From", assetByCode(a.from).name, formatAsset(paid, a.from)), to: coinLeg(a.to, "To", assetByCode(a.to).name, formatAsset(receive, a.to), "success") },
+        sub: `for ${formatAsset(a.amount, a.from)}`,
+        legs: { from: coinLeg(a.from, "From", assetByCode(a.from).name, formatAsset(a.amount, a.from)), to: coinLeg(a.to, "To", assetByCode(a.to).name, formatAsset(q.receive, a.to), "success") },
         breakdown: "Swap breakdown",
         rows: [
-          ["Rate", rateText(a.from, a.to, rate)],
-          [q ? "Swap fee" : `Swap fee (${SWAP_FEE * 100}%)`, formatAsset(fee, a.from)],
-          ...(q?.uses_ngn_rail ? ([["Route", q.route.map((l) => l.from_asset).concat(a.to).join(" → ")]] as [string, string][]) : []),
+          ["Rate", rateText(a.from, a.to, q.rate)],
+          [`Swap fee (${SWAP_FEE * 100}%)`, formatAsset(q.fee, a.from)],
           ["Lands", "Instantly"],
         ],
-        total: ["You get", formatAsset(receive, a.to)],
+        total: ["You get", formatAsset(q.receive, a.to)],
         live: true,
         note: "Check the breakdown before you swap. Once swapped, it can't be reversed.",
         noteIcon: "lock",
@@ -192,7 +141,7 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
     }
     case "bill": {
       const b = billerById(a.billerId);
-      const cost = (a.amountNgn * usdRate("NGN")) / usdRate(a.payWith);
+      const cost = (a.amountNgn * liveUsd("NGN", tick)) / liveUsd(a.payWith, tick);
       const field = b.field === "meter" ? "Meter" : b.field === "smartcard" ? "Smartcard" : "Phone";
       const art = (size: number) => <PairIcon from={a.payWith} front={(sz) => <BillerThumb biller={b} size={sz} />} size={size} />;
       return {
@@ -203,13 +152,13 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         overline: "You're paying",
         sub: `${b.name}${a.plan ? ` · ${a.plan}` : ""}`,
         rows: [[field, a.target], ...(a.meterType ? ([["Meter type", a.meterType === "postpaid" ? "Postpaid" : "Prepaid"]] as [string, string][]) : []), ...(a.plan ? ([["Plan", a.plan]] as [string, string][]) : []), ["Paying from", `${assetByCode(a.payWith).name} wallet`], ["Fee", "Free"]],
-        total: ["You pay", a.payWith !== "NGN" ? `≈ ${formatAsset(cost, a.payWith)}` : `₦${a.amountNgn.toLocaleString()}`],
+        total: ["You pay", a.payWith !== "NGN" ? formatAsset(cost, a.payWith) : `₦${a.amountNgn.toLocaleString()}`],
         note: b.category === "electricity" ? (a.meterType === "postpaid" ? "Postpaid bills settle your account balance. No token is issued." : "Your token shows on the next screen. Load it then, or find it later in your Token Vault.") : undefined,
       };
     }
     case "gift-buy": {
       const brand = giftBrandById(a.brandId);
-      const cost = (a.usd * (1 + brand.markup)) / usdRate(a.payWith);
+      const cost = (a.usd * (1 + GIFT_CARD_BUY_MARKUP)) / liveUsd(a.payWith, tick);
       const art = (size: number) => <PairIcon from={a.payWith} front={(sz) => <GiftMark brand={brand} size={sz} />} size={size} />;
       return {
         icon: art(64),
@@ -218,13 +167,13 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         line: `${brand.name} gift card`,
         overline: "You're buying",
         sub: `${brand.name} gift card`,
-        rows: [["Card", `${brand.name} · $${a.usd}`], ["Fee", `Included (${+(brand.markup * 100).toFixed(2)}%)`], ["Delivery", "Code in-app, instantly"]],
-        total: ["You pay", `${a.payWith === "USD" ? "" : "≈ "}${formatAsset(cost, a.payWith)}`],
+        rows: [["Card", `${brand.name} · $${a.usd}`], ["Fee", `Included (${GIFT_CARD_BUY_MARKUP * 100}%)`], ["Delivery", "Code in-app, instantly"]],
+        total: ["You pay", formatAsset(cost, a.payWith)],
       };
     }
     case "gift-sell": {
       const brand = giftBrandById(a.brandId);
-      const amount = giftSellPayout(a.usd, brand, a.payout);
+      const amount = giftSellPayout(a.usd, brand, a.payout, tick);
       const art = (size: number) => <PairIcon from={a.payout} front={(sz) => <GiftMark brand={brand} size={sz} />} size={size} />;
       return {
         icon: art(64),
@@ -247,7 +196,7 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
     case "card-fund": {
       const card = useCardsStore.getState().cards.find((c) => c.id === a.cardId);
       const fee = cardFundingFee(a.usd);
-      const cost = cardFundTotal(a.usd) / usdRate(a.from);
+      const cost = (a.usd + fee) / liveUsd(a.from, tick);
       const name = card ? `${card.label} •• ${card.last4}` : "your card";
       // the wallet that pays at the back, the card in front
       const art = (size: number) => (card ? <CardPairIcon theme={card.theme} network={card.network} asset={a.from} size={size} /> : <CoinIcon code={a.from} size={size} />);
@@ -263,13 +212,13 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         rows: [
           ["Net funding", `$${a.usd.toFixed(2)}`],
           ["Funding fee", `$${fee.toFixed(2)}`],
-          ["Rate", a.from === "USD" ? "1:1" : `$1 ≈ ${formatAsset(1 / usdRate(a.from), a.from)}`],
+          ["Rate", a.from === "USD" ? "1:1" : `$1 = ${formatAsset(1 / liveUsd(a.from, tick), a.from)}`],
         ],
-        total: ["Total to debit", `${a.from === "USD" ? "" : "≈ "}${formatAsset(cost, a.from)}`],
+        total: ["Total to debit", formatAsset(cost, a.from)],
       };
     }
     case "card-create": {
-      const total = cardCreateTotal(a.usd);
+      const total = a.usd + CARD_FEE_USD + cardFundingFee(a.usd);
       const network = a.network === "visa" ? "Visa" : "Mastercard";
       const art = (size: number) => <CardPairIcon theme={a.theme} network={a.network} asset={a.from} size={size} />;
       return {
@@ -286,14 +235,14 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
           ["Card creation fee", `$${CARD_FEE_USD.toFixed(2)}`],
           ["Funding fee", `$${cardFundingFee(a.usd).toFixed(2)}`],
         ],
-        total: ["Total to debit", `${a.from === "USD" ? "" : "≈ "}${formatAsset(total / usdRate(a.from), a.from)}`],
+        total: ["Total to debit", formatAsset(total / liveUsd(a.from, tick), a.from)],
         note: `Your card is ready the moment you confirm. Tap the ${PAY.name} mark on it to add it to ${PAY.wallet}.`,
       };
     }
     case "card-withdraw": {
       const card = useCardsStore.getState().cards.find((c) => c.id === a.cardId);
       const name = card ? `${card.label} •• ${card.last4}` : "your card";
-      const received = a.usd / usdRate(a.to);
+      const received = a.usd / liveUsd(a.to, tick);
       // the card at the back, the balance it lands in up front
       const art = (size: number) => (card ? <CardPairIcon theme={card.theme} network={card.network} asset={a.to} direction="in" size={size} /> : <CoinIcon code={a.to} size={size} />);
       return {
@@ -306,10 +255,10 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         legs: card ? { from: { leading: <CardBadge theme={card.theme} network={card.network} size={LEG_ICON} />, label: "From", title: name, value: `$${a.usd.toFixed(2)}` }, to: coinLeg(a.to, "To", assetByCode(a.to).name, formatAsset(received, a.to), "success") } : undefined,
         breakdown: "Payment breakdown",
         rows: [
-          ["Rate", a.to === "USD" ? "1:1" : `$1 ≈ ${formatAsset(1 / usdRate(a.to), a.to)}`],
+          ["Rate", a.to === "USD" ? "1:1" : `$1 = ${formatAsset(1 / liveUsd(a.to, tick), a.to)}`],
           ["Fee", "Free"],
         ],
-        total: ["You receive", `${a.to === "USD" ? "" : "≈ "}${formatAsset(received, a.to)}`],
+        total: ["You receive", formatAsset(received, a.to)],
       };
     }
     case "recurring-create": {
@@ -334,7 +283,7 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
       };
     }
     case "referral-withdraw": {
-      const received = (a.amountNgn * usdRate("NGN")) / usdRate(a.to);
+      const received = (a.amountNgn * liveUsd("NGN", tick)) / liveUsd(a.to, tick);
       const to = assetByCode(a.to);
       const art = (size: number) => <PairIcon from="NGN" to={a.to} size={size} />;
       return {
@@ -346,8 +295,8 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         sub: `From your referral earnings into ${to.name}`,
         legs: { from: { leading: <RowIcon name="gift" size={LEG_ICON} />, label: "From", title: "Referral balance", value: `₦${a.amountNgn.toLocaleString()}` }, to: coinLeg(a.to, "To", to.name, formatAsset(received, a.to), "success") },
         breakdown: "Withdrawal breakdown",
-        rows: [...(a.to !== "NGN" ? ([["Rate", rateText("NGN", a.to, usdRate("NGN") / usdRate(a.to))]] as [string, string][]) : []), ["Fee", "Free"], ["Lands", "Instantly"]],
-        total: ["You receive", `${a.to === "NGN" ? "" : "≈ "}${formatAsset(received, a.to)}`],
+        rows: [...(a.to !== "NGN" ? ([["Rate", rateText("NGN", a.to, liveUsd("NGN", tick) / liveUsd(a.to, tick))]] as [string, string][]) : []), ["Fee", "Free"], ["Lands", "Instantly"]],
+        total: ["You receive", formatAsset(received, a.to)],
         live: a.to !== "NGN",
       };
     }
@@ -366,15 +315,6 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         approve: "Confirm it's you",
       };
     }
-    case "cashpoint-redeem":
-      return {
-        icon: <CashpointMark size={60} />,
-        badge: <CashpointMark size={40} />,
-        amount: "Cashpoint",
-        line: `Code •••• ${a.code.slice(-4)}`,
-        overline: "Redeem",
-        rows: [["Code", `•••• ${a.code.slice(-4)}`]],
-      };
     case "cashpoint":
       return {
         icon: <CashpointMark size={60} />,
@@ -472,43 +412,14 @@ export function Perforation({ page, size = 20 }: { page?: string; size?: number 
   );
 }
 
-/** The quote countdown as a small pill (swaps, converted sends): counts down the locked price. */
-export function QuotePill({ expiresAt }: { expiresAt?: string | null }) {
+/** The quote countdown as a small pill (live rates: swaps, converted sends). */
+export function QuotePill() {
   const c = useColors();
   return (
     <View style={{ backgroundColor: c.surface, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs }}>
-      <QuoteTimer expiresAt={expiresAt} />
+      <QuoteTimer />
     </View>
   );
-}
-
-/**
- * Keeps the pending action's quote fresh while the review is open: fetches one on mount and
- * again when it runs out, so the numbers on screen are the ones the PIN will approve.
- */
-function useLockedQuote(pending: PendingAction | null) {
-  const quote = useFlowStore((s) => s.quote);
-  const refreshQuote = useFlowStore((s) => s.refreshQuote);
-  const online = useIsOnline();
-  const [error, setError] = useState<string | null>(null);
-  const quoted = !!pending && (pending.kind === "swap" || (pending.kind === "send" && !!pending.toAsset && pending.toAsset !== pending.asset));
-  const expiresAt = quote?.expires_at;
-  useEffect(() => {
-    if (!quoted || !online) return;
-    let alive = true;
-    const load = () =>
-      refreshQuote()
-        .then(() => alive && setError(null))
-        .catch((e) => alive && setError(errorMessage(e, "We couldn't price this right now.")));
-    // a fresh quote when there's none, and again just after this one expires
-    const wait = expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now() + 250) : 0;
-    const t = setTimeout(load, wait);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [quoted, online, expiresAt, refreshQuote]);
-  return { quote: quoted ? quote : null, quoted, error };
 }
 
 /**
@@ -525,10 +436,8 @@ export function useKeptPending() {
 /** Shared review step for every money flow → /pin → /success. */
 export function ReviewScreen({ step }: { step?: string }) {
   const pending = useKeptPending();
-  // live rates while the review is open (estimates re-price as they move)
-  const { version } = useLiveRates();
-  const { quote, quoted, error } = useLockedQuote(pending);
-  const online = useIsOnline();
+  // re-renders when the 30-second quote window rolls over, and the rows re-price with it
+  const tick = useQuoteTick();
 
   if (!pending) {
     return (
@@ -537,34 +446,13 @@ export function ReviewScreen({ step }: { step?: string }) {
       </FlowScreen>
     );
   }
-  const s = actionSummary(pending, quote, version);
-  const waiting = quoted && !quote;
-  // a locked quote prices it; otherwise the estimate needs the server's rates first
-  const priced = !!quote || rateReady(ratesFor(pending), version);
+  const s = actionSummary(pending, tick);
 
   return (
-    <FlowScreen
-      title="Review"
-      step={step}
-      cancel="back"
-      footer={<Button title={!online ? "You're offline" : waiting && !error ? "Getting your price…" : !priced ? "Getting the latest rate…" : (s.cta ?? "Confirm with PIN")} icon="lock" disabled={!online || !priced} loading={waiting && !error && online} onPress={() => router.push("/pin")} />}
-    >
+    <FlowScreen title="Review" step={step} cancel="back" footer={<Button title={s.cta ?? "Confirm with PIN"} icon="lock" onPress={() => router.push("/pin")} />}>
       <ReviewHero icon={s.icon} overline={s.overline} amount={s.amount} sub={s.sub} />
       {s.legs && <TransferLegs from={s.legs.from} to={s.legs.to} />}
-      <ReviewTicket
-        title={s.breakdown ?? "Breakdown"}
-        action={
-          s.live ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-              <RateFlash />
-              {quoted ? quote && <QuotePill expiresAt={quote.expires_at} /> : <QuotePill />}
-            </View>
-          ) : undefined
-        }
-        rows={s.rows}
-        total={s.total}
-      />
-      {error && <Note icon="info">{error} We&apos;ll price it again when you approve.</Note>}
+      <ReviewTicket title={s.breakdown ?? "Breakdown"} action={s.live ? <QuotePill /> : undefined} rows={s.rows} total={s.total} />
       {s.after}
       {s.note && <Note icon={s.noteIcon ?? "info"}>{s.note}</Note>}
     </FlowScreen>

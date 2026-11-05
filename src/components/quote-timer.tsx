@@ -5,13 +5,12 @@ import { fonts, spacing, useColors } from "@/theme";
 import { Text } from "./text";
 
 /**
- * Swap.png's quote countdown: a small ring that empties until the locked price (`expiresAt`, from
- * POST quotes) runs out. It owns the one-second clock, so only this little ring re-renders each
- * second — not the whole screen.
+ * Swap.png's quote countdown: a small ring that empties until the rate refreshes. It owns the
+ * one-second clock, so only this little ring re-renders each second — not the whole screen.
  */
-export function QuoteTimer({ size = 18, expiresAt }: { size?: number; expiresAt?: string | null }) {
+export function QuoteTimer({ size = 18 }: { size?: number }) {
   const c = useColors();
-  const { left } = useQuoteClock(expiresAt);
+  const { left } = useQuoteClock();
   const stroke = 2.5;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;

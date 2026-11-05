@@ -11,9 +11,7 @@ import { Screen } from "@/components/screen";
 import { Segmented } from "@/components/segmented";
 import { SwipePager } from "@/components/swipe-switch";
 import { Text } from "@/components/text";
-import { ASSETS, type AssetCode } from "@/data/assets";
-import { useRatesVersion } from "@/api/live-rates";
-import { hasRates, ngnPerUsd, usdRate } from "@/utils/rates";
+import { ASSETS, NGN_PER_USD, type AssetCode } from "@/data/assets";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { portfolioUsd } from "@/stores/use-wallet-store";
 import { useAccounts } from "@/api/queries";
@@ -33,26 +31,21 @@ export default function Wallet() {
   const display = usePrefsStore((s) => s.display);
   const hidden = usePrefsStore((s) => s.hideBalances);
   const unlocked = useWalletsUnlocked();
-  // re-value balances when new rates arrive
-  const v = useRatesVersion();
 
   const q = query.trim().toLowerCase();
   const matches = (a: (typeof ASSETS)[number]) => !q || a.code.toLowerCase().startsWith(q) || a.name.toLowerCase().split(" ").some((w) => w.startsWith(q));
-  const total = accounts.data ? portfolioUsd(accounts.data.balances, v) : NaN;
-  // totals wait for the server's rates: a skeleton, never a fallback-priced number
-  const ready = hasRates(v);
-  const show = (usd: number) => (hidden ? "•••••" : formatMoney(display === "USD" ? usd : usd * ngnPerUsd(v), display));
+  const total = accounts.data ? portfolioUsd(accounts.data.balances) : 0;
+  const show = (usd: number) => (hidden ? "•••••" : formatMoney(display === "USD" ? usd : usd * NGN_PER_USD, display));
 
   // one page of the carousel: that kind's accounts, then the ones you can open (skeleton until loaded)
   const accountsPage = (kind: Kind, balances: Record<AssetCode, number>, opened: AssetCode[]) => {
-    const list = ASSETS.filter((a) => a.kind === kind && opened.includes(a.code) && matches(a)).sort((x, y) => (balances[y.code] * usdRate(y.code, v) || 0) - (balances[x.code] * usdRate(x.code, v) || 0));
+    const list = ASSETS.filter((a) => a.kind === kind && opened.includes(a.code) && matches(a)).sort((x, y) => balances[y.code] * y.usd - balances[x.code] * x.usd);
     const closed = ASSETS.filter((a) => a.kind === kind && !opened.includes(a.code) && matches(a));
-    // NaN (skeleton) until the server's rate for every held asset of this kind has arrived
-    const kindTotal = ASSETS.filter((a) => a.kind === kind).reduce((s, a) => (balances[a.code] ? s + balances[a.code] * usdRate(a.code, v) : s), 0);
+    const kindTotal = ASSETS.filter((a) => a.kind === kind).reduce((s, a) => s + balances[a.code] * a.usd, 0);
     return (
       <View style={{ gap: spacing.lg }}>
         {list.length > 0 ? (
-          <ListSection title={kind === "crypto" ? "Crypto" : "Currencies"} action={hidden || (ready && Number.isFinite(kindTotal)) ? <Text variant="subhead" tone="muted">{show(kindTotal)}</Text> : <Skeleton width={64} height={12} />}>
+          <ListSection title={kind === "crypto" ? "Crypto" : "Currencies"} action={<Text variant="subhead" tone="muted">{show(kindTotal)}</Text>}>
             {list.map((a) => (
               <AssetRow key={a.code} a={a} />
             ))}
@@ -96,7 +89,7 @@ export default function Wallet() {
         <Text variant="subhead" tone="muted">
           Total value
         </Text>
-        {accounts.data && (hidden || (ready && Number.isFinite(total))) ? (
+        {accounts.data ? (
           <Text variant="largeTitle" adjustsFontSizeToFit numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
             {show(total)}
           </Text>

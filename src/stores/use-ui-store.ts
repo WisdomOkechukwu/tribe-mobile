@@ -1,3 +1,4 @@
+import { DEMO_MS } from "@/utils/demo";
 import * as Haptics from "expo-haptics";
 import { create } from "zustand";
 
@@ -32,34 +33,21 @@ export const useUiStore = create<UiState>()((set) => ({
 /** Shorthand for non-component code: toast("Copied"). */
 export const toast = (message: string, tone?: ToastTone) => useUiStore.getState().show(message, tone);
 
-/** Loaders that would only flash: a request this quick finishes before the loader shows. */
-const SHOW_AFTER_MS = 120;
-/** Once shown, stay up this long so it reads as a beat, not a flicker. */
-const MIN_VISIBLE_MS = 450;
-
-let loaderSeq = 0;
-
 /**
- * Shows the full-screen Tribe loader (`label`, e.g. "Signing you in…") for exactly as long as
- * `work` (a real request) takes, then resolves or rejects with its result. Quick answers never
- * flash the loader; a shown loader stays up for a short minimum so it doesn't flicker.
+ * Shows the Tribe loader while a request is "in flight" (devnote: one loader across the app),
+ * then runs `fn`. The prototype has no backend, so `ms` stands in for the network.
  */
-export async function runWithLoader<T>(label: string, work: Promise<T> | (() => Promise<T>)): Promise<T> {
-  const id = ++loaderSeq;
-  let shownAt = 0;
-  const timer = setTimeout(() => {
-    shownAt = Date.now();
-    useUiStore.getState().setLoading(label);
-  }, SHOW_AFTER_MS);
-  try {
-    return await (typeof work === "function" ? work() : work);
-  } finally {
-    clearTimeout(timer);
-    if (shownAt) {
-      const left = MIN_VISIBLE_MS - (Date.now() - shownAt);
-      if (left > 0) await new Promise((r) => setTimeout(r, left));
-    }
-    // a newer loader took over: leave it up
-    if (id === loaderSeq) useUiStore.getState().setLoading(null);
-  }
+export function withLoader<T>(label: string, fn: () => T, ms: number = DEMO_MS.loader): Promise<T> {
+  useUiStore.getState().setLoading(label);
+  return new Promise((resolve, reject) =>
+    setTimeout(() => {
+      try {
+        resolve(fn());
+      } catch (e) {
+        reject(e);
+      } finally {
+        useUiStore.getState().setLoading(null);
+      }
+    }, ms),
+  );
 }

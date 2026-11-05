@@ -9,11 +9,10 @@ import { PairIcon } from "@/components/pair-icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { billerById, detectNetwork } from "@/data/catalog";
+import { billerById, detectNetwork, GIFT_BRANDS } from "@/data/catalog";
 import { useSessionStore } from "@/stores/use-session-store";
-import { FREQUENCY_LABEL, type Frequency, type Schedule } from "@/stores/use-recurring-store";
-import { toggleSchedule } from "@/screens/recurring-actions";
-import { useCashpoints, useGiftBrands, useRecurring, useVaultTokens } from "@/api/queries";
+import { FREQUENCY_LABEL, useRecurringStore, type Frequency, type Schedule } from "@/stores/use-recurring-store";
+import { useRecurring, useTransactions, useVaultTokens } from "@/api/queries";
 import { Skeleton } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 
@@ -91,10 +90,7 @@ function RecurringRail() {
 
 function Rail({ schedules }: { schedules: Schedule[] }) {
   const c = useColors();
-  const toggle = (id: string) => {
-    const s = schedules.find((x) => x.id === id);
-    if (s) toggleSchedule(s);
-  };
+  const toggle = useRecurringStore((s) => s.toggle);
   // the 4 most recently added, then active first by soonest renewal; the rest live on Manage
   const list = [...schedules]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -196,8 +192,7 @@ export default function Pay() {
   const c = useColors();
   const vault = useVaultTokens();
   const tokens = vault.data ?? [];
-  const activeCodes = (useCashpoints().data ?? []).filter((k) => k.status === "active").length;
-  const GIFT_BRANDS = useGiftBrands().data ?? [];
+  const activeCodes = (useTransactions().data ?? []).filter((t) => t.type === "cashpoint" && t.direction === "out" && t.status === "pending").length;
   const unused = tokens.filter((t) => !t.loadedOn);
   const phone = useSessionStore((s) => s.user.phone);
   const network = detectNetwork(phone.replace(/^\+234\s?/, "0")) ?? "mtn";
@@ -262,7 +257,7 @@ export default function Pay() {
             <View style={{ gap: spacing.xxs }}>
               <Text variant="bodyStrong">Buy</Text>
               <Text variant="caption" tone="muted">
-                {GIFT_BRANDS.length ? `${GIFT_BRANDS.length} brands · ` : ""}codes land instantly
+                {GIFT_BRANDS.length} brands · codes land instantly
               </Text>
             </View>
           </PressableScale>
@@ -277,7 +272,7 @@ export default function Pay() {
             <View style={{ gap: spacing.xxs }}>
               <Text variant="bodyStrong">Sell</Text>
               <Text variant="caption" tone="muted">
-                {GIFT_BRANDS.length ? `Up to ₦${Math.max(...GIFT_BRANDS.map((b) => b.sellRate)).toLocaleString()}/$ · paid in minutes` : "Paid in minutes"}
+                Up to ₦{Math.max(...GIFT_BRANDS.map((b) => b.sellRate)).toLocaleString()}/$ · paid in minutes
               </Text>
             </View>
           </PressableScale>

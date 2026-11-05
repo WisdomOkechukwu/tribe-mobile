@@ -78,9 +78,9 @@ const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "extra", "0", "del"] 
 
 /** Brand number pad — no system keyboard for PINs, amounts or codes. */
 /** `compact` shortens the keys for screens that also hold a ticket or card (short phones). */
-export function NumberPad({ onKey, onDelete, extra, compact = false, keyHeight }: { onKey: (d: string) => void; onDelete: () => void; extra?: ReactNode; compact?: boolean; /** overrides compact: each key's height (a pad sized to fill its space) */ keyHeight?: number }) {
+export function NumberPad({ onKey, onDelete, extra, compact = false }: { onKey: (d: string) => void; onDelete: () => void; extra?: ReactNode; compact?: boolean }) {
   const c = useColors();
-  const h = keyHeight ?? (compact ? 46 : 64);
+  const h = compact ? 46 : 64;
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: compact ? 0 : spacing.sm }}>
       {KEYS.map((k) => (

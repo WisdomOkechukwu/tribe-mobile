@@ -1,4 +1,5 @@
 import { router, useNavigation } from "expo-router";
+import { DEMO_MS } from "@/utils/demo";
 import { canRestart, leaveFlow, restartFlow } from "@/utils/flow-exit";
 import { useEffect, useState, type ReactNode } from "react";
 import { BackHandler, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
@@ -18,18 +19,19 @@ import { PressableScale } from "@/components/pressable-scale";
 import { PrivacyGuard } from "@/components/privacy-guard";
 import { Text } from "@/components/text";
 import { TokenSlip } from "@/components/token-slip";
+import { TribeLoader } from "@/components/tribe-loader";
 import { LEG_ICON, TransferLegs, type Leg } from "@/components/transfer-legs";
 import { assetByCode, type AssetCode } from "@/data/assets";
 import { billerById } from "@/data/catalog";
 import type { Transaction } from "@/data/seed";
+import { useBeneficiariesStore } from "@/stores/use-beneficiaries-store";
 import { useCardsStore } from "@/stores/use-cards-store";
-import { pinForFollowUp, useFlowStore, type FlowResult, type RecurringOffer } from "@/stores/use-flow-store";
-import { createScheduleFromOffer, saveBeneficiary, setTokenLoaded } from "@/api/actions";
-import { errorMessage } from "@/api/http";
+import { useFlowStore, type FlowResult, type RecurringOffer } from "@/stores/use-flow-store";
 import { PAY } from "@/utils/pay-platform";
 import { PayMark } from "@/components/pay-mark";
+import { useInboxStore } from "@/stores/use-inbox-store";
 import { useVaultStore } from "@/stores/use-vault-store";
-import { FREQUENCY_LABEL, type Frequency } from "@/stores/use-recurring-store";
+import { FREQUENCY_LABEL, nextDate, useRecurringStore, type Frequency } from "@/stores/use-recurring-store";
 import { toast } from "@/stores/use-ui-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
@@ -39,9 +41,9 @@ const FREQS: Frequency[] = ["weekly", "biweekly", "monthly"];
 /** "Make this recurring?" — offered after a bill is paid (already PIN-authorised). */
 function RecurringOfferCard({ offer }: { offer: RecurringOffer }) {
   const c = useColors();
+  const add = useRecurringStore((s) => s.add);
   const [freq, setFreq] = useState<Frequency>("monthly");
   const [done, setDone] = useState(false);
-  const [busy, setBusy] = useState(false);
   const b = billerById(offer.billerId);
   return (
     <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
@@ -74,19 +76,11 @@ function RecurringOfferCard({ offer }: { offer: RecurringOffer }) {
             icon="repeat"
             variant="secondary"
             size="md"
-            loading={busy}
-            onPress={async () => {
-              // consent was given with the PIN that just paid this bill
-              setBusy(true);
-              try {
-                await createScheduleFromOffer(offer, freq, pinForFollowUp());
-                toast("Recurring bill on", "success");
-                setDone(true);
-              } catch (e) {
-                toast(errorMessage(e), "danger");
-              } finally {
-                setBusy(false);
-              }
+            onPress={() => {
+              add({ ...offer, frequency: freq, nextRun: nextDate(new Date(), freq).toISOString() });
+              useInboxStore.getState().push({ kind: "money", title: "Recurring bill set up", body: `${b.name} · ₦${offer.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[freq].toLowerCase()}`, href: "/pay/recurring", billerId: offer.billerId, badge: "repeat" });
+              toast("Recurring bill on", "success");
+              setDone(true);
             }}
           />
         </>
@@ -116,11 +110,14 @@ function useLegs(tx: Transaction | undefined): { from: Leg; to: Leg } | null {
   if (tx.type === "card" && card && tx.meta?.face) {
     const usd = tx.meta.face.split(" ")[0].replace(/^[+−-]/, "");
     const cardLeg = (label: string, value: string, tone?: "success"): Leg => ({ leading: <CardBadge theme={card.theme} network={card.network} size={LEG_ICON} />, label, title: `${card.label} •• ${card.last4}`, value, valueTone: tone });
-    if (tx.meta?.cardOp === "funding") return { from: { leading: coin(tx.asset), label: "Paid from", title: assetByCode(tx.asset).name, value: formatAsset(tx.amount, tx.asset) }, to: cardLeg("To", `+${usd}`, "success") };
-    if (tx.meta?.cardOp === "withdrawal") return { from: cardLeg("From", usd), to: { leading: coin(tx.asset), label: "To", title: assetByCode(tx.asset).name, value: `+${formatAsset(tx.amount, tx.asset)}`, valueTone: "success" } };
+    if (tx.title === "Card top-up") return { from: { leading: coin(tx.asset), label: "Paid from", title: assetByCode(tx.asset).name, value: formatAsset(tx.amount, tx.asset) }, to: cardLeg("To", `+${usd}`, "success") };
+    if (tx.title === "Card withdrawal") return { from: cardLeg("From", usd), to: { leading: coin(tx.asset), label: "To", title: assetByCode(tx.asset).name, value: `+${formatAsset(tx.amount, tx.asset)}`, valueTone: "success" } };
   }
   return null;
 }
+
+/** How long the card shows "Processing" before it settles (the PIN already approved it). */
+const PROCESSING_MS = DEMO_MS.processing;
 
 /** The settled icon: what kind of thing just happened. */
 /** A new card: the card itself flips in, with a green tick on its corner. */
@@ -198,10 +195,10 @@ function Check({ on, label, onToggle }: { on: boolean; label: string; onToggle: 
  */
 function LoadNow({ vaultId }: { vaultId: string }) {
   const c = useColors();
+  const setLoaded = useVaultStore((s) => s.setLoaded);
   const loaded = useVaultStore((s) => !!s.tokens.find((t) => t.id === vaultId)?.loadedOn);
-  const setLoaded = (on: boolean) => setTokenLoaded(vaultId, on).catch((e) => toast(errorMessage(e), "danger"));
   const load = () => {
-    void setLoaded(true);
+    setLoaded(vaultId, true);
     toast("Filed under Loaded in your Vault", "success");
   };
   return (
@@ -215,7 +212,7 @@ function LoadNow({ vaultId }: { vaultId: string }) {
           <Text variant="bodyStrong" style={{ flex: 1 }}>
             Filed under Loaded
           </Text>
-          <Pressable onPress={() => void setLoaded(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Undo: keep the token under To load">
+          <Pressable onPress={() => setLoaded(vaultId, false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Undo: keep the token under To load">
             {({ pressed }) => (
               <View style={{ backgroundColor: pressed ? c.border : c.surface, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6 }}>
                 <Text variant="subhead">Undo</Text>
@@ -273,17 +270,24 @@ export default function Success() {
   // the root stack: it knows which screen the flow started from
   const nav = useNavigation();
   const [another] = useState(() => canRestart(nav));
+  const addBeneficiary = useBeneficiariesStore((s) => s.add);
   const legs = useLegs(result?.tx);
+  const [settled, setSettled] = useState(reduce);
   const [save, setSave] = useState(true);
   // the meter as the Vault shows it (masked), for the token slip
   const meter = useVaultStore((s) => s.tokens.find((t) => t.id === result?.vaultId)?.meter);
 
+  useEffect(() => {
+    if (settled) return;
+    const t = setTimeout(() => setSettled(true), PROCESSING_MS);
+    return () => clearTimeout(t);
+  }, [settled]);
+
   const keepBeneficiary = () => {
-    const b = result?.beneficiary;
-    if (!b || !save) return;
-    saveBeneficiary(b)
-      .then(() => toast(`${b.name} saved to beneficiaries`, "success"))
-      .catch((e) => toast(errorMessage(e), "danger"));
+    if (result?.beneficiary && save) {
+      addBeneficiary(result.beneficiary);
+      toast(`${result.beneficiary.name} saved to beneficiaries`, "success");
+    }
   };
   // bills: Done also goes back to the bill screen, cleared, ready for the next one
   const billAgain = result?.tx?.type === "bill" && another;
@@ -339,6 +343,22 @@ export default function Success() {
     requestAnimationFrame(() => router.push({ pathname: "/transaction/[id]", params: { id: tx.id } }));
   };
 
+  if (!settled) {
+    return (
+      <ResultCard>
+        <View style={{ padding: spacing.xl, alignItems: "center", gap: spacing.md }} accessibilityLiveRegion="polite">
+          <TribeLoader size={88} />
+          <Text variant="title" align="center">
+            Processing
+          </Text>
+          <Text variant="body" tone="muted" align="center">
+            Your transaction is being processed.
+          </Text>
+        </View>
+      </ResultCard>
+    );
+  }
+
   return (
     <ResultCard>
       {(cashpoint || extra) && <PrivacyGuard />}
@@ -346,11 +366,6 @@ export default function Success() {
         <View style={{ alignItems: "center", gap: spacing.sm }} accessibilityLiveRegion="polite">
           {retiredCard ? <RetiredCard card={retiredCard} /> : <ResultIcon tx={tx} pending={pending} />}
           <Animated.View entering={reduce ? undefined : FadeInDown.delay(80).duration(320)} style={{ alignItems: "center", gap: spacing.sm, marginTop: spacing.xs }}>
-            {result.replayed && (
-              <View>
-                <Pill label="Already went through" tone="neutral" icon="check" />
-              </View>
-            )}
             {/* wrapped: Pill pins itself to flex-start; the wrapper is what the column centres */}
             {pending && (
               <View>

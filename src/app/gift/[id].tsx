@@ -15,25 +15,23 @@ import { PrivacyGuard } from "@/components/privacy-guard";
 import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
-import { giftAmounts, giftBrandById, giftSellPayout } from "@/data/catalog";
-import { useGiftBrands } from "@/api/queries";
-import { exceeds } from "@/utils/decimal";
+import { GIFT_AMOUNTS, GIFT_CARD_BUY_MARKUP, giftBrandById, giftSellPayout } from "@/data/catalog";
 import { ReviewTicket } from "@/screens/review";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
-import { useLiveRates } from "@/api/live-rates";
+import { liveUsd, useQuoteTick } from "@/utils/rates";
 
 type Mode = "buy" | "sell";
 
 /** Card values as a 3-across tile grid; each tile says what it costs / pays in your chosen currency. */
-function ValueGrid({ amounts, value, onPick, sub }: { amounts: number[]; value: number; onPick: (v: number) => void; sub: (v: number) => string }) {
+function ValueGrid({ value, onPick, sub }: { value: number; onPick: (v: number) => void; sub: (v: number) => string }) {
   const c = useColors();
   return (
     <TileGrid>
-      {amounts.map((v) => {
+      {GIFT_AMOUNTS.map((v) => {
         const on = v === value;
         return (
           <PressableScale
@@ -65,32 +63,25 @@ export default function Gift() {
   const c = useColors();
   const { width } = useWindowDimensions();
   const params = useLocalSearchParams<{ id: string; mode?: Mode }>();
-  // the brand's live rate, markup and limits (GET gift-cards/brands)
-  const brandsLoaded = useGiftBrands().dataUpdatedAt;
-  const brand = giftBrandById(params.id, brandsLoaded);
+  const brand = giftBrandById(params.id);
   const balances = useWalletStore((s) => s.balances);
   const opened = useWalletStore((s) => s.opened);
   const begin = useFlowStore((s) => s.begin);
   const funded = ASSETS_FIAT_FIRST.filter((a) => opened.includes(a.code) && balances[a.code] > 0);
   const [mode, setMode] = useState<Mode>(params.mode === "sell" ? "sell" : "buy");
   const [usd, setUsd] = useState(50);
-  
-  // live rates while this screen is open (the estimate re-prices as they move)
-  const rates = useLiveRates();
+  // prices follow the 30-second quote window, the same one review and execution use
+  const tick = useQuoteTick();
   const [payWith, setPayWith] = useState<AssetCode>(() => (funded.find((a) => a.code === "USDT") ?? funded[0])?.code ?? "NGN");
   const [payout, setPayout] = useState<AssetCode>("NGN");
   const [cardCode, setCardCode] = useState("");
 
-  const balancesRaw = useWalletStore((s) => s.balancesRaw);
-  // the server's rate for the wallet that pays / the payout currency: until it arrives, "—" and the button waits
-  const priced = mode === "buy" ? payWith === "USD" || rates.has(payWith) : payout === "NGN" || rates.has(["NGN", payout]);
-  const costIn = (code: AssetCode, v: number) => (code === "USD" ? v * (1 + brand.markup) : (v * (1 + brand.markup)) / rates.usd(code));
-  const costOf = (v: number) => costIn(payWith, v);
+  const costOf = (v: number) => (v * (1 + GIFT_CARD_BUY_MARKUP)) / liveUsd(payWith, tick);
   const cost = costOf(usd);
-  const fee = usd * brand.markup;
-  const over = mode === "buy" && exceeds(cost, balancesRaw[payWith] ?? "0");
-  const payoutAmt = giftSellPayout(usd, brand, payout, rates.version);
-  const ok = priced && (mode === "buy" ? !over : cardCode.replace(/\W/g, "").length >= 10);
+  const fee = usd * GIFT_CARD_BUY_MARKUP;
+  const over = mode === "buy" && cost > balances[payWith];
+  const payoutAmt = giftSellPayout(usd, brand, payout, tick);
+  const ok = mode === "buy" ? !over : cardCode.replace(/\W/g, "").length >= 10;
   const faceW = Math.min(width - spacing.mdl * 2 - 24, 320);
 
   const pickWallet = () =>
@@ -103,7 +94,7 @@ export default function Gift() {
         label: `${a.name} wallet`,
         sub: `Balance ${formatAsset(balances[a.code], a.code)}`,
         leading: <CoinIcon code={a.code} size={36} />,
-        trailing: costIn(a.code, usd) > balances[a.code] ? "Not enough" : formatAsset(costIn(a.code, usd), a.code),
+        trailing: costOf(usd) > balances[a.code] ? "Not enough" : formatAsset(costOf(usd), a.code),
       })),
       onSelect: (v) => setPayWith(v as AssetCode),
     });
@@ -113,10 +104,10 @@ export default function Gift() {
       title={brand.name}
       footer={
         <Button
-          title={!priced ? "Getting the latest rate…" : mode === "buy" ? (over ? `Not enough in ${assetByCode(payWith).name}` : `Buy for ${formatAsset(cost, payWith)}`) : `Sell for ${formatAsset(payoutAmt, payout)}`}
+          title={mode === "buy" ? (over ? `Not enough in ${assetByCode(payWith).name}` : `Buy for ${formatAsset(cost, payWith)}`) : `Sell for ${formatAsset(payoutAmt, payout)}`}
           disabled={!ok}
           onPress={() => {
-            begin(mode === "buy" ? { kind: "gift-buy", brandId: brand.id, usd, payWith } : { kind: "gift-sell", brandId: brand.id, usd, payout, code: cardCode.trim() });
+            begin(mode === "buy" ? { kind: "gift-buy", brandId: brand.id, usd, payWith } : { kind: "gift-sell", brandId: brand.id, usd, payout });
             router.push("/gift/review");
           }}
         />
@@ -144,7 +135,7 @@ export default function Gift() {
         <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
           Card value
         </Text>
-        <ValueGrid amounts={giftAmounts(brand)} value={usd} onPick={setUsd} sub={(v) => (!priced ? "—" : mode === "buy" ? `≈ ${formatAsset(costOf(v), payWith)}` : `≈ ${formatAsset(giftSellPayout(v, brand, payout, rates.version), payout)}`)} />
+        <ValueGrid value={usd} onPick={setUsd} sub={(v) => (mode === "buy" ? `≈ ${formatAsset(costOf(v), payWith)}` : `≈ ${formatAsset(giftSellPayout(v, brand, payout, tick), payout)}`)} />
       </View>
 
       {mode === "buy" ? (
@@ -171,8 +162,8 @@ export default function Gift() {
           <ReviewTicket
             rows={[
               ["Card value", `$${usd}`],
-              ["Fee", `$${fee.toFixed(2)} (${+(brand.markup * 100).toFixed(2)}%)`],
-              ...(payWith !== "USD" ? ([["Rate", priced ? `$1 = ${formatAsset(1 / rates.usd(payWith), payWith)}` : "Getting the latest rate…"]] as [string, string][]) : []),
+              ["Fee", `$${fee.toFixed(2)} (${GIFT_CARD_BUY_MARKUP * 100}%)`],
+              ...(payWith !== "USD" ? ([["Rate", `$1 = ${formatAsset(1 / liveUsd(payWith, tick), payWith)}`]] as [string, string][]) : []),
             ]}
             total={["You pay", formatAsset(cost, payWith)]}
           />

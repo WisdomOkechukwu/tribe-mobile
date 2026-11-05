@@ -10,8 +10,7 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { assetByCode } from "@/data/assets";
 import { sendToBeneficiary } from "@/screens/send/shared";
-import { useBeneficiaries } from "@/api/queries";
-import { BeneficiariesSkeleton } from "@/components/skeletons";
+import { useBeneficiariesStore } from "@/stores/use-beneficiaries-store";
 import { useSendDraft, type SendScope } from "@/stores/use-send-draft";
 import { radius, spacing, useColors } from "@/theme";
 
@@ -23,9 +22,7 @@ export default function SendStart() {
   const c = useColors();
   const params = useLocalSearchParams<{ code?: string }>();
   const start = useSendDraft((s) => s.start);
-  // saved recipients from the API (the store paints the last copy first)
-  const beneficiaries = useBeneficiaries();
-  const saved = (beneficiaries.data ?? []).slice(0, 6);
+  const saved = useBeneficiariesStore((s) => s.items).slice(0, 6);
 
   // /send?code=X (from an asset's page) skips the choice
   useEffect(() => {
@@ -56,14 +53,6 @@ export default function SendStart() {
         <ListRow leading={<RowIcon glyph="crypto" bg={c.brandSoft} tint={c.brandText} size={40} />} title="Cryptocurrencies" subtitle="BTC, ETH, USDT, USDC and SOL to any wallet" onPress={() => go("crypto")} chevron />
       </ListSection>
 
-      {!beneficiaries.data && beneficiaries.isPending && (
-        <View style={{ gap: spacing.sm }}>
-          <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
-            Pay again
-          </Text>
-          <BeneficiariesSkeleton />
-        </View>
-      )}
       {saved.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>

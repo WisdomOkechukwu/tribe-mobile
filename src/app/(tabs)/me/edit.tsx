@@ -9,9 +9,8 @@ import { Icon } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
+import { DEMO } from "@/data/seed";
 import { TAG_COOLDOWN_DAYS, useSessionStore } from "@/stores/use-session-store";
-import { changeTag, updateProfile } from "@/api/auth";
-import { errorMessage } from "@/api/http";
 import { toast } from "@/stores/use-ui-store";
 import { spacing, useColors } from "@/theme";
 import { overlay } from "@/stores/use-overlay-store";
@@ -25,12 +24,13 @@ export default function EditProfile() {
   const user = useSessionStore((s) => s.user);
   const avatarUri = useSessionStore((s) => s.avatarUri);
   const tagChangedAt = useSessionStore((s) => s.tagChangedAt);
-  const [busy, setBusy] = useState(false);
+  const setUser = useSessionStore((s) => s.setUser);
+  const changeTag = useSessionStore((s) => s.changeTag);
   const setAvatar = useSessionStore((s) => s.setAvatar);
 
   const [first, setFirst] = useState(user.firstName);
   const [last, setLast] = useState(user.lastName);
-  const email = user.email;
+  const [email, setEmail] = useState(user.email);
   const [tag, setTag] = useState(user.tag);
 
   const [now] = useState(() => Date.now());
@@ -39,10 +39,9 @@ export default function EditProfile() {
   const cleanTag = tag.replace(/^@/, "").toLowerCase();
   const tagChanged = cleanTag !== user.tag;
   const tagFormatOk = /^[a-z0-9_.]{3,20}$/.test(cleanTag);
-  // the API refuses a taken tag when saving
-  const tagTaken = false;
+  const tagTaken = tagChanged && (DEMO.takenTags as readonly string[]).includes(cleanTag);
   const emailOk = /^\S+@\S+\.\S+$/.test(email.trim());
-  const dirty = first.trim() !== user.firstName || last.trim() !== user.lastName || tagChanged;
+  const dirty = first.trim() !== user.firstName || last.trim() !== user.lastName || email.trim() !== user.email || tagChanged;
   const valid = first.trim().length > 0 && last.trim().length > 0 && emailOk && (!tagChanged || (tagFormatOk && !tagTaken));
 
   const tagHint = tagLocked
@@ -53,7 +52,7 @@ export default function EditProfile() {
         ? "3–20 letters, numbers, dots or underscores."
         : tagTaken
           ? `@${cleanTag} is taken.`
-          : `@${cleanTag} will be checked when you save`;
+          : `@${cleanTag} is available`;
 
   const pick = async (from: "camera" | "library") => {
     if (from === "camera") {
@@ -88,19 +87,11 @@ export default function EditProfile() {
         <Button
           title="Save changes"
           disabled={!dirty || !valid}
-          loading={busy}
-          onPress={async () => {
-            setBusy(true);
-            try {
-              if (first.trim() !== user.firstName || last.trim() !== user.lastName) await updateProfile({ first_name: first.trim(), last_name: last.trim() });
-              if (tagChanged) await changeTag(cleanTag);
-              toast("Profile saved");
-              router.back();
-            } catch (e) {
-              toast(errorMessage(e), "danger");
-            } finally {
-              setBusy(false);
-            }
+          onPress={() => {
+            setUser({ firstName: first.trim(), lastName: last.trim(), email: email.trim() });
+            if (tagChanged) changeTag(cleanTag);
+            toast("Profile saved");
+            router.back();
           }}
         />
       }
@@ -127,7 +118,7 @@ export default function EditProfile() {
           <Field label="Last name" value={last} onChangeText={setLast} autoCapitalize="words" textContentType="familyName" />
         </View>
       </View>
-      <Field label="Email" value={email} editable={false} hint="To change your email, contact support." />
+      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" textContentType="emailAddress" hint={emailOk ? undefined : "Enter a valid email"} hintTone="danger" />
       <Field
         label="Tribe tag"
         value={tag}
