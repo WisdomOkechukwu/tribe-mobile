@@ -9,7 +9,6 @@ import { CoinIcon } from "@/components/coin-icon";
 import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { PressableScale } from "@/components/pressable-scale";
-import { QuoteTimer } from "@/components/quote-timer";
 import { Text } from "@/components/text";
 import { assetByCode, type AssetCode } from "@/data/assets";
 import { openAddMoneySheet } from "@/screens/home/sheets";
@@ -19,7 +18,9 @@ import { useSwapDraft } from "@/stores/use-swap-draft";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { motion, radius, spacing, useColors } from "@/theme";
 import { formatAsset, quote } from "@/utils/format";
-import { useQuoteTick } from "@/utils/rates";
+import { exceeds } from "@/utils/decimal";
+import { RateFlash } from "@/components/rate-flash";
+import { useLiveRates } from "@/api/live-rates";
 
 function pick(side: "from" | "to") {
   const draft = useSwapDraft.getState();
@@ -54,6 +55,7 @@ export default function Swap() {
   const c = useColors();
   const params = useLocalSearchParams<{ from?: string }>();
   const balances = useWalletStore((s) => s.balances);
+  const balancesRaw = useWalletStore((s) => s.balancesRaw);
   const begin = useFlowStore((s) => s.begin);
   const from = useSwapDraft((s) => s.from);
   const to = useSwapDraft((s) => s.to);
@@ -61,20 +63,23 @@ export default function Swap() {
   const flip = useSwapDraft((s) => s.flip);
   const [amount, setAmount] = useState("");
   const [spins, setSpins] = useState(0);
-  // re-price when the quote window rolls over (the countdown ring ticks on its own)
-  const tick = useQuoteTick();
+  
+  // live rates while this screen is open (the estimate re-prices as they move)
+  const { version, has } = useLiveRates();
 
   useEffect(() => {
     start(params.from ? assetByCode(params.from).code : undefined);
   }, [params.from, start]);
 
   const value = Number(amount) || 0;
-  const q = quote(value, from, to, tick);
+  const q = quote(value, from, to, version);
   const fromA = assetByCode(from);
-  const over = value > balances[from] + 1e-9;
+  const over = exceeds(amount || "0", balancesRaw[from] ?? "0");
   const spin = useAnimatedStyle(() => ({ transform: [{ rotate: withSpring(`${spins * 180}deg`, motion.spring) }] }), [spins]);
-  const unit = quote(1, from, to, tick).rate;
-  const rateText = unit >= 1 ? `1 ${from} ⇄ ${formatAsset(unit, to)}` : `1 ${to} ⇄ ${formatAsset(1 / unit, from)}`;
+  // the server's rates for both sides: until they arrive the estimate shows "—" and Continue waits
+  const priced = has([from, to]);
+  const unit = quote(1, from, to, version).rate;
+  const rateText = !priced ? "Getting the latest rate…" : unit >= 1 ? `1 ${from} ⇄ ${formatAsset(unit, to)}` : `1 ${to} ⇄ ${formatAsset(1 / unit, from)}`;
 
   const review = () => {
     if (over) {
@@ -95,7 +100,7 @@ export default function Swap() {
   };
 
   return (
-    <FlowScreen title="Swap" scroll={false} footer={<Button title="Continue" disabled={!value} onPress={review} />}>
+    <FlowScreen title="Swap" scroll={false} footer={<Button title={value && !priced ? "Getting the latest rate…" : "Continue"} disabled={!value || !priced} onPress={review} />}>
       <View style={{ gap: spacing.sm }}>
         <Text variant="subhead" tone="muted">
           Available bal.: <Text variant="subhead">{formatAsset(balances[from], from)}</Text>
@@ -105,7 +110,7 @@ export default function Swap() {
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
               <AssetButton code={from} side="from" label="From" />
               <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
-                <QuoteTimer />
+                <RateFlash />
                 <Text variant="caption" tone="muted">
                   {rateText}
                 </Text>

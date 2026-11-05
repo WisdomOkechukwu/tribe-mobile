@@ -1,24 +1,33 @@
+import * as Crypto from "expo-crypto";
+import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
+import { resources } from "@/api/client";
+import { api, ApiError, newIdempotencyKey, request } from "@/api/http";
+import { toCard, toTransaction } from "@/api/mappers";
+import { queryClient, refreshAfterMoney } from "@/api/query-client";
+import type { CardResource, QuoteResource, TransactionResource } from "@/api/types";
 import { assetByCode, type AssetCode } from "@/data/assets";
-import { billerById, GIFT_CARD_BUY_MARKUP, giftBrandById, giftSellPayout } from "@/data/catalog";
-import type { InboxItem, InboxKind } from "@/data/inbox";
-import { CARD_FEE_USD, CARD_MIN_TOPUP_USD, cardFundingFee, type CardFinish, type CardNetwork, type Transaction, type VirtualCard } from "@/data/seed";
-import { formatAsset, randomDigits } from "@/utils/format";
+import { billerById, giftBrandById } from "@/data/catalog";
+import type { CardFinish, CardNetwork, Transaction, VirtualCard } from "@/data/seed";
+import { amountString } from "@/utils/decimal";
+import { formatAsset } from "@/utils/format";
 import { PAY } from "@/utils/pay-platform";
-import { liveUsd } from "@/utils/rates";
+import { apiDecimals } from "./use-catalog-store";
 import { useBeneficiariesStore, type BeneficiaryDraft } from "./use-beneficiaries-store";
 import { useCardsStore } from "./use-cards-store";
-import { useReferralStore } from "./use-referral-store";
-import { useSessionStore } from "./use-session-store";
-import { useInboxStore } from "./use-inbox-store";
-import { FREQUENCY_LABEL, useRecurringStore, type Frequency } from "./use-recurring-store";
-import { useVaultStore } from "./use-vault-store";
-import { InsufficientFunds, useWalletStore } from "./use-wallet-store";
+import { FREQUENCY_LABEL, type Frequency } from "./use-recurring-store";
+import { useWalletStore } from "./use-wallet-store";
 
 /**
- * Every money movement is described as a PendingAction on the review screen, authorised on
- * /pin, executed here, and celebrated on /success. Routes can't carry functions, so the
- * action lives in this (non-persisted) store between the three screens.
+ * Every money movement is described as a PendingAction on the review screen, approved on /pin,
+ * executed here against the API, and shown on /success. Routes can't carry functions, so the
+ * action lives in this (non-persisted) store between the screens.
+ *
+ * `execute(pin)` is async and walks: quoting (swaps and converted sends lock a price with
+ * POST quotes) → submitting → success | failed. Before anything is sent, the request's
+ * Idempotency-Key is saved to SecureStore with a hash of its body: a retry of the same request
+ * (the network dropped, the app was killed mid-payment) reuses it, so the server answers with the
+ * first result instead of charging twice. A changed body (a different PIN) gets a new key.
  */
 export type PendingAction =
   | {
@@ -30,6 +39,8 @@ export type PendingAction =
       /** what the recipient gets — differs from `asset` when we convert on the way */
       toAsset?: AssetCode;
       toAmount?: number;
+      /** converted sends: the side the user typed ("pay" = `amount` is exact, the quote prices what they get) */
+      typed?: "pay" | "receive";
       /** @tag, masked account or short address */
       to: string;
       name?: string;
@@ -44,7 +55,7 @@ export type PendingAction =
       beneficiaryId?: string;
       eta?: string;
     }
-  | { kind: "swap"; from: AssetCode; to: AssetCode; amount: number; /** funding a just-opened currency (add-currency/fund): worded as "Add money" */ fund?: boolean }
+  | { kind: "swap"; from: AssetCode; to: AssetCode; amount: number; /** the exact amount to land, when that's what was typed (the quote prices `amount`) */ receive?: number; /** funding a just-opened currency (add-currency/fund): worded as "Add money" */ fund?: boolean }
   | {
       kind: "bill";
       billerId: string;
@@ -52,27 +63,31 @@ export type PendingAction =
       payWith: AssetCode;
       /** as shown (meters masked) */
       target: string;
-      /** the full number, kept on the transaction for "saved numbers" */
+      /** the full number, sent to the API */
       account?: string;
       category?: "airtime" | "data" | "tv" | "electricity";
       /** electricity only; postpaid pays the account and makes no token */
       meterType?: "prepaid" | "postpaid";
+      /** the plan's name, for display */
       plan?: string;
+      planId?: string;
       recurringId?: string;
     }
   | { kind: "gift-buy"; brandId: string; usd: number; payWith: AssetCode }
-  | { kind: "gift-sell"; brandId: string; usd: number; payout: AssetCode }
+  | { kind: "gift-sell"; brandId: string; usd: number; payout: AssetCode; code?: string }
   | { kind: "card-fund"; cardId: string; usd: number; from: AssetCode }
   | { kind: "card-create"; label: string; theme: CardFinish; network: CardNetwork; usd: number; from: AssetCode }
   | { kind: "card-withdraw"; cardId: string; usd: number; to: AssetCode }
-  | { kind: "recurring-create"; billerId: string; target: string; plan?: string; amountNgn: number; payWith: AssetCode; frequency: Frequency; start: string }
+  | { kind: "recurring-create"; billerId: string; target: string; plan?: string; planId?: string; amountNgn: number; payWith: AssetCode; frequency: Frequency; start: string }
   | { kind: "cashpoint"; amount: number }
   | { kind: "referral-withdraw"; amountNgn: number; to: AssetCode }
   /** not a payment, but final: deleting a card is approved with the PIN too (its balance is refunded) */
-  | { kind: "card-delete"; cardId: string };
+  | { kind: "card-delete"; cardId: string }
+  /** PIN-less: money only comes in */
+  | { kind: "cashpoint-redeem"; code: string };
 
 /** What a paid bill needs to become a recurring schedule (offered on the success screen). */
-export type RecurringOffer = { billerId: string; target: string; plan?: string; amountNgn: number; payWith: AssetCode };
+export type RecurringOffer = { billerId: string; target: string; plan?: string; planId?: string; amountNgn: number; payWith: AssetCode };
 
 export type FlowResult = {
   /** absent for actions that don't move money (e.g. setting up a recurring bill) */
@@ -82,7 +97,6 @@ export type FlowResult = {
   extra?: { label: string; value: string };
   /** an electricity token: the result card offers "I'm loading it now" (files it under Loaded) */
   vaultId?: string;
-  notify?: { kind: InboxKind; title: string; body: string; href?: string; billerId?: string; badge?: InboxItem["badge"] };
   recurringOffer?: RecurringOffer;
   /** a send to someone not saved yet: the result card offers "Add to beneficiaries" */
   beneficiary?: BeneficiaryDraft;
@@ -90,229 +104,399 @@ export type FlowResult = {
   walletCardId?: string;
   /** a card that was just deleted: the result card shows it fading out */
   retiredCard?: Pick<VirtualCard, "theme" | "network" | "label" | "last4" | "holder">;
+  /** the API replayed a saved answer (this exact request already went through) */
+  replayed?: boolean;
 };
+
+export type FlowStatus = "idle" | "quoting" | "submitting" | "success" | "failed";
 
 type FlowState = {
   pending: PendingAction | null;
   result: FlowResult | null;
+  status: FlowStatus;
+  error: ApiError | null;
+  /** the locked price for a swap / converted send (the review shows it; execute reuses it while valid) */
+  quote: QuoteResource | null;
   begin: (action: PendingAction) => void;
-  execute: () => FlowResult;
-  /** for actions that don't need a PIN (e.g. redeeming a Cashpoint) */
+  /** price the pending action now (review screen). Safe to call repeatedly. */
+  refreshQuote: () => Promise<QuoteResource | null>;
+  execute: (pin?: string) => Promise<FlowResult>;
+  /** for results made outside execute */
   complete: (result: FlowResult) => void;
   clear: () => void;
 };
 
-const NGN_PER_KWH = 438.6;
+// ─── idempotency: one saved attempt at a time ───────────────────────────
 
-/** "Everyday •• 4821" for a card id. */
-function cardName(id: string) {
-  const k = useCardsStore.getState().cards.find((c) => c.id === id);
-  return k ? `${k.label} •• ${k.last4}` : "virtual card";
+/** Kept in SecureStore, not AsyncStorage: the body hash comes from a body that holds the 4-digit
+ * PIN, so in plain storage it could be reversed by trying all 10,000 PINs. */
+const ATTEMPT_KEY = "tribe.flow-attempt";
+type Attempt = { actionKey: string; bodyHash: string; key: string; quoteId?: string; quoteExpiresAt?: string; savedAt: number };
+/** an unanswered attempt is retried with its key for this long; after that a tap is a new payment */
+const ATTEMPT_TTL_MS = 15 * 60_000;
+
+/** Stable JSON (sorted keys), so the same action always gives the same string. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.keys(value as object)
+      .sort()
+      .filter((k) => (value as Record<string, unknown>)[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${stable((value as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(value);
 }
 
-/** Cardholder name for new cards. */
-function cardHolderName() {
-  const u = useSessionStore.getState().user;
-  return `${u.firstName} ${u.lastName}`;
+/** The body is hashed (it holds the PIN): only the digest is saved, and only in SecureStore. */
+const digest = (text: string) => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, text);
+
+async function loadAttempt(): Promise<Attempt | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(ATTEMPT_KEY);
+    const attempt = raw ? (JSON.parse(raw) as Attempt) : null;
+    return attempt && Date.now() - (attempt.savedAt ?? 0) < ATTEMPT_TTL_MS ? attempt : null;
+  } catch {
+    return null;
+  }
+}
+const saveAttempt = (a: Attempt) => SecureStore.setItemAsync(ATTEMPT_KEY, JSON.stringify(a)).catch(() => {});
+const dropAttempt = () => SecureStore.deleteItemAsync(ATTEMPT_KEY).catch(() => {});
+
+// ─── quotes ─────────────────────────────────────────────────────────────
+
+/** Which actions are priced with a quote, and how. */
+function quoteRequest(a: PendingAction) {
+  if (a.kind === "swap" && a.receive !== undefined) return { transaction_type: "swap", from_asset: a.from, to_asset: a.to, receive_amount: amountString(a.receive, apiDecimals(a.to)) };
+  if (a.kind === "swap") return { transaction_type: "swap", from_asset: a.from, to_asset: a.to, amount: amountString(a.amount, apiDecimals(a.from)) };
+  if (a.kind === "send" && a.toAsset && a.toAsset !== a.asset && a.typed === "pay")
+    // the user typed what they pay: the server works out what the recipient gets (no client-side conversion)
+    return { transaction_type: "send", from_asset: a.asset, to_asset: a.toAsset, amount: amountString(a.amount, apiDecimals(a.asset)) };
+  if (a.kind === "send" && a.toAsset && a.toAsset !== a.asset && a.toAmount !== undefined)
+    // the recipient gets exactly what was typed; the quote works out what that costs
+    return { transaction_type: "send", from_asset: a.asset, to_asset: a.toAsset, receive_amount: amountString(a.toAmount, apiDecimals(a.toAsset)) };
+  return null;
 }
 
-function run(action: PendingAction): FlowResult {
-  const wallet = useWalletStore.getState();
-  switch (action.kind) {
+const usable = (q: { expires_at?: string; expiresAt?: string } | null | undefined, slackMs = 3_000) => {
+  const at = q?.expires_at ?? q?.expiresAt;
+  return !!at && new Date(at).getTime() - slackMs > Date.now();
+};
+
+// ─── each action as one API call ────────────────────────────────────────
+
+type Call = { path: string; method: "POST" | "DELETE"; body: Record<string, unknown> };
+
+const money = (n: number | string, code: string) => amountString(n, apiDecimals(code));
+const naira = (n: number) => amountString(n, 2);
+const ymd = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+
+function planIdFor(billerId: string, plan?: string, planId?: string) {
+  if (planId) return planId;
+  if (!plan) return undefined;
+  return billerById(billerId).plans?.find((p) => p.name === plan || p.id === plan)?.id;
+}
+
+function buildCall(a: PendingAction, pin: string | undefined, quote: QuoteResource | null): Call {
+  const withPin = (body: Record<string, unknown>) => ({ ...body, pin });
+  switch (a.kind) {
     case "send": {
-      const tx = wallet.send(action);
-      const got = formatAsset(action.toAmount ?? action.amount, action.toAsset ?? action.asset);
-      const who = (action.name ?? action.to).replace(/\.$/, "");
-      const saved = useBeneficiariesStore.getState().has({ asset: action.toAsset ?? action.asset, handle: action.to });
-      const beneficiary: BeneficiaryDraft | undefined =
-        action.beneficiaryId || saved || !action.recipientKind
-          ? undefined
-          : { kind: action.recipientKind, name: who, handle: action.to, asset: action.toAsset ?? action.asset, channelId: action.channelId, network: action.network, country: action.country, details: action.details };
+      const base = {
+        recipient_kind: a.recipientKind ?? "tribe",
+        handle: a.to,
+        recipient_name: a.name,
+        channel_id: a.channelId,
+        network: a.network,
+        country: a.country,
+        details: a.details,
+        save_beneficiary: false,
+      };
+      return { path: "sends", method: "POST", body: withPin(quote ? { ...base, quote_id: quote.id } : { ...base, asset: a.asset, amount: money(a.amount, a.asset) }) };
+    }
+    case "swap":
+      return { path: "swaps", method: "POST", body: withPin({ quote_id: quote!.id }) };
+    case "bill":
+      return { path: "bills", method: "POST", body: withPin({ biller_id: a.billerId, target: a.account ?? a.target, plan_id: planIdFor(a.billerId, a.plan, a.planId), amount_ngn: naira(a.amountNgn), pay_with: a.payWith }) };
+    case "gift-buy":
+      return { path: "gift-cards/buy", method: "POST", body: withPin({ brand_id: a.brandId, face_usd: amountString(a.usd, 2), asset: a.payWith }) };
+    case "gift-sell":
+      return { path: "gift-cards/sell", method: "POST", body: withPin({ brand_id: a.brandId, face_usd: amountString(a.usd, 2), asset: a.payout, code: a.code ?? "" }) };
+    case "card-fund":
+      return { path: `cards/${a.cardId}/fund`, method: "POST", body: withPin({ amount_usd: amountString(a.usd, 2), asset: a.from }) };
+    case "card-withdraw":
+      return { path: `cards/${a.cardId}/withdraw`, method: "POST", body: withPin({ amount_usd: amountString(a.usd, 2), asset: a.to }) };
+    case "card-create":
+      return { path: "cards", method: "POST", body: withPin({ label: a.label.slice(0, 18), network: a.network, design_finish: a.theme, first_top_up: amountString(a.usd, 2), pay_with: a.from }) };
+    case "card-delete":
+      return { path: `cards/${a.cardId}`, method: "DELETE", body: withPin({}) };
+    case "recurring-create":
+      return {
+        path: "recurring-bills",
+        method: "POST",
+        body: withPin({ biller_id: a.billerId, target: a.target, plan_id: planIdFor(a.billerId, a.plan, a.planId), amount_ngn: naira(a.amountNgn), pay_with: a.payWith, frequency: a.frequency, start_date: ymd(a.start) }),
+      };
+    case "cashpoint":
+      return { path: "cashpoints", method: "POST", body: withPin({ amount_ngn: naira(a.amount) }) };
+    case "referral-withdraw":
+      return { path: "referrals/withdraw", method: "POST", body: withPin({ amount_ngn: naira(a.amountNgn) }) };
+    case "cashpoint-redeem":
+      return { path: "cashpoints/redeem", method: "POST", body: { code: a.code } };
+  }
+}
+
+/** Send one call with a key that survives retries of the same request. */
+async function sendOnce<T>(actionKey: string, call: Call, quote: QuoteResource | null) {
+  const bodyHash = await digest(stable({ path: call.path, method: call.method, body: call.body }));
+  const saved = await loadAttempt();
+  const key = saved && saved.actionKey === actionKey && saved.bodyHash === bodyHash ? saved.key : newIdempotencyKey();
+  // saved BEFORE sending: if the app dies mid-request, the retry reuses this key
+  await saveAttempt({ actionKey, bodyHash, key, quoteId: quote?.id, quoteExpiresAt: quote?.expires_at, savedAt: saved?.key === key ? saved.savedAt : Date.now() });
+  try {
+    const res = await request<T>(call.path, { method: call.method, body: call.body, idempotencyKey: key });
+    await dropAttempt();
+    return res;
+  } catch (error) {
+    // a final answer (wrong PIN, not enough money…) ends the attempt; a network failure keeps it
+    if (!(error instanceof ApiError) || !error.retryable) await dropAttempt();
+    throw error;
+  }
+}
+
+// ─── results: the server's transaction, worded for the result card ──────
+
+const cardLabel = (id: string) => {
+  const k = useCardsStore.getState().cards.find((c) => c.id === id);
+  return k ? `${k.label} •• ${k.last4}` : "your card";
+};
+
+/** The vault id of a fresh token (the API saved it with the bill). */
+async function vaultIdFor(token?: string) {
+  if (!token) return undefined;
+  const digits = token.replace(/\D/g, "");
+  try {
+    const tokens = await queryClient.fetchQuery({ queryKey: resources.vault.key, queryFn: () => resources.vault.fetch(), staleTime: 0 });
+    return tokens.find((t) => t.token.replace(/\D/g, "") === digits)?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+async function describe(a: PendingAction, data: unknown, pin: string | undefined, replayed: boolean): Promise<FlowResult> {
+  const txOf = (r: unknown) => toTransaction(r as TransactionResource);
+  switch (a.kind) {
+    case "send": {
+      const tx = txOf(data);
+      const got = formatAsset(tx.toAmount ?? a.toAmount ?? tx.amount, tx.toAsset ?? a.toAsset ?? a.asset);
+      const who = (a.name ?? a.to).replace(/\.$/, "");
+      const asset = a.toAsset ?? a.asset;
+      const saved = useBeneficiariesStore.getState().has({ asset, handle: a.to });
+      const beneficiary: BeneficiaryDraft | undefined = a.beneficiaryId || saved || !a.recipientKind ? undefined : { kind: a.recipientKind, name: who, handle: a.to, asset, channelId: a.channelId, network: a.network, country: a.country, details: a.details };
       return {
         tx,
         beneficiary,
         headline: tx.status === "pending" ? "Transfer submitted" : "Money sent",
-        detail: tx.status === "pending" ? `${got} to ${who} by ${action.channel}. Expected: ${action.eta?.toLowerCase() ?? "soon"}.` : `${got} is on its way to ${who}.`,
-        notify: { kind: "money", title: `You sent ${got}`, body: `To ${action.name ? `${action.name} (${action.to})` : action.to} · ${action.channel}` },
+        detail: tx.status === "pending" ? `${got} to ${who} by ${a.channel}. Expected: ${a.eta?.toLowerCase() ?? "soon"}.` : `${got} is on its way to ${who}.`,
       };
     }
     case "swap": {
-      const tx = wallet.swap(action);
-      const legs = `${formatAsset(action.amount, action.from)} → ${formatAsset(tx.toAmount!, action.to)}`;
-      return { tx, headline: action.fund ? `${action.to} funded` : "Swap complete", detail: `Now in your ${assetByCode(action.to).name} balance.`, notify: { kind: "swap", title: "Swap complete", body: `${legs} is in your ${assetByCode(action.to).name} balance.` } };
+      const tx = txOf(data);
+      return { tx, headline: a.fund ? `${a.to} funded` : "Swap complete", detail: `Now in your ${assetByCode(a.to).name} balance.` };
     }
     case "bill": {
-      const b = billerById(action.billerId);
-      const cost = (action.amountNgn * liveUsd("NGN")) / liveUsd(action.payWith);
-      const isLight = b.category === "electricity";
-      const postpaid = isLight && action.meterType === "postpaid";
-      // prepaid meters get a token (saved to the Vault); postpaid just settles the account
-      const token = isLight && !postpaid ? randomDigits(20).replace(/(.{4})(?=.)/g, "$1 ") : undefined;
-      const category = action.category ?? b.category;
-      const units = isLight ? `${(action.amountNgn / NGN_PER_KWH).toFixed(1)} kWh` : undefined;
-      const tx = wallet.record(
-        {
-          type: "bill",
-          asset: action.payWith,
-          amount: cost,
-          direction: "out",
-          title: action.plan ? `${b.name} ${action.plan}` : `${b.name} ${isLight ? (postpaid ? "Postpaid" : "Prepaid") : category === "airtime" ? "airtime" : "top-up"}`,
-          subtitle: `Paid with ${action.payWith} · ${isLight && !postpaid ? units : action.target}`,
-          meta: { billerId: b.id, token, units: postpaid ? undefined : units, face: `₦${action.amountNgn.toLocaleString()}`, recurringId: action.recurringId, target: action.account ?? action.target, billCategory: category, meterType: isLight ? (postpaid ? "postpaid" : "prepaid") : undefined },
-        },
-        { [action.payWith]: -cost },
-      );
-      // saved at payment (waiting) so a token is never lost; "I'm loading it now" files it as loaded
-      const vaultId =
-        isLight && token
-          ? useVaultStore.getState().add({ provider: `${b.name} Prepaid`, meter: action.target, amount: action.amountNgn, kwh: Number((action.amountNgn / NGN_PER_KWH).toFixed(1)), token, paidWith: action.payWith, paid: cost }).id
-          : undefined;
-      if (action.recurringId) useRecurringStore.getState().markPaid(action.recurringId);
-      const recurringOffer = action.recurringId || postpaid ? undefined : { billerId: b.id, target: action.target, plan: action.plan, amountNgn: action.amountNgn, payWith: action.payWith };
-      return isLight && !postpaid
-        ? { tx, recurringOffer, vaultId, headline: "Your token is ready", detail: `${units} of ${b.name} electricity`, extra: { label: "Token", value: token! }, notify: { kind: "vault", title: `Your ${b.name} token is ready`, body: `${units}. Not loaded yet? It's waiting in your Token Vault.`, href: "/pay/vault" } }
-        : { tx, recurringOffer, headline: "Paid", detail: `${b.name} · ${action.target}`, notify: { kind: "money", title: `${b.name} paid`, body: `₦${action.amountNgn.toLocaleString()} · ${action.target}` } };
+      const tx = txOf(data);
+      const b = billerById(a.billerId);
+      const token = tx.meta?.token;
+      const postpaid = b.category === "electricity" && a.meterType === "postpaid";
+      const vaultId = await vaultIdFor(token);
+      const planId = planIdFor(a.billerId, a.plan, a.planId);
+      const recurringOffer = a.recurringId || postpaid ? undefined : { billerId: b.id, target: a.account ?? a.target, plan: a.plan, planId, amountNgn: a.amountNgn, payWith: a.payWith };
+      return token
+        ? { tx, recurringOffer, vaultId, headline: "Your token is ready", detail: `${tx.meta?.units ?? ""} of ${b.name} electricity`.trim(), extra: { label: "Token", value: token } }
+        : { tx, recurringOffer, headline: "Paid", detail: `${b.name} · ${a.target}` };
     }
     case "gift-buy": {
-      const brand = giftBrandById(action.brandId);
-      const cost = (action.usd * (1 + GIFT_CARD_BUY_MARKUP)) / liveUsd(action.payWith);
-      const code = `${randomDigits(4)}-${randomDigits(4)}-${randomDigits(4)}`;
-      const tx = wallet.record(
-        { type: "giftcard", asset: action.payWith, amount: cost, direction: "out", title: `${brand.name} gift card`, subtitle: `Paid with ${action.payWith} · code ready`, meta: { giftBrand: brand.id, code, face: `$${action.usd} ${brand.name} card` } },
-        { [action.payWith]: -cost },
-      );
-      return { tx, headline: "Your card is ready", detail: `${brand.name} $${action.usd}`, extra: { label: "Redeem code", value: code } };
+      const r = data as { transaction: TransactionResource; code: string };
+      const tx = txOf(r.transaction);
+      const brand = giftBrandById(a.brandId);
+      tx.meta = { ...tx.meta, code: r.code };
+      return { tx, headline: "Your card is ready", detail: `${brand.name} $${a.usd}`, extra: { label: "Redeem code", value: r.code } };
     }
     case "gift-sell": {
-      const brand = giftBrandById(action.brandId);
-      const amount = giftSellPayout(action.usd, brand, action.payout);
-      // a currency you hadn't opened yet gets opened for the payout
-      if (!wallet.opened.includes(action.payout)) wallet.openAccount(action.payout);
-      // Paid out once the card is verified — logged as pending, balance untouched for now.
-      const tx = wallet.record(
-        { type: "giftcard", asset: action.payout, amount, direction: "in", status: "pending", title: `Sold ${brand.name} gift card`, subtitle: `Paid out in ${action.payout} · ₦${brand.sellRate.toLocaleString()}/$`, meta: { giftBrand: brand.id, face: `$${action.usd} ${brand.name} card` } },
-        {},
-      );
-      return { tx, headline: "Card submitted", detail: `We're verifying it. ${formatAsset(amount, action.payout)} lands in minutes.` };
+      const tx = txOf(data);
+      const brand = giftBrandById(a.brandId);
+      return { tx, headline: tx.status === "pending" ? "Card submitted" : "Card sold", detail: tx.status === "pending" ? `We're verifying it. ${formatAsset(tx.amount, tx.asset)} lands in minutes.` : `${formatAsset(tx.amount, tx.asset)} for your ${brand.name} card is in your ${assetByCode(tx.asset).name} balance.` };
     }
     case "card-fund": {
-      const feeUsd = cardFundingFee(action.usd);
-      const cost = (action.usd + feeUsd) / liveUsd(action.from);
-      const tx = wallet.record(
-        { type: "card", asset: action.from, amount: cost, direction: "out", fee: feeUsd / liveUsd(action.from), title: "Card top-up", subtitle: `Funded from ${action.from} · ${cardName(action.cardId)}`, meta: { cardId: action.cardId, face: `+$${action.usd.toFixed(2)} to card` } },
-        { [action.from]: -cost },
-      );
-      useCardsStore.getState().credit(action.cardId, action.usd);
-      return { tx, headline: "Card funding successful", detail: `$${action.usd.toFixed(2)} is on your card. You can now pay online with ease.`, notify: { kind: "card", title: "Card topped up", body: `+$${action.usd.toFixed(2)} on your virtual card.` } };
+      const tx = txOf(data);
+      const usd = amountString(a.usd, 2);
+      return { tx, headline: "Card funding successful", detail: `$${usd} is on ${cardLabel(a.cardId)}. You can now pay online with ease.` };
+    }
+    case "card-withdraw": {
+      const tx = txOf(data);
+      return { tx, headline: "Card withdrawal successful", detail: `$${amountString(a.usd, 2)} moved from your card to your ${assetByCode(a.to).name} balance.` };
     }
     case "card-create": {
-      // every new card starts funded (the details step enforces it too)
-      if (action.usd < CARD_MIN_TOPUP_USD) throw new Error(`Add at least $${CARD_MIN_TOPUP_USD} to your new card.`);
-      const total = action.usd + CARD_FEE_USD + cardFundingFee(action.usd);
-      const cost = total / liveUsd(action.from);
-      // Check funds before creating, so a failed top-up never leaves a half-made card.
-      if (cost > wallet.balances[action.from] + 1e-9) throw new InsufficientFunds(action.from);
-      const user = cardHolderName();
-      const card = useCardsStore.getState().createCard({ label: action.label, theme: action.theme, network: action.network, holder: user });
-      const tx = wallet.record(
-        { type: "card", asset: action.from, amount: cost, direction: "out", fee: (CARD_FEE_USD + cardFundingFee(action.usd)) / liveUsd(action.from), title: "New virtual card", subtitle: `Paid with ${action.from} · ${action.label} •• ${card.last4}`, meta: { cardId: card.id, cardOp: "created", face: `+$${action.usd.toFixed(2)} to card` } },
-        { [action.from]: -cost },
-      );
-      useCardsStore.getState().credit(card.id, action.usd);
+      const r = data as { card: CardResource; transaction: TransactionResource };
+      const card = toCard(r.card);
+      useCardsStore.getState().setCards([...useCardsStore.getState().cards.filter((c) => c.id !== card.id), card]);
+      useCardsStore.getState().select(card.id);
+      const tx = txOf(r.transaction);
       return {
         tx,
         walletCardId: card.id,
         headline: "Your card is ready",
-        detail: `${action.label} •• ${card.last4} works anywhere online. Add it to ${PAY.name} to tap and pay with your phone.`,
-        notify: { kind: "card", title: "New virtual card", body: `${action.label} •• ${card.last4} is ready to use.` },
-      };
-    }
-    case "card-withdraw": {
-      const card = useCardsStore.getState().cards.find((c) => c.id === action.cardId);
-      if (!card || action.usd > card.balance + 1e-9) throw new Error("That's more than your card balance.");
-      const amount = action.usd / liveUsd(action.to);
-      useCardsStore.getState().debit(card.id, action.usd);
-      const tx = wallet.record(
-        { type: "card", asset: action.to, amount, direction: "in", title: "Card withdrawal", subtitle: `From ${card.label} •• ${card.last4} to ${action.to}`, meta: { cardId: card.id, face: `−$${action.usd.toFixed(2)} from card` } },
-        { [action.to]: amount },
-      );
-      return {
-        tx,
-        headline: "Card withdrawal successful",
-        detail: `$${action.usd.toFixed(2)} moved from your card to your ${assetByCode(action.to).name} balance.`,
-        notify: { kind: "card", title: "Card withdrawal", body: `+${formatAsset(amount, action.to)} from ${card.label} •• ${card.last4}.` },
-      };
-    }
-    case "recurring-create": {
-      const b = billerById(action.billerId);
-      useRecurringStore.getState().add({ billerId: action.billerId, target: action.target, plan: action.plan, amountNgn: action.amountNgn, payWith: action.payWith, frequency: action.frequency, nextRun: action.start });
-      const when = new Date(action.start).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-      return {
-        headline: "Recurring bill on",
-        detail: `${b.name}${action.plan ? ` ${action.plan}` : ""} renews ${FREQUENCY_LABEL[action.frequency].toLowerCase()} from ${when}, paid with ${action.payWith}.`,
-        notify: { kind: "money", title: "Recurring bill set up", body: `${b.name} · ₦${action.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[action.frequency].toLowerCase()}`, href: "/pay/recurring", billerId: action.billerId, badge: "repeat" },
-      };
-    }
-    case "referral-withdraw": {
-      const referrals = useReferralStore.getState();
-      if (action.amountNgn > referrals.balance + 1e-9) throw new Error("That's more than your referral balance.");
-      const received = (action.amountNgn * liveUsd("NGN")) / liveUsd(action.to);
-      if (!wallet.opened.includes(action.to)) wallet.openAccount(action.to);
-      const tx = wallet.record(
-        { type: "referral", asset: action.to, amount: received, direction: "in", title: "Referral payout", subtitle: `From referral earnings · ₦${action.amountNgn.toLocaleString()}`, meta: { face: `₦${action.amountNgn.toLocaleString()}` } },
-        { [action.to]: received },
-      );
-      referrals.withdraw({ amountNgn: action.amountNgn, to: action.to, received, txId: tx.id });
-      return {
-        tx,
-        headline: "Withdrawal successful",
-        detail: `${formatAsset(received, action.to)} is in your ${assetByCode(action.to).name} balance.`,
-        notify: { kind: "referral", title: "Referral earnings withdrawn", body: `₦${action.amountNgn.toLocaleString()} → ${formatAsset(received, action.to)}` },
+        detail: `${card.label} •• ${card.last4} works anywhere online. Add it to ${PAY.name} to tap and pay with your phone.`,
       };
     }
     case "card-delete": {
-      const gone = useCardsStore.getState().deleteCard(action.cardId);
-      if (!gone) throw new Error("That card is already gone.");
-      const name = `${gone.label} •• ${gone.last4}`;
-      const retiredCard = { theme: gone.theme, network: gone.network, label: gone.label, last4: gone.last4, holder: gone.holder };
-      // whatever was on the card goes back to the USD wallet
-      const tx =
-        gone.balance > 0
-          ? wallet.record({ type: "card", asset: "USD", amount: gone.balance, direction: "in", title: "Card deleted · refund", subtitle: name, meta: { cardId: gone.id } }, { USD: gone.balance })
-          : undefined;
+      const tx = txOf(data);
+      const gone = useCardsStore.getState().cards.find((c) => c.id === a.cardId);
+      const name = gone ? `${gone.label} •• ${gone.last4}` : "Your card";
+      const retiredCard = gone ? { theme: gone.theme, network: gone.network, label: gone.label, last4: gone.last4, holder: gone.holder } : undefined;
+      useCardsStore.getState().setCards(useCardsStore.getState().cards.filter((c) => c.id !== a.cardId));
+      const refunded = tx.amount > 0;
       return {
-        tx,
+        tx: refunded ? tx : undefined,
         retiredCard,
         headline: "Card deleted",
-        detail: tx ? `${name} no longer works. Its $${gone.balance.toFixed(2)} is back in your USD wallet.` : `${name} no longer works anywhere it was saved.`,
-        notify: { kind: "card", title: "Card deleted", body: tx ? `${name} · $${gone.balance.toFixed(2)} refunded to USD.` : `${name} was deleted.`, href: "/cards" },
+        detail: refunded ? `${name} no longer works. Its ${formatAsset(tx.amount, "USD")} is back in your USD wallet.` : `${name} no longer works anywhere it was saved.`,
       };
     }
+    case "recurring-create": {
+      const b = billerById(a.billerId);
+      const when = new Date(a.start).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      return { headline: "Recurring bill on", detail: `${b.name}${a.plan ? ` ${a.plan}` : ""} renews ${FREQUENCY_LABEL[a.frequency].toLowerCase()} from ${when}, paid with ${a.payWith}.` };
+    }
     case "cashpoint": {
-      const tx = wallet.generateCashpoint(action.amount);
+      const r = data as { id: string; code: string; amount: string; transaction_id: string };
+      // the create answer has no transaction: fetch it for the receipt
+      let tx: Transaction;
+      try {
+        tx = txOf((await api.get<{ transaction: TransactionResource }>(`transactions/${r.transaction_id}`)).transaction);
+      } catch {
+        tx = { id: r.transaction_id, type: "cashpoint", asset: "NGN", amount: Number(r.amount), direction: "out", title: "Cashpoint code", subtitle: "Waiting to be redeemed", status: "pending", date: new Date().toISOString(), reference: "" };
+      }
+      tx.meta = { ...tx.meta, code: r.code };
       return {
         tx,
         headline: "Cashpoint ready",
-        detail: `Share this code with anyone. It loads ${formatAsset(action.amount, "NGN")} into their Tribe wallet.`,
-        extra: { label: "12-digit code", value: tx.meta!.code!.replace(/(.{4})(?=.)/g, "$1 ") },
-        notify: { kind: "cashpoint", title: "Cashpoint ready", body: `Your ${formatAsset(action.amount, "NGN")} code is waiting to be redeemed.` },
+        detail: `Share this code with anyone. It loads ${formatAsset(Number(r.amount), "NGN")} into their Tribe wallet.`,
+        extra: { label: "12-digit code", value: r.code.replace(/(.{4})(?=.)/g, "$1 ") },
       };
+    }
+    case "referral-withdraw": {
+      let tx = txOf(data);
+      // the API pays referral money into NGN; another currency is a swap on top (same PIN)
+      if (a.to !== "NGN" && pin) {
+        const quote = await api.post<QuoteResource>("quotes", { transaction_type: "swap", from_asset: "NGN", to_asset: a.to, amount: naira(a.amountNgn) });
+        const swap = await sendOnce<TransactionResource>(`referral-swap:${tx.id}`, { path: "swaps", method: "POST", body: { quote_id: quote.id, pin } }, quote);
+        tx = txOf(swap.data);
+      }
+      const received = tx.toAmount ?? tx.amount;
+      return { tx, headline: "Withdrawal successful", detail: `${formatAsset(received, a.to)} is in your ${assetByCode(a.to).name} balance.` };
+    }
+    case "cashpoint-redeem": {
+      const tx = txOf(data);
+      return { tx, headline: "Cashpoint redeemed", detail: `${formatAsset(tx.amount, "NGN")} just landed in your Naira wallet.`, replayed };
     }
   }
 }
 
+/** What each action changes besides balances, history and the inbox. */
+function extraKeys(a: PendingAction): (readonly unknown[])[] {
+  switch (a.kind) {
+    case "card-fund":
+    case "card-withdraw":
+    case "card-create":
+    case "card-delete":
+      return [resources.cards.key];
+    case "bill":
+      return [resources.vault.key];
+    case "recurring-create":
+      return [resources.recurring.key];
+    case "referral-withdraw":
+      return [resources.referrals.key];
+    case "cashpoint":
+    case "cashpoint-redeem":
+      return [resources.cashpoints.key];
+    case "send":
+      return [resources.beneficiaries.key];
+    default:
+      return [];
+  }
+}
+
+/** The PIN that approved the last action, kept in memory only while its result card is up: "Make this recurring?" is consent given with it. */
+let approvedPin: string | undefined;
+export const pinForFollowUp = () => approvedPin;
+
 export const useFlowStore = create<FlowState>()((set, get) => ({
   pending: null,
   result: null,
-  begin: (pending) => set({ pending, result: null }),
-  execute: () => {
-    const { pending } = get();
-    if (!pending) throw new Error("Nothing to confirm.");
-    const result = run(pending);
-    if (result.notify) useInboxStore.getState().push({ ...result.notify, txId: result.tx?.id, href: result.notify.href ?? (result.tx ? `/transaction/${result.tx.id}` : undefined) });
-    set({ pending: null, result });
-    return result;
+  status: "idle",
+  error: null,
+  quote: null,
+
+  begin: (pending) => {
+    approvedPin = undefined;
+    set({ pending, result: null, status: "idle", error: null, quote: null });
   },
-  complete: (result) => set({ pending: null, result }),
-  clear: () => set({ pending: null, result: null }),
+
+  refreshQuote: async () => {
+    const { pending, quote } = get();
+    const req = pending ? quoteRequest(pending) : null;
+    if (!pending || !req) return null;
+    if (quote && usable(quote, 5_000)) return quote;
+    const fresh = await api.post<QuoteResource>("quotes", req);
+    // the action may have changed while the quote was in flight
+    if (get().pending === pending) set({ quote: fresh });
+    return fresh;
+  },
+
+  execute: async (pin) => {
+    const { pending } = get();
+    if (!pending) throw new ApiError(0, "NOTHING_PENDING", "Nothing to confirm.");
+    const actionKey = stable(pending);
+    try {
+      // 1. lock the price (swaps, converted sends): reuse the review's quote, or the one a failed
+      //    attempt was sent with, while it's still valid
+      let quote: QuoteResource | null = null;
+      const req = quoteRequest(pending);
+      if (req) {
+        set({ status: "quoting", error: null });
+        const saved = await loadAttempt();
+        const current = get().quote;
+        // an attempt that never got an answer is retried with ITS quote, even if that has expired
+        // since: if the server did the work, the key replays it; if not, QUOTE_EXPIRED → re-price
+        if (saved?.actionKey === actionKey && saved.quoteId) quote = { ...(current ?? ({} as QuoteResource)), id: saved.quoteId, expires_at: saved.quoteExpiresAt ?? "" };
+        else if (current && usable(current)) quote = current;
+        else {
+          quote = await api.post<QuoteResource>("quotes", req);
+          set({ quote });
+        }
+      }
+      // 2. send it
+      set({ status: "submitting", error: null });
+      const call = buildCall(pending, pin, quote);
+      const res = await sendOnce<unknown>(actionKey, call, quote);
+      approvedPin = pin;
+      const result = await describe(pending, res.data, pin, res.replay);
+      if (result.tx) useWalletStore.getState().upsertTransaction(result.tx);
+      refreshAfterMoney(extraKeys(pending));
+      set({ pending: null, result: { ...result, replayed: res.replay }, status: "success", quote: null });
+      return result;
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : new ApiError(0, "UNKNOWN", error instanceof Error ? error.message : "Something went wrong. Nothing was charged.");
+      // an expired or used quote: the next try prices again
+      if (apiError.code === "QUOTE_EXPIRED" || apiError.code === "QUOTE_USED" || (apiError.status === 404 && quoteRequest(pending))) set({ quote: null });
+      set({ status: "failed", error: apiError });
+      throw apiError;
+    }
+  },
+
+  complete: (result) => set({ pending: null, result, status: "success" }),
+  clear: () => {
+    approvedPin = undefined;
+    void dropAttempt(); // a signed-out user's unfinished attempt must not be retried for the next user
+    set({ pending: null, result: null, status: "idle", error: null, quote: null });
+  },
 }));

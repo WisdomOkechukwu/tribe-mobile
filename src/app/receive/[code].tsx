@@ -11,8 +11,9 @@ import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { RowIcon, ListSection } from "@/components/list";
 import { Text } from "@/components/text";
-import { assetByCode, ASSETS_FIAT_FIRST, DEPOSIT_ADDRESSES, railsFor, type AssetCode } from "@/data/assets";
+import { assetByCode, ASSETS_FIAT_FIRST, railsFor, type AssetCode } from "@/data/assets";
 import { overlay } from "@/stores/use-overlay-store";
+import { useReceiveDetails } from "@/api/queries";
 import { useSessionStore } from "@/stores/use-session-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { palette, radius, spacing, useColors } from "@/theme";
@@ -26,14 +27,17 @@ export default function Receive() {
   const c = useColors();
   const params = useLocalSearchParams<{ code: string }>();
   const tag = useSessionStore((s) => s.user.tag);
+  const holder = useSessionStore((s) => `${s.user.firstName} ${s.user.lastName}`.trim());
   const opened = useWalletStore((s) => s.opened);
   const [code, setCode] = useState<AssetCode>(assetByCode(params.code).code);
   const a = assetByCode(code);
   const [network, setNetwork] = useState(a.networks?.[0]?.id ?? "");
   const net = a.networks?.find((n) => n.id === network) ?? a.networks?.[0];
-  const address = net ? (DEPOSIT_ADDRESSES[`${a.code}:${net.id}`] ?? "") : "";
   const crypto = a.kind === "crypto";
-  const rails = railsFor(a);
+  // your own address / account details come from the API (GET wallets/:code/receive)
+  const details = useReceiveDetails(code);
+  const address = details.data?.address ?? (details.data?.fields?.find((f) => /address/i.test(f.label))?.value ?? "");
+  const rails = railsFor(a).map((r) => (details.data?.fields?.length ? { ...r, fields: [...details.data.fields, { label: "Account name", value: holder }] } : r));
   const [railId, setRailId] = useState(rails[0]?.id ?? "");
   const rail = rails.find((r) => r.id === railId) ?? rails[0];
 
@@ -89,7 +93,7 @@ export default function Receive() {
             </Text>
           </View>
           <ListSection inset={spacing.md}>
-            <CopyField label={`Your ${a.code} address`} value={address} mono />
+            <CopyField label={`Your ${a.code} address`} value={address || (details.isError ? "Couldn't load. Pull to retry." : "Loading…")} mono />
           </ListSection>
           <Note icon="warning" tone="warning">
             Only send {a.code} on {net?.name}. Another network or a different token sent to this address may be lost for good.

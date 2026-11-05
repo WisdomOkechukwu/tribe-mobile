@@ -11,7 +11,7 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Text } from "@/components/text";
 import { assetByCode } from "@/data/assets";
 import { channelById, channelsFor, fieldOk, maskedHandle, type FieldSpec } from "@/data/channels";
-import { findTribeUser } from "@/data/contacts";
+import { useChannels, useTagLookup } from "@/api/queries";
 import { AssetHeader, ChoiceCard, openBeneficiaries } from "@/screens/send/shared";
 import type { Beneficiary } from "@/stores/use-beneficiaries-store";
 import { overlay } from "@/stores/use-overlay-store";
@@ -74,7 +74,9 @@ export default function SendRecipient() {
   const setRecipient = useSendDraft((s) => s.setRecipient);
   const a = assetByCode(code);
   const crypto = scope === "crypto";
-  const channels = channelsFor(code);
+  // the API's channels (fees, ETAs) once loaded; the bundled list until then
+  const channelsLoaded = useChannels().dataUpdatedAt;
+  const channels = channelsFor(code, channelsLoaded);
   // labels for the rail cards: lowest fee, and quickest arrival (seconds < minutes < same day < days)
   const speed = (eta: string) => (/second|instant/i.test(eta) ? 0 : /minute/i.test(eta) ? 1 : /same/i.test(eta) ? 2 : 3);
   const cheapestId = channels.length > 1 ? [...channels].sort((x, y) => x.feeUsd - y.feeUsd)[0].id : undefined;
@@ -87,8 +89,9 @@ export default function SendRecipient() {
   const [label, setLabel] = useState("");
   const [beneficiaryId, setBeneficiaryId] = useState<string | undefined>();
 
-  const user = findTribeUser(query);
-  const channel = channelById(channelId);
+  const lookup = useTagLookup(mode === "tribe" ? query : "");
+  const user = lookup.data ? { tag: lookup.data.tag, name: lookup.data.name } : undefined;
+  const channel = channelById(channelId, channelsLoaded);
   const net = a.networks?.find((n) => n.id === network);
   const accountName = channel?.id === "ngn-bank" && fieldOk(channel.fields[1], values.account) ? lookupName(values.account) : undefined;
   const addressOk = address.trim().length >= 26;
@@ -163,13 +166,13 @@ export default function SendRecipient() {
               setQuery(v);
               setBeneficiaryId(undefined);
             }}
-            placeholder="Email or @username"
+            placeholder="@username"
             autoCapitalize="none"
             keyboardType="email-address"
             autoFocus={!query}
             trailing={user ? <Icon name="checkCircle" size={18} color={c.success} /> : undefined}
-            hint={user ? `${user.name} · on Tribe` : query.trim().length > 2 ? "No Tribe user with that email or username." : undefined}
-            hintTone={user ? "success" : "danger"}
+            hint={user ? `${user.name} · on Tribe` : lookup.isFetching ? "Looking them up…" : lookup.isError && query.trim().length > 2 ? "No Tribe user with that @username." : undefined}
+            hintTone={user ? "success" : lookup.isFetching ? "muted" : "danger"}
           />
           <Chip label="Beneficiary" onPress={() => pickBeneficiary("tribe")} />
         </View>

@@ -95,7 +95,17 @@ export function receiptRows(tx: Transaction): { title: string; rows: ReceiptRow[
     case "receive":
       return {
         title: "Deposit details",
-        rows: [{ label: "Account credited", value: a.kind === "crypto" ? `${a.code} wallet` : `${a.code} account` }, { label: "From", value: m.sender ? `${m.sender.name}${m.sender.detail ? ` · ${m.sender.detail}` : ""}` : tx.title }, { label: m.network ? "Network" : "Channel", value: m.network ?? tx.subtitle }, feeRow, { label: "Transaction type", value: a.kind === "crypto" ? "Crypto deposit" : "Deposit" }, ref, date],
+        rows: [
+          { label: "Account credited", value: a.kind === "crypto" ? `${a.code} wallet` : `${a.code} account` },
+          // a credit an admin made comes "from Tribe"; anything else from its sender, else its title
+          { label: "From", value: m.sender ? `${m.sender.name}${m.sender.detail ? ` · ${m.sender.detail}` : ""}` : /from Tribe$/i.test(tx.title) ? "Tribe" : tx.title },
+          // only a real network or channel: the subtitle is often just the currency's name again
+          ...(m.network ? [{ label: "Network", value: m.network }] : m.channel ? [{ label: "Channel", value: m.channel }] : tx.subtitle && tx.subtitle !== a.name ? [{ label: "Channel", value: tx.subtitle }] : []),
+          feeRow,
+          { label: "Transaction type", value: a.kind === "crypto" ? "Crypto deposit" : /from Tribe$/i.test(tx.title) ? "Credit from Tribe" : "Deposit" },
+          ref,
+          date,
+        ],
       };
     case "swap":
       return {
@@ -118,7 +128,7 @@ export function receiptRows(tx: Transaction): { title: string; rows: ReceiptRow[
       else if (target) rows.push({ label: field, value: target });
       if (m.face) rows.push({ label: "Amount", value: m.face });
       rows.push({ label: "Paid with", value: `${a.name} (${a.code})` });
-      if (tx.asset !== "NGN") rows.push({ label: "Rate", value: `1 ${tx.asset} = ₦${(a.usd / assetByCode("NGN").usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}` });
+      if (tx.asset !== "NGN" && m.rate) rows.push({ label: "Rate", value: `1 ${tx.asset} = ₦${m.rate.toLocaleString("en-US", { maximumFractionDigits: 2 })}` });
       if (m.token) rows.push({ label: "Token", value: m.token, copy: m.token.replace(/\s/g, "") });
       rows.push(feeRow, { label: "Transaction type", value: kind }, ref, date);
       return { title: "Utility transaction details", rows };
@@ -147,7 +157,7 @@ export function receiptRows(tx: Transaction): { title: string; rows: ReceiptRow[
       rows.push({ label: op === "funding" ? "Net funding" : op === "withdrawal" ? "Net withdrawal" : op === "refund" ? "Refund" : op === "chargeback" ? "Chargeback" : op === "created" ? "First top-up" : "Net expense", value: usd });
       if (op === "funding" || op === "created") rows.push({ label: "Account debited", value: `${a.code} ${a.kind === "crypto" ? "wallet" : "account"}` }, { label: "Amount debited", value: formatAsset(tx.amount, tx.asset) });
       if (op === "withdrawal" || op === "refund") rows.push({ label: "Account credited", value: `${a.code} ${a.kind === "crypto" ? "wallet" : "account"}` });
-      if ((op === "funding" || op === "withdrawal") && tx.asset !== "USD") rows.push({ label: "Rate", value: `$1 = ${formatAsset(assetByCode("USD").usd / a.usd, tx.asset)}` });
+      if ((op === "funding" || op === "withdrawal") && tx.asset !== "USD" && m.rate) rows.push({ label: "Rate", value: `$1 = ${formatAsset(1 / m.rate, tx.asset)}` });
       rows.push(feeRow, { label: "Transaction type", value: CARD_OP_LABEL[op] }, ref, date);
       return { title: `${CARD_OP_LABEL[op]} details`, rows };
     }
@@ -167,7 +177,7 @@ export function receiptRows(tx: Transaction): { title: string; rows: ReceiptRow[
     case "referral":
       return {
         title: "Referral payout details",
-        rows: [{ label: "From", value: "Referral earnings" }, { label: "Paid into", value: `${a.name} (${a.code})` }, ...(m.face ? [{ label: "Amount withdrawn", value: m.face }] : []), ...(tx.asset !== "NGN" && m.face ? [{ label: "Rate", value: `1 ${tx.asset} = ${formatAsset(a.usd / assetByCode("NGN").usd, "NGN")}` }] : []), feeRow, { label: "Transaction type", value: "Referral withdrawal" }, ref, date],
+        rows: [{ label: "From", value: "Referral earnings" }, { label: "Paid into", value: `${a.name} (${a.code})` }, ...(m.face ? [{ label: "Amount withdrawn", value: m.face }] : []), ...(tx.asset !== "NGN" && m.rate ? [{ label: "Rate", value: `1 ${tx.asset} = ${formatAsset(1 / m.rate, "NGN")}` }] : []), feeRow, { label: "Transaction type", value: "Referral withdrawal" }, ref, date],
       };
   }
 }

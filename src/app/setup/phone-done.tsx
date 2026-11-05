@@ -10,9 +10,9 @@ export default function PhoneDone() {
   return (
     <StatusScreen
       art={<PhoneVerifiedArt />}
-      title="Phone number added successfully."
+      title="Phone verified"
       body={phone ? `${phone} is now linked to your Tribe account.` : "It's now linked to your Tribe account."}
-      cta="Keep going"
+      cta="Continue"
       onPress={() => {
         setPhoneVerified(true);
         continueSetup();

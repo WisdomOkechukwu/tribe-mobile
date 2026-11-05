@@ -16,6 +16,10 @@ import { BrandSplash } from "@/components/brand-splash";
 import { headerTitle } from "@/components/header-title";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { queryClient } from "@/api/query-client";
+// registers the sign-out that 401 DEVICE_NOT_ACTIVE / an expired session trigger
+import "@/api/auth";
+import { useAssets, useProfile } from "@/api/queries";
+import { useSessionRates } from "@/api/live-rates";
 import { OverlayHost } from "@/components/overlay-host";
 import { TabBarDriver } from "@/components/glass-tab-bar";
 import { ToastHost } from "@/components/toast";
@@ -23,26 +27,38 @@ import { LoadingHost } from "@/components/tribe-loader";
 import { useInboxStore } from "@/stores/use-inbox-store";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { useSessionStore } from "@/stores/use-session-store";
-import { useWalletStore } from "@/stores/use-wallet-store";
 import * as SystemUI from "expo-system-ui";
 import { fonts, useTheme } from "@/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const GATED = [useSessionStore, useWalletStore, usePrefsStore, useInboxStore] as const;
-const allHydrated = () => GATED.every((s) => s.persist.hasHydrated());
+const GATED = [useSessionStore, usePrefsStore, useInboxStore] as const;
+const allHydrated = () => GATED.every((s) => s.persist.hasHydrated()) && useSessionStore.getState().tokensLoaded;
 
-/** True once the stores the first screen reads have rehydrated from AsyncStorage. */
+// the session tokens live in SecureStore: read them once the session store itself has loaded
+const loadTokens = () => void useSessionStore.getState().loadTokens();
+if (useSessionStore.persist.hasHydrated()) loadTokens();
+else useSessionStore.persist.onFinishHydration(loadTokens);
+
+/** True once the stores the first screen reads have rehydrated (and the tokens are read). */
 function useStoresHydrated() {
   const [ready, setReady] = useState(allHydrated);
   useEffect(() => {
     if (ready) return;
     const check = () => setReady(allHydrated());
-    const subs = GATED.map((s) => s.persist.onFinishHydration(check));
+    const subs = [...GATED.map((s) => s.persist.onFinishHydration(check)), useSessionStore.subscribe(check)];
     check();
     return () => subs.forEach((u) => u());
   }, [ready]);
   return ready;
+}
+
+/** Signed in: keep the profile (PIN, KYC, phone, onboarding…), asset list and the server's rates fresh. */
+function SessionSync() {
+  useProfile();
+  useAssets();
+  useSessionRates();
+  return null;
 }
 
 export default function RootLayout() {
@@ -100,6 +116,11 @@ export default function RootLayout() {
               <Stack.Screen name="asset/[code]" options={{ title: "", headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: true }} />
               <Stack.Screen name="verify/index" options={{ title: "Verification", headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: true }} />
               <Stack.Screen name="verify/[tier]" options={{ title: "", headerStyle: { backgroundColor: colors.bg } }} />
+              <Stack.Screen name="get-set-up" options={{ headerShown: false }} />
+              {/* profile & settings: not a tab any more, opened from the avatar on Home */}
+              <Stack.Screen name="me" options={{ headerShown: false }} />
+              {/* Help & chat with the Tribe team (live over the support socket) */}
+              <Stack.Screen name="support" options={{ headerShown: false }} />
               {/* modals — each flow folder has its own stack with native headers */}
               <Stack.Screen name="transaction/[id]" options={{ presentation: "modal" }} />
               <Stack.Screen name="report/[id]" options={{ presentation: "modal" }} />
@@ -119,7 +140,6 @@ export default function RootLayout() {
               <Stack.Screen name="setup" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="add-currency" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="referral-withdraw" options={{ presentation: "modal", headerShown: false }} />
-              <Stack.Screen name="test-topup" options={{ presentation: "modal", headerShown: false }} />
               <Stack.Screen name="pin" options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }} />
               <Stack.Screen name="success" options={{ presentation: "transparentModal", headerShown: false, animation: "fade", gestureEnabled: false, contentStyle: { backgroundColor: "transparent" } }} />
             </Stack.Protected>
@@ -128,6 +148,7 @@ export default function RootLayout() {
                 protected-route redirects go to the first available screen. */}
             <Stack.Screen name="dev" options={{ headerShown: false, animation: "none" }} />
           </Stack>
+          {signedIn && <SessionSync />}
           {/* the one place that follows the route for the tab bar (keeps the tabs from re-rendering) */}
           <TabBarDriver />
           {/* order = stacking: overlays, then the loader, then toasts on top */}

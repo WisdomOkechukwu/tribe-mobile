@@ -23,12 +23,13 @@ import { useSendDraft } from "@/stores/use-send-draft";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset, quote, quoteFor } from "@/utils/format";
-import { liveUsd, useQuoteTick } from "@/utils/rates";
+import { usdRate } from "@/utils/rates";
+import { useLiveRates } from "@/api/live-rates";
 
 /** Same currency if you hold it; otherwise the balance worth the most. */
 function defaultDebit(receive: AssetCode, balances: Record<AssetCode, number>, opened: AssetCode[]): AssetCode {
   if (opened.includes(receive) && balances[receive] > 0) return receive;
-  const funded = ASSETS_FIAT_FIRST.filter((a) => opened.includes(a.code) && balances[a.code] > 0).sort((x, y) => balances[y.code] * liveUsd(y.code) - balances[x.code] * liveUsd(x.code));
+  const funded = ASSETS_FIAT_FIRST.filter((a) => opened.includes(a.code) && balances[a.code] > 0).sort((x, y) => (balances[y.code] * usdRate(y.code) || 0) - (balances[x.code] * usdRate(x.code) || 0));
   return funded[0]?.code ?? receive;
 }
 
@@ -128,8 +129,9 @@ export default function SendAmount() {
   // the side left behind on a switch, so switching back untouched restores it exactly (no drift)
   const [back, setBack] = useState<{ side: Side; amount: string; seeded: string } | null>(null);
   const compact = useWindowDimensions().height < 760;
-  // re-price when the quote window rolls over (the countdown ring ticks on its own)
-  const tick = useQuoteTick();
+  
+  // live rates while this screen is open (the estimate re-prices as they move)
+  const rates = useLiveRates();
 
   if (!recipient) {
     return (
@@ -148,16 +150,22 @@ export default function SendAmount() {
   const net = r.networks?.find((n) => n.id === recipient.network);
   const tribe = recipient.kind === "tribe";
   // fees: free between Tribe users; channel fee (USD) or network fee (in the received crypto) otherwise
-  const feeUsd = tribe ? 0 : channel ? channel.feeUsd : net ? net.fee * liveUsd(receive, tick) : 0;
-  const fee = feeUsd / liveUsd(debit, tick);
+  const feeUsd = tribe ? 0 : channel ? channel.feeUsd : net ? net.fee * rates.usd(receive) : 0;
+  // the server's rates for what this needs (conversion, or a fee priced in another currency):
+  // until they arrive the estimates show "—" and Continue waits (no stored or made-up price)
+  const needs: AssetCode[] = same ? [] : [debit, receive];
+  if (!tribe && channel?.feeUsd) needs.push(debit);
+  if (!tribe && !channel && net?.fee) needs.push(debit, receive);
+  const priced = rates.has(needs);
+  const fee = feeUsd === 0 ? 0 : feeUsd / rates.usd(debit);
   // whichever side is typed is exact; the other is derived from the live quote
-  const payAmount = same || typing === "pay" ? value : value ? quoteFor(value, debit, receive, tick).amount : 0;
-  const toAmount = same || typing === "receive" ? value : quote(value, debit, receive, tick).receive;
-  const rate = liveUsd(debit, tick) / liveUsd(receive, tick);
+  const payAmount = same || typing === "pay" ? value : value ? quoteFor(value, debit, receive, rates.version).amount : 0;
+  const toAmount = same || typing === "receive" ? value : quote(value, debit, receive, rates.version).receive;
+  const rate = rates.usd(debit) / rates.usd(receive);
   const over = payAmount + fee > balances[debit] + 1e-9;
   const eta = tribe ? "Instantly" : (channel?.eta ?? net?.eta ?? "Within minutes");
   const channelName = tribe ? "Tribe transfer" : (channel?.name ?? net?.name ?? "Transfer");
-  const rateText = rate >= 1 ? `1 ${debit} = ${formatAsset(rate, receive)}` : `1 ${receive} = ${formatAsset(1 / rate, debit)}`;
+  const rateText = !priced ? "Getting the latest rate…" : rate >= 1 ? `1 ${debit} = ${formatAsset(rate, receive)}` : `1 ${receive} = ${formatAsset(1 / rate, debit)}`;
 
   /** Type on the other side, starting from the figure it already shows. */
   const activate = (next: Side) => {
@@ -223,6 +231,7 @@ export default function SendAmount() {
         fee,
         toAsset: receive,
         toAmount,
+        typed: same ? undefined : typing,
         to: recipient.handle,
         name: recipient.name,
         channel: channelName,
@@ -251,7 +260,7 @@ export default function SendAmount() {
   );
 
   return (
-    <FlowScreen title={scope === "crypto" ? "Send crypto" : scope === "global" ? "Global send" : "Send Naira"} cancel="back" scroll={false} footer={<Button title="Continue" disabled={!value} onPress={review} />}>
+    <FlowScreen title={scope === "crypto" ? "Send crypto" : scope === "global" ? "Global send" : "Send Naira"} cancel="back" scroll={false} footer={<Button title={value && !priced ? "Getting the latest rate…" : "Continue"} disabled={!value || !priced} onPress={review} />}>
       {/* who it's for: their currency flag on their avatar, and one way to change them */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", paddingHorizontal: spacing.md, paddingVertical: spacing.smd }}>
         <View>
@@ -357,7 +366,7 @@ export default function SendAmount() {
       {/* fee and total, once, under the cards */}
       <View style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingHorizontal: spacing.xs }}>
         <Text variant="caption" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
-          Fee <Text variant="caption" tone={fee ? "text" : "success"}>{fee ? formatAsset(fee, debit) : "Free"}</Text>
+          Fee <Text variant="caption" tone={fee !== 0 ? "text" : "success"}>{fee !== 0 ? formatAsset(fee, debit) : "Free"}</Text>
         </Text>
         <Text variant="caption" tone="muted" numberOfLines={1}>
           Total <Text variant="caption" tone="text">{formatAsset(payAmount + fee, debit)}</Text>

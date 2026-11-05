@@ -20,7 +20,7 @@ export const TABS = [
   { name: "wallet", href: "/wallet", label: "Wallet", icon: "wallet" },
   { name: "pay", href: "/pay", label: "Pay", icon: "pay" },
   { name: "cards", href: "/cards", label: "Cards", icon: "card" },
-  { name: "me", href: "/me", label: "Me", icon: "me" },
+  { name: "history", href: "/history", label: "History", icon: "history" },
 ] as const satisfies readonly {
   name: string;
   href: string;
@@ -32,8 +32,8 @@ export const TABS = [
 export const GLASS_TAB_BAR_HEIGHT = 64;
 
 /**
- * The bar shows only on the five tab roots (Home, Wallet, Pay, Cards, Me) and is gone on every
- * screen pushed inside a tab (Me → Edit, Pay → Vault…), so footers and keypads are never covered.
+ * The bar shows only on the five tab roots (Home, Wallet, Pay, Cards, History) and is gone on every
+ * screen pushed inside a tab (Pay → Vault…), so footers and keypads are never covered.
  * A root modal or screen on top of the tabs (a receipt, Send, Swap…) doesn't change which tab
  * page sits underneath, so the last answer is kept: recomputing there brought the bar back under
  * the modal on a pushed page, and it flashed away again when the modal closed.

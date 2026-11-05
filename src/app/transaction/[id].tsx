@@ -16,6 +16,8 @@ import { TransactionGroup } from "@/components/transaction-row";
 import type { Transaction } from "@/data/seed";
 import { overlay } from "@/stores/use-overlay-store";
 import { ISSUE_REASON, useSupportStore } from "@/stores/use-support-store";
+import { useTransaction } from "@/api/queries";
+import { Skeleton, SkeletonList } from "@/components/skeletons";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
@@ -103,13 +105,23 @@ export default function Receipt() {
   const c = useColors();
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const tx = useWalletStore((s) => s.transactions.find((t) => t.id === id));
+  const cached = useWalletStore((s) => s.transactions.find((t) => t.id === id));
+  // always fetch the receipt: a pending payment may have settled (or been refunded) since
+  const detail = useTransaction(id);
+  const tx = detail.data ? { ...detail.data.tx, meta: { ...cached?.meta, ...detail.data.tx.meta } } : cached;
   const ticket = useSupportStore((s) => s.tickets.find((k) => k.txId === id));
 
   if (!tx) {
     return (
       <FlowScreen title="Receipt" cancel="x">
-        <EmptyState icon="history" title="Transaction not found" body="It may have been cleared when demo data was reset." />
+        {detail.isError ? (
+          <EmptyState icon="history" title="Transaction not found" body="We couldn't load this receipt. Check your connection and try again." />
+        ) : (
+          <View style={{ alignItems: "center", gap: spacing.md }} accessibilityLabel="Loading receipt">
+            <Skeleton width="100%" height={240} radius={24} />
+            <SkeletonList rows={4} />
+          </View>
+        )}
       </FlowScreen>
     );
   }

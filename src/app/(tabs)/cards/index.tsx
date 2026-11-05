@@ -1,6 +1,7 @@
 import { router, Stack } from "expo-router";
+import { useEffect } from "react";
 import { Platform, Pressable, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withTiming } from "react-native-reanimated";
 import { EmptyState, SectionHeader } from "@/components/bits";
 import { Button } from "@/components/button";
 import { cardLook, MAX_FACE_W, useCardPalette, VirtualCardFace } from "@/components/card-face";
@@ -9,6 +10,7 @@ import { Icon } from "@/components/icon";
 import { PayMark } from "@/components/pay-mark";
 import { ListRow, ListSection } from "@/components/list";
 import { PressableScale } from "@/components/pressable-scale";
+import { Shine } from "@/components/shine";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { TransactionList } from "@/components/transaction-row";
@@ -22,51 +24,106 @@ import { useCardsStore } from "@/stores/use-cards-store";
 import { toast } from "@/stores/use-ui-store";
 import { useCards, useTransactions } from "@/api/queries";
 import { CardFaceSkeleton, Loaded, QueryError, Skeleton, SkeletonList } from "@/components/skeletons";
-import { palette, radius, spacing, useColors } from "@/theme";
+import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { PAY } from "@/utils/pay-platform";
 import { openCardCreation } from "@/utils/verification";
 
 
 // the real card face (what you get), three finishes fanned: two behind, Midnight in front
 const FAN: { theme: CardTheme; rotate: string; x: number; y: number }[] = [
-  { theme: "lime", rotate: "-14deg", x: -26, y: -34 },
-  { theme: "sunset", rotate: "9deg", x: 26, y: -16 },
-  { theme: "midnight", rotate: "-3deg", x: 0, y: 16 },
+  { theme: "lime", rotate: "-13deg", x: -24, y: -30 },
+  { theme: "sunset", rotate: "8deg", x: 24, y: -14 },
+  { theme: "midnight", rotate: "-3deg", x: 0, y: 14 },
 ];
 
-/** No cards yet: the start of card creation — a fan of finishes, what you get, how it goes. */
+/** A slow drift up and down for the fan: the cards feel alive without bouncing. */
+function useDrift() {
+  const reduce = useReducedMotion();
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduce) return;
+    t.value = withDelay(700, withRepeat(withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }), -1, true));
+    return () => cancelAnimation(t);
+  }, [reduce, t]);
+  return useAnimatedStyle(() => ({ transform: [{ translateY: -4 + t.value * 8 }] }));
+}
+
+/** A die-cut sticker: tilted pill with a thick white edge (the member pass's stickers). */
+function Sticker({ label, rotate }: { label: string; rotate: string }) {
+  return (
+    <View style={{ transform: [{ rotate }], borderRadius: radius.full, boxShadow: "0 8px 16px -8px rgba(0,0,0,0.5)" }}>
+      <View style={{ backgroundColor: palette.orange[500], borderRadius: radius.full, borderWidth: 3, borderColor: palette.white, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, overflow: "hidden" }}>
+        <Text style={{ fontFamily: fonts.display, fontSize: 13, lineHeight: 16, color: palette.white, letterSpacing: 0.3 }}>{label}</Text>
+        <Shine delay={1400} every={3600} strength={0.6} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * No cards yet: the start of card creation. The real card is the hero (three finishes fanned,
+ * drifting, light passing over the front one), then the three things you'll do, what the card
+ * does as one list, and one way in.
+ */
 function CardsIntro() {
   const c = useColors();
+  const reduce = useReducedMotion();
+  const drift = useDrift();
   const { width } = useWindowDimensions();
+  const faceW = Math.min(width - spacing.md * 2 - 40, 300);
+  const faceR = Math.min(radius.card, faceW * 0.065);
+  const enter = (i: number) => (reduce ? undefined : FadeInDown.delay(i * 90).duration(420).easing(Easing.out(Easing.cubic)));
+  // the steps really are a sequence, so they're numbered
   const steps = [
-    { title: "Pick a finish", body: "Seven looks, or design your own." },
-    { title: "Choose Mastercard or Visa", body: "Both work almost everywhere online." },
+    { title: "Pick a look", body: "Seven finishes, or design your own. Mastercard or Visa." },
     { title: "Name it and fund it", body: `Top up at least $${CARD_MIN_TOPUP_USD} from any balance. $1 to create.` },
-    { title: "Spend", body: "Your card is ready the second you confirm." },
-    { title: `Add it to ${PAY.name}`, body: `Tap the ${PAY.name} mark on your card. We'll take you straight to adding it to ${PAY.wallet}.` },
+    { title: "Spend", body: `Ready the second you confirm. Tap the ${PAY.name} mark on it to add it to ${PAY.wallet}.` },
   ];
   return (
     <Screen>
-      {/* three finishes of the real (landscape) card, fanned and springing in one after another */}
-      <View style={{ height: 270, alignItems: "center", justifyContent: "center", marginTop: spacing.xl }}>
-        {FAN.map((f, i) => (
-          <Animated.View key={f.theme} entering={ZoomIn.delay(i * 110).springify().damping(13)} style={{ position: "absolute" }}>
-            <View style={{ transform: [{ translateX: f.x }, { translateY: f.y }, { rotate: f.rotate }] }}>
-              <VirtualCardFace card={{ theme: f.theme, network: i === 1 ? "visa" : "mastercard", holder: "Your name" }} pill={i === FAN.length - 1} width={Math.min(width - spacing.md * 2 - 40, 300)} />
-            </View>
-          </Animated.View>
-        ))}
+      {/* the hero: the real card, three finishes fanned and drifting, a sticker on top */}
+      <View style={{ height: 262, alignItems: "center", justifyContent: "center", marginTop: spacing.lg }}>
+        <Animated.View style={[{ alignItems: "center", justifyContent: "center" }, drift]}>
+          {FAN.map((f, i) => {
+            const front = i === FAN.length - 1;
+            return (
+              <Animated.View key={f.theme} entering={enter(i)} style={{ position: front ? "relative" : "absolute" }}>
+                <View style={{ transform: [{ translateX: f.x }, { translateY: f.y }, { rotate: f.rotate }] }}>
+                  <VirtualCardFace card={{ theme: f.theme, network: i === 1 ? "visa" : "mastercard", holder: "Your name" }} pill={front} width={faceW} />
+                  {/* light passing over the front card (its own clipped layer, so the card's shadow stays) */}
+                  {front && (
+                    <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: faceR, overflow: "hidden" }}>
+                      <Shine delay={900} every={3800} strength={0.22} />
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            );
+          })}
+        </Animated.View>
+        <Animated.View entering={enter(3)} pointerEvents="none" style={{ position: "absolute", top: 4, right: spacing.md }}>
+          <Sticker label="$1 to create" rotate="8deg" />
+        </Animated.View>
       </View>
-      <View style={{ gap: spacing.sm, alignItems: "center", paddingHorizontal: spacing.md }}>
-        <Text variant="title" align="center">
-          A dollar card in a minute
+
+      <Animated.View entering={enter(2)} style={{ gap: spacing.sm, paddingHorizontal: spacing.xs }}>
+        <Text variant="poster" accessibilityRole="header" maxFontSizeMultiplier={1.2} style={{ fontSize: 32, lineHeight: 34 }}>
+          {"Your dollar card\n"}
+          <Text variant="poster" style={{ fontSize: 32, lineHeight: 34, color: palette.orange[400] }}>
+            in a minute.
+          </Text>
         </Text>
-        <Text variant="body" tone="muted" align="center">
-          Seven finishes, or make your own. Mastercard or Visa. $1 to create.
+        <Text variant="body" tone="muted">
+          For Netflix, Spotify, Apple, AliExpress, and any site that takes cards.
         </Text>
-      </View>
-      {/* how it goes: a vertical stepper — each stop with what happens there; Verify only if needed */}
-      <View style={{ gap: spacing.sm }}>
+      </Animated.View>
+
+      <Animated.View entering={enter(3)}>
+        <Button title="Get your card" icon="card" onPress={() => openCardCreation()} />
+      </Animated.View>
+
+      {/* how it goes: three numbered stops */}
+      <Animated.View entering={enter(4)} style={{ gap: spacing.sm }}>
         <Text variant="subhead" tone="muted" style={{ paddingHorizontal: spacing.xs }}>
           How it goes
         </Text>
@@ -75,16 +132,11 @@ function CardsIntro() {
             const last = i === steps.length - 1;
             return (
               <View key={step.title} style={{ flexDirection: "row", gap: spacing.smd }}>
-                {/* the dot, and the line down to the next one */}
                 <View style={{ alignItems: "center", width: 28 }}>
-                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: last ? palette.orange[500] : c.brand, alignItems: "center", justifyContent: "center" }}>
-                    {last ? (
-                      <Icon name="check" size={12} color="#fff" weight="bold" />
-                    ) : (
-                      <Text variant="caption" style={{ color: c.onBrand, fontFamily: "Poppins_600SemiBold" }}>
-                        {i + 1}
-                      </Text>
-                    )}
+                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.brand, alignItems: "center", justifyContent: "center" }}>
+                    <Text variant="caption" style={{ color: c.onBrand, fontFamily: fonts.semibold }}>
+                      {i + 1}
+                    </Text>
                   </View>
                   {!last && <View style={{ flex: 1, width: 2, minHeight: spacing.md, borderRadius: 1, backgroundColor: c.brandSoft, marginVertical: spacing.xs }} />}
                 </View>
@@ -98,82 +150,49 @@ function CardsIntro() {
             );
           })}
         </View>
-      </View>
+      </Animated.View>
 
-      {/* what you get, as a bento: one big brand tile, two smaller ones */}
-      <View style={{ gap: spacing.smd }}>
-        <View style={{ backgroundColor: c.brand, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.mdl, gap: spacing.md, overflow: "hidden" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <View style={{ flexDirection: "row" }}>
-              {["netflix", "spotify", "apple", "googleplay"].map((id, i) => (
-                <View key={id} style={{ marginLeft: i ? -10 : 0, borderRadius: 22, borderWidth: 2, borderColor: c.brand, zIndex: 4 - i }}>
-                  <GiftMark brand={giftBrandById(id)} size={38} />
-                </View>
-              ))}
-            </View>
-            <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs }}>
-              <Text variant="caption" style={{ color: "#fff", fontFamily: "Poppins_600SemiBold" }}>
-                Mastercard · Visa
-              </Text>
-            </View>
-          </View>
-          <View style={{ gap: spacing.xs }}>
-            <Text variant="title" style={{ color: c.onBrand }}>
-              Pay anywhere online
-            </Text>
-            <Text variant="caption" style={{ color: "rgba(255,255,255,0.82)" }}>
-              Netflix, Spotify, Apple, AliExpress, and any site that takes cards.
-            </Text>
-          </View>
-        </View>
-        <View style={{ flexDirection: "row", gap: spacing.smd }}>
-          <View style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
-            <View style={{ flexDirection: "row" }}>
-              {(["USDT", "BTC", "NGN"] as const).map((code, i) => (
-                <View key={code} style={{ marginLeft: i ? -10 : 0, borderRadius: 18, borderWidth: 2, borderColor: c.surface, zIndex: 3 - i }}>
-                  <CoinIcon code={code} size={30} />
-                </View>
-              ))}
-            </View>
-            <View style={{ gap: spacing.xxs }}>
-              <Text variant="bodyStrong">Fund from anything</Text>
-              <Text variant="caption" tone="muted">
-                USDT, BTC, Naira or any balance.
-              </Text>
-            </View>
-          </View>
-          <View style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
-            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
-              <Icon name="snowflake" size={16} color={c.brandText} />
-            </View>
-            <View style={{ gap: spacing.xxs }}>
-              <Text variant="bodyStrong">Freeze in a tap</Text>
-              <Text variant="caption" tone="muted">
-                Lock it the second something looks off.
-              </Text>
-            </View>
-          </View>
-        </View>
-        {/* tap-to-pay: the wallet mark on the card is the way in */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md }}>
-          <View>
-            <VirtualCardFace card={{ theme: "midnight", network: "mastercard" }} width={150} />
-            {/* a tap ring around the wallet mark: that's the button */}
-            <View pointerEvents="none" style={{ position: "absolute", top: -3, right: 2, width: 42, height: 42, borderRadius: 21, borderWidth: 2, borderColor: c.accent }} />
-          </View>
-          <View style={{ flex: 1, gap: spacing.xs }}>
-            <View style={{ alignSelf: "flex-start", backgroundColor: c.text, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 4 }}>
-              <PayMark color={c.bg} height={12} />
-            </View>
-            <Text variant="bodyStrong">Tap to add to {PAY.name}</Text>
-            <Text variant="caption" tone="muted">
-              Your card carries the {PAY.name} mark. Tap it and we&apos;ll walk you through adding the card to {PAY.wallet}.
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <Button title="Get your card" icon="card" onPress={() => openCardCreation()} />
+      {/* what the card does: one quiet list, each row with its own mark */}
+      <Animated.View entering={enter(5)}>
+        <ListSection title="What you get" inset={66}>
+          <ListRow
+            leading={
+              <View style={{ width: 40, flexDirection: "row" }}>
+                {["netflix", "spotify"].map((id, i) => (
+                  <View key={id} style={{ marginLeft: i ? -14 : 0, borderRadius: 14, borderWidth: 2, borderColor: c.surface, zIndex: 2 - i }}>
+                    <GiftMark brand={giftBrandById(id)} size={26} />
+                  </View>
+                ))}
+              </View>
+            }
+            title="Pay anywhere online"
+            subtitle="Mastercard or Visa, wherever cards are taken."
+          />
+          <ListRow
+            leading={
+              <View style={{ width: 40, flexDirection: "row" }}>
+                {(["USDT", "NGN"] as const).map((code, i) => (
+                  <View key={code} style={{ marginLeft: i ? -14 : 0, borderRadius: 14, borderWidth: 2, borderColor: c.surface, zIndex: 2 - i }}>
+                    <CoinIcon code={code} size={26} />
+                  </View>
+                ))}
+              </View>
+            }
+            title="Fund from anything"
+            subtitle="USDT, BTC, Naira or any balance."
+          />
+          <ListRow icon="snowflake" title="Freeze in a tap" subtitle="Lock it the second something looks off." />
+          <ListRow
+            leading={
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.text, alignItems: "center", justifyContent: "center" }}>
+                <PayMark color={c.bg} height={10} />
+              </View>
+            }
+            title={`Add it to ${PAY.name}`}
+            subtitle={`Tap the ${PAY.name} mark on your card and we'll walk you through adding it to ${PAY.wallet}.`}
+          />
+        </ListSection>
+      </Animated.View>
     </Screen>
   );
 }

@@ -1,15 +1,19 @@
 import * as Haptics from "expo-haptics";
 import { useEffect } from "react";
 import { useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, ZoomIn } from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/button";
 import { Icon, type IconName } from "@/components/icon";
+import { Shine } from "@/components/shine";
 import { Stripes } from "@/components/stripes";
 import { Text } from "@/components/text";
 import { WORLDS } from "@/data/worlds";
 import { MarkDisc } from "@/screens/auth/shell";
 import { useSessionStore } from "@/stores/use-session-store";
+import { completeOnboarding } from "@/api/auth";
+import { errorMessage } from "@/api/http";
+import { runWithLoader, toast } from "@/stores/use-ui-store";
 import { useSignupStore } from "@/stores/use-signup-store";
 import { fonts, palette, radius, spacing } from "@/theme";
 
@@ -21,14 +25,32 @@ const NEXT: Record<keyof typeof CTA, { icon: IconName; label: string }> = {
   bills: { icon: "bolt", label: "Next: your first bill" },
 };
 
-/** A die-cut sticker slapped on the pass: tilted pill, thick white edge. */
-function Sticker({ label, icon, bg, fg, rotate, style }: { label: string; icon?: IconName; bg: string; fg: string; rotate: string; style: object }) {
+/** Gentle up-and-down drift with a hint of tilt, so a sticker feels alive without bouncing. */
+function useFloat(phase: number) {
+  const reduce = useReducedMotion();
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduce) return;
+    t.value = withDelay(phase, withRepeat(withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.sin) }), -1, true));
+    return () => cancelAnimation(t);
+  }, [reduce, phase, t]);
+  return useAnimatedStyle(() => ({ transform: [{ translateY: -3 + t.value * 6 }, { rotate: `${-1.2 + t.value * 2.4}deg` }] }));
+}
+
+/** A die-cut sticker on the pass: tilted pill, thick white edge, a shine passing over it, and a slow float. */
+function Sticker({ label, icon, bg, fg, rotate, style, phase }: { label: string; icon?: IconName; bg: string; fg: string; rotate: string; style: object; phase: number }) {
+  const float = useFloat(phase);
   return (
     <View style={[{ position: "absolute", transform: [{ rotate }] }, style]}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: bg, borderRadius: radius.full, borderWidth: 3, borderColor: palette.white, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, boxShadow: "0 8px 16px -8px rgba(0,0,0,0.5)" }}>
-        {icon && <Icon name={icon} size={12} color={fg} weight="bold" />}
-        <Text style={{ fontFamily: fonts.display, fontSize: 13, lineHeight: 16, color: fg, letterSpacing: 0.3 }}>{label}</Text>
-      </View>
+      <Animated.View style={float}>
+        <View style={{ borderRadius: radius.full, boxShadow: "0 8px 16px -8px rgba(0,0,0,0.5)" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: bg, borderRadius: radius.full, borderWidth: 3, borderColor: palette.white, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, overflow: "hidden" }}>
+            {icon && <Icon name={icon} size={12} color={fg} weight="bold" />}
+            <Text style={{ fontFamily: fonts.display, fontSize: 13, lineHeight: 16, color: fg, letterSpacing: 0.3 }}>{label}</Text>
+            <Shine delay={900 + phase} strength={bg === palette.white ? 0.9 : 0.6} />
+          </View>
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -41,6 +63,7 @@ function TribePass({ name, tag, width }: { name: string; tag: string; width: num
       <View style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: width * 0.34, overflow: "hidden" }}>
         <Stripes band={14} gap={7} count={14} />
       </View>
+      <Shine delay={650} every={4200} strength={0.22} />
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <MarkDisc size={34} />
         <Text style={{ fontFamily: fonts.display, fontSize: 12, lineHeight: 14, letterSpacing: 2, color: palette.purple[100] }}>MEMBER PASS</Text>
@@ -71,10 +94,16 @@ export default function Done() {
   const reset = useSignupStore((s) => s.reset);
   const setWorld = useSessionStore((s) => s.setWorld);
   // into the app: remember the world (Finish setup reads it), open its landing once
-  const finish = (landing: string | null) => {
-    setWorld(world);
-    complete(landing);
-    reset();
+  const finish = async (landing: string | null) => {
+    try {
+      // the API records the world and marks onboarding done (the route guard then opens the app)
+      await runWithLoader("Opening your Tribe…", completeOnboarding(world ?? "global"));
+      setWorld(world ?? "global");
+      complete(landing);
+      reset();
+    } catch (e) {
+      toast(errorMessage(e), "danger");
+    }
   };
   const passWidth = Math.min(width - spacing.lg * 2 - spacing.lg, 340);
   const next = world ? NEXT[world] : null;
@@ -88,15 +117,15 @@ export default function Done() {
     <View style={{ flex: 1, backgroundColor: palette.purple[900], paddingTop: insets.top + spacing.lg, paddingBottom: Math.max(insets.bottom, spacing.lg), paddingHorizontal: spacing.lg }}>
       <View style={{ flex: 1, justifyContent: "center", gap: spacing.xl }}>
         {/* the pass, tilted, with stickers */}
-        <Animated.View entering={ZoomIn.springify().damping(13)} style={{ alignSelf: "center", paddingVertical: spacing.md }}>
+        <Animated.View entering={FadeInDown.duration(560).easing(Easing.out(Easing.cubic))} style={{ alignSelf: "center", paddingVertical: spacing.md }}>
           <View style={{ transform: [{ rotate: "-5deg" }] }}>
             <TribePass name={user.firstName || "You"} tag={user.tag || "you"} width={passWidth} />
           </View>
-          <Animated.View entering={ZoomIn.delay(420).springify().damping(8)} style={{ position: "absolute", inset: 0 }} pointerEvents="none">
-            <Sticker label="you're in" icon="check" bg={palette.orange[500]} fg={palette.white} rotate="9deg" style={{ right: -10, top: -2 }} />
+          <Animated.View entering={FadeInDown.delay(380).duration(420).easing(Easing.out(Easing.cubic))} style={{ position: "absolute", inset: 0 }} pointerEvents="none">
+            <Sticker label="you're in" icon="check" bg={palette.orange[500]} fg={palette.white} rotate="9deg" style={{ right: -10, top: -2 }} phase={0} />
           </Animated.View>
-          <Animated.View entering={ZoomIn.delay(560).springify().damping(8)} style={{ position: "absolute", inset: 0 }} pointerEvents="none">
-            <Sticker label="wallet ready" icon="wallet" bg={palette.white} fg={palette.purple[700]} rotate="-8deg" style={{ left: -12, bottom: -14 }} />
+          <Animated.View entering={FadeInDown.delay(520).duration(420).easing(Easing.out(Easing.cubic))} style={{ position: "absolute", inset: 0 }} pointerEvents="none">
+            <Sticker label="wallet ready" icon="wallet" bg={palette.white} fg={palette.purple[700]} rotate="-8deg" style={{ left: -12, bottom: -14 }} phase={1300} />
           </Animated.View>
         </Animated.View>
 

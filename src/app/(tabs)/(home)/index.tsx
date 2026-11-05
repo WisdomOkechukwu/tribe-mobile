@@ -1,4 +1,3 @@
-import { DEMO_MS } from "@/utils/demo";
 import { router, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { openAddMoneySheet, openMoreSheet } from "@/screens/home/sheets";
@@ -19,20 +18,22 @@ import { Text } from "@/components/text";
 import { TransactionList } from "@/components/transaction-row";
 import { ASSETS } from "@/data/assets";
 import { REFERRAL } from "@/data/referrals";
-import { useInboxStore, useUnreadCount } from "@/stores/use-inbox-store";
-import { usePrefsStore } from "@/stores/use-prefs-store";
-import { toast } from "@/stores/use-ui-store";
+import { useUnreadCount } from "@/stores/use-inbox-store";
 import { useSessionStore } from "@/stores/use-session-store";
-import { portfolioUsd, useWalletStore } from "@/stores/use-wallet-store";
+import { portfolioUsd } from "@/stores/use-wallet-store";
+import { useRatesVersion } from "@/api/live-rates";
+import { resources } from "@/api/client";
+import { refreshProfile } from "@/api/auth";
+import { hasRates, usdRate } from "@/utils/rates";
 import { useAccounts, useCards, useTransactions } from "@/api/queries";
 import { BalanceHeroSkeleton, Loaded, SkeletonList } from "@/components/skeletons";
-import { radius, spacing, useColors } from "@/theme";
+import { spacing, useColors } from "@/theme";
 import { setupTasks } from "@/utils/setup-flow";
 import { FinishSetupCard } from "@/components/finish-setup-card";
-import { guardWalletOpen, useWalletsUnlocked, openCardCreation } from "@/utils/verification";
+import { guardWalletOpen, openCardCreation } from "@/utils/verification";
 
-/** Demo: how long the global-accounts review takes before it's approved. */
-const GLOBAL_REVIEW_MS = 45_000;
+/** a beat after the onboarding finale before Home opens the picked world */
+const WORLD_LANDING_MS = 200;
 
 function greeting() {
   const h = new Date().getHours();
@@ -130,50 +131,38 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const globalAccounts = useSessionStore((s) => s.globalAccounts);
-  const walletsUnlocked = useWalletsUnlocked();
-  const globalRequestedAt = useSessionStore((s) => s.globalRequestedAt);
-  const dismissed = usePrefsStore((s) => s.dismissedPromos);
-  const dismissPromo = usePrefsStore((s) => s.dismissPromo);
 
   // Right after setup: open the world the user picked (once). Tabs navigate, flows push on top.
   useEffect(() => {
     const href = useSessionStore.getState().consumeLanding();
     if (!href) return;
     // the card world lands on card creation, through the verification check
-    const t = setTimeout(() => (href === "/card-new" ? openCardCreation() : href.startsWith("/pay") ? router.navigate(href as Href) : router.push(href as Href)), DEMO_MS.worldLanding);
+    const t = setTimeout(() => (href === "/card-new" ? openCardCreation() : href.startsWith("/pay") ? router.navigate(href as Href) : router.push(href as Href)), WORLD_LANDING_MS);
     return () => clearTimeout(t);
   }, []);
 
-  // Global payments world: the request is "reviewed", then the USD, GBP and EUR accounts open.
-  // Opening them still needs full verification: until then the approval waits.
-  useEffect(() => {
-    if (globalAccounts !== "review" || !walletsUnlocked) return;
-    const wait = Math.max(0, (globalRequestedAt ?? Date.now()) + GLOBAL_REVIEW_MS - Date.now());
-    const t = setTimeout(() => {
-      useSessionStore.getState().setGlobalAccounts("ready");
-      const w = useWalletStore.getState();
-      (["USD", "GBP", "EUR"] as const).forEach((code) => w.openAccount(code));
-      useInboxStore.getState().push({ kind: "money", title: "Your global accounts are ready", body: "USD, GBP and EUR account details in your name. Start receiving money from abroad.", assets: ["USD", "GBP", "EUR"], badge: "check", href: "/asset/USD" });
-      toast("Your USD, GBP and EUR accounts are ready", "success");
-    }, wait);
-    return () => clearTimeout(t);
-  }, [globalAccounts, globalRequestedAt, walletsUnlocked]);
 
 
   // Finish setup: nothing here blocks the app; each row starts the chain at that task
   const phoneVerified = useSessionStore((s) => s.phoneVerified);
-  const pin = useSessionStore((s) => s.pin);
+  const hasPin = useSessionStore((s) => s.hasPin);
   const world = useSessionStore((s) => s.world);
-  const tasks = setupTasks({ phoneVerified, pin, kycTier, world, globalAccounts });
+  const kycStatus = useSessionStore((s) => s.kycStatus);
+  const kycPendingTier = useSessionStore((s) => s.kycPendingTier);
+  const kycSubmittedAt = useSessionStore((s) => s.kycSubmittedAt);
+  const kycTiers = useSessionStore((s) => s.kycTiers);
+  const tasks = setupTasks({ phoneVerified, hasPin, kycTier, kycStatus, kycPendingTier, kycSubmittedAt, kycTiers, world, globalAccounts });
+  // re-value balances when new rates arrive
+  const v = useRatesVersion();
 
   const balances = accounts.data?.balances;
   const opened = accounts.data?.opened;
-  const totalUsd = balances ? portfolioUsd(balances) : 0;
-  const weighted = balances ? ASSETS.reduce((s, a) => s + balances[a.code] * a.usd * a.change24h, 0) : 0;
-  const change = totalUsd ? weighted / totalUsd : 0;
+  const totalUsd = balances ? portfolioUsd(balances, v) : NaN;
+  // the total waits for the balances and the server's rates (never a stored or made-up price)
+  const totalReady = !!balances && hasRates(v) && Number.isFinite(totalUsd);
   const held = balances && opened
     ? ASSETS.filter((a) => opened.includes(a.code))
-        .sort((a, b) => balances[b.code] * b.usd - balances[a.code] * a.usd)
+        .sort((a, b) => (balances[b.code] * usdRate(b.code, v) || 0) - (balances[a.code] * usdRate(a.code, v) || 0))
         .slice(0, 4)
     : [];
   const unopened = opened ? ASSETS.filter((a) => !opened.includes(a.code)) : [];
@@ -285,10 +274,12 @@ export default function Home() {
         refreshing={refreshing}
         onRefresh={() => {
           setRefreshing(true);
-          Promise.all([accounts.refetch(), history.refetch(), cards.refetch()]).finally(() => setRefreshing(false));
+          // the verification banners and setup card read the profile (the per-tier KYC detail follows it), and the bell reads the inbox
+          const quiet = (job: Promise<unknown>) => job.catch(() => {});
+          Promise.all([accounts.refetch(), history.refetch(), cards.refetch(), quiet(refreshProfile()), quiet(resources.inbox.fetch())]).finally(() => setRefreshing(false));
         }}
       >
-        {balances ? <BalanceHero totalUsd={totalUsd} changePct={change} /> : <BalanceHeroSkeleton />}
+        {totalReady ? <BalanceHero totalUsd={totalUsd} /> : <BalanceHeroSkeleton />}
 
         <CircleActionRow>
           {/* money coming in: our own incoming-arrow glyph */}
@@ -310,51 +301,6 @@ export default function Home() {
           />
           <CircleAction icon="more" label="More" onPress={openMoreSheet} />
         </CircleActionRow>
-
-        {globalAccounts === "review" && (
-          <PressableScale
-            scaleTo={0.98}
-            disabled={walletsUnlocked}
-            onPress={() => router.push("/verify")}
-            style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.smd }}
-          >
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.warningSoft, alignItems: "center", justifyContent: "center" }}>
-              <Icon name="clock" size={18} color={c.pending} />
-            </View>
-            <View style={{ flex: 1, gap: spacing.xxs }}>
-              <Text variant="bodyStrong">Global accounts under review</Text>
-              <Text variant="caption" tone="muted">
-                {walletsUnlocked ? "We'll notify you the moment your USD, GBP and EUR accounts are ready." : "Finish verification (NIN + selfie, ID + address) and we'll open your USD, GBP and EUR accounts."}
-              </Text>
-            </View>
-            {!walletsUnlocked && <Icon name="chevron" size={14} color={c.textSubtle} />}
-          </PressableScale>
-        )}
-        {globalAccounts === "ready" && !dismissed.includes("global-ready") && (
-          <View style={{ backgroundColor: c.surface, borderRadius: radius.group, borderCurve: "continuous", padding: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.smd }}>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.successSoft, alignItems: "center", justifyContent: "center" }}>
-              <Icon name="globe" size={18} color={c.success} />
-            </View>
-            <View style={{ flex: 1, gap: spacing.xxs }}>
-              <Text variant="bodyStrong">Your global accounts are ready</Text>
-              <Text variant="caption" tone="muted">
-                Receive dollars, pounds and euros in your name.
-              </Text>
-            </View>
-            <PressableScale
-              onPress={() => {
-                dismissPromo("global-ready");
-                router.push("/asset/USD");
-              }}
-              accessibilityLabel="Start exploring your global accounts"
-              style={{ backgroundColor: c.brand, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: 6 }}
-            >
-              <Text variant="subhead" tone="onBrand">
-                Explore
-              </Text>
-            </PressableScale>
-          </View>
-        )}
 
         {/* Finish setup: what's next + progress; hides once everything's done */}
         <FinishSetupCard tasks={tasks} />
@@ -383,7 +329,7 @@ export default function Home() {
           <SectionHeader
             title="Activity"
             action="See all"
-            onAction={() => router.push("/activity")}
+            onAction={() => router.navigate("/history")}
           />
           <Loaded query={history} skeleton={<SkeletonList rows={4} />}>
             {(txs) => <TransactionList items={txs.slice(0, 6)} />}

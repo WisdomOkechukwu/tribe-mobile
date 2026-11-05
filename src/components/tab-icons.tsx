@@ -1,6 +1,6 @@
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
-export type TabIconName = "home" | "wallet" | "pay" | "card" | "me";
+export type TabIconName = "home" | "wallet" | "pay" | "card" | "me" | "history";
 
 /**
  * Our own tab glyphs: an outline when the tab is idle, filled when it's selected. Drawn in SVG so
@@ -60,6 +60,20 @@ export function TabIcon({ name, focused, color, cut, size = 24 }: { name: TabIco
           <>
             <Rect x={3.4} y={5.6} width={17.2} height={12.8} rx={2.6} {...stroke} />
             <Path d="M3.4 9.9h17.2M6.6 15h3.6" {...stroke} />
+          </>
+        ))}
+      {name === "history" &&
+        (focused ? (
+          <>
+            <Circle cx={12.6} cy={12} r={8.6} fill={color} />
+            <Path d="M12.6 7.6V12l3 1.9" stroke={cut} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <Path d="M2.6 8.2 4.4 11l2.7-1.9" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </>
+        ) : (
+          <>
+            <Path d="M4.4 11a8.2 8.2 0 1 1 1.3 5" {...stroke} />
+            <Path d="M2.6 8.2 4.4 11l2.7-1.9" {...stroke} />
+            <Path d="M12.6 7.8V12l2.9 1.8" {...stroke} />
           </>
         ))}
       {name === "me" &&

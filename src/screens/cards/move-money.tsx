@@ -10,9 +10,11 @@ import { FlowScreen } from "@/components/flow-screen";
 import { Icon } from "@/components/icon";
 import { Text } from "@/components/text";
 import { LEG_ICON, TransferLegs, type Leg } from "@/components/transfer-legs";
-import { liveUsd, useQuoteTick } from "@/utils/rates";
+import { useLiveRates } from "@/api/live-rates";
+import { useCards } from "@/api/queries";
 import { assetByCode, ASSETS_FIAT_FIRST, type AssetCode } from "@/data/assets";
-import { cardFundingFee } from "@/data/seed";
+import { cardFundingFee, cardFundTotal } from "@/data/seed";
+import { exceeds } from "@/utils/decimal";
 import { useCardsStore } from "@/stores/use-cards-store";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
@@ -27,15 +29,19 @@ import { formatAsset } from "@/utils/format";
 export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
   const c = useColors();
   const params = useLocalSearchParams<{ id?: string }>();
+  // cards aren't kept on the device: make sure they're loaded (the store fills from this)
+  useCards();
   const cards = useCardsStore((s) => s.cards);
   const balances = useWalletStore((s) => s.balances);
+  const balancesRaw = useWalletStore((s) => s.balancesRaw);
   const opened = useWalletStore((s) => s.opened);
   const begin = useFlowStore((s) => s.begin);
   const [cardId, setCardId] = useState(params.id ?? cards[0]?.id);
   const [account, setAccount] = useState<AssetCode>(mode === "fund" ? "NGN" : "USD");
   const [amount, setAmount] = useState("");
-  // prices follow the 30-second quote window, the same one review and execution use
-  const tick = useQuoteTick();
+  
+  // live rates while this screen is open (the estimate re-prices as they move)
+  const rates = useLiveRates();
   const card = cards.find((k) => k.id === cardId) ?? cards[0];
   const fund = mode === "fund";
 
@@ -50,20 +56,24 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
   const asset = assetByCode(account);
   const usd = Number(amount) || 0;
   const feeUsd = fund ? cardFundingFee(usd) : 0;
-  const other = (usd + feeUsd) / liveUsd(account, tick);
-  const accountBal = balances[account];
-  const over = fund ? other > accountBal + 1e-9 : usd > card.balance + 1e-9;
   const converted = account !== "USD";
-  const rate = converted ? `$1 = ${formatAsset(1 / liveUsd(account, tick), account)}` : "No conversion";
+  // the server's rate for the other balance: until it arrives, no estimate and Continue waits
+  const priced = !converted || rates.has(account);
+  const other = converted ? (usd + feeUsd) / rates.usd(account) : usd + feeUsd;
+  const accountBal = balances[account];
+  const over = fund ? (account === "USD" ? exceeds(cardFundTotal(usd), balancesRaw.USD ?? "0") : priced && other > accountBal) : exceeds(amount || "0", String(card.balance));
+  const rate = !converted ? "No conversion" : priced ? `$1 = ${formatAsset(1 / rates.usd(account), account)}` : "Getting the latest rate…";
 
   const helper = over
     ? fund
       ? `Not enough ${asset.name}. You have ${formatAsset(accountBal, account)}.`
       : `Your card has $${card.balance.toFixed(2)}.`
-    : usd
+    : usd && !priced
+      ? "Getting the latest rate…"
+      : usd
       ? fund
         ? `${formatAsset(other, account)} from your ${asset.name} balance`
-        : `You'll receive ${formatAsset(usd / liveUsd(account, tick), account)}`
+        : `You'll receive ${formatAsset(converted ? usd / rates.usd(account) : usd, account)}`
       : "Cards are funded in US dollars";
 
   const pickCard = () =>
@@ -98,7 +108,7 @@ export function CardMoneyScreen({ mode }: { mode: "fund" | "withdraw" }) {
       footer={
         <Button
           title="Continue"
-          disabled={!usd || over}
+          disabled={!usd || over || !priced}
           onPress={() => {
             begin(fund ? { kind: "card-fund", cardId: card.id, usd, from: account } : { kind: "card-withdraw", cardId: card.id, usd, to: account });
             router.push(fund ? "/card-fund/review" : "/card-withdraw/review");

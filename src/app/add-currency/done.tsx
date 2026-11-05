@@ -10,7 +10,8 @@ import { FlowScreen } from "@/components/flow-screen";
 import { ListSection } from "@/components/list";
 import { Icon } from "@/components/icon";
 import { Text } from "@/components/text";
-import { assetByCode, DEPOSIT_ADDRESSES } from "@/data/assets";
+import { assetByCode, type AssetCode } from "@/data/assets";
+import { useReceiveDetails } from "@/api/queries";
 import { shadows, spacing, useColors } from "@/theme";
 
 /**
@@ -60,7 +61,10 @@ function OpenedHero({ code }: { code: string }) {
 export default function CurrencyOpened() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const a = assetByCode(code);
-  const fields = a.kind === "fiat" ? (a.account?.fields ?? []) : [{ label: `${a.networks?.[0]?.name} address`, value: DEPOSIT_ADDRESSES[`${a.code}:${a.networks?.[0]?.id}`] ?? "" }];
+  // the new account's own details (GET wallets/:code/receive)
+  const details = useReceiveDetails(a.code as AssetCode);
+  const loading = details.isPending ? [{ label: "Details", value: "Loading…" }] : [];
+  const fields = details.data ? (details.data.fields ?? [{ label: `${a.networks?.[0]?.name ?? a.code} address`, value: details.data.address ?? "" }]) : loading;
   const close = () => (router.canDismiss() ? router.dismissAll() : router.back());
 
   return (

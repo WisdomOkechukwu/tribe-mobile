@@ -10,8 +10,8 @@ import { Text } from "@/components/text";
 import { billerById } from "@/data/catalog";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
-import { FREQUENCY_LABEL, useRecurringStore, type Frequency, type Schedule } from "@/stores/use-recurring-store";
-import { toast } from "@/stores/use-ui-store";
+import { FREQUENCY_LABEL, type Frequency, type Schedule } from "@/stores/use-recurring-store";
+import { changeSchedule, removeSchedule, toggleSchedule } from "@/screens/recurring-actions";
 import { useRecurring } from "@/api/queries";
 import { QueryError, Skeleton, SkeletonList } from "@/components/skeletons";
 import { radius, spacing, useColors } from "@/theme";
@@ -21,7 +21,6 @@ const when = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { weekda
 /** Manage one schedule from our own sheet: pay now, change how often, pause, delete. */
 function manage(s: Schedule, c: ReturnType<typeof useColors>) {
   const b = billerById(s.billerId);
-  const store = useRecurringStore.getState();
   overlay.select({
     title: `${b.name}${s.plan ? ` · ${s.plan}` : ""}`,
     subtitle: `₦${s.amountNgn.toLocaleString()} ${FREQUENCY_LABEL[s.frequency].toLowerCase()} · next ${when(s.nextRun)}`,
@@ -33,7 +32,7 @@ function manage(s: Schedule, c: ReturnType<typeof useColors>) {
     ],
     onSelect: (v) => {
       if (v === "pay") {
-        useFlowStore.getState().begin({ kind: "bill", billerId: s.billerId, amountNgn: s.amountNgn, payWith: s.payWith, target: s.target, plan: s.plan, recurringId: s.id });
+        useFlowStore.getState().begin({ kind: "bill", billerId: s.billerId, amountNgn: s.amountNgn, payWith: s.payWith, target: s.target, plan: s.plan, planId: s.planId, recurringId: s.id });
         router.push("/bill/review");
       } else if (v === "freq") {
         overlay.select({
@@ -41,13 +40,11 @@ function manage(s: Schedule, c: ReturnType<typeof useColors>) {
           value: s.frequency,
           options: (["weekly", "biweekly", "monthly"] as Frequency[]).map((f) => ({ value: f, label: FREQUENCY_LABEL[f] })),
           onSelect: (f) => {
-            store.update(s.id, { frequency: f as Frequency });
-            toast(`Now ${FREQUENCY_LABEL[f as Frequency].toLowerCase()}`);
+            changeSchedule(s, { frequency: f as Frequency }, `Now ${FREQUENCY_LABEL[f as Frequency].toLowerCase()}`);
           },
         });
       } else if (v === "pause") {
-        store.toggle(s.id);
-        toast(s.active ? "Paused" : "Resumed");
+        toggleSchedule(s);
       } else
         overlay.confirm({
           icon: "trash",
@@ -55,10 +52,7 @@ function manage(s: Schedule, c: ReturnType<typeof useColors>) {
           body: `${b.name} will stop renewing automatically. Payments already made aren't affected.`,
           confirmLabel: "Delete",
           destructive: true,
-          onConfirm: () => {
-            store.remove(s.id);
-            toast("Recurring bill deleted");
-          },
+          onConfirm: () => void removeSchedule(s),
         });
     },
   });
@@ -69,7 +63,10 @@ export default function Recurring() {
   const c = useColors();
   const query = useRecurring();
   const schedules = query.data ?? [];
-  const toggle = useRecurringStore((s) => s.toggle);
+  const toggle = (id: string) => {
+    const s = schedules.find((x) => x.id === id);
+    if (s) toggleSchedule(s);
+  };
   const active = schedules.filter((s) => s.active);
   const monthly = active.reduce((sum, s) => sum + s.amountNgn * (s.frequency === "weekly" ? 4.33 : s.frequency === "biweekly" ? 2.17 : 1), 0);
 
