@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { motion, radius, spacing, useTheme } from "@/theme";
@@ -12,7 +12,8 @@ export function Segmented<T extends string>({
   onChange,
   style,
 }: {
-  options: { value: T; label: string }[];
+  /** `icon`: a small mark before the label (a coin on a currency switch) */
+  options: { value: T; label: string; icon?: ReactNode }[];
   value: T;
   onChange: (v: T) => void;
   style?: StyleProp<ViewStyle>;
@@ -36,7 +37,8 @@ export function Segmented<T extends string>({
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <PressableScale key={o.value} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)} scaleTo={0.97} style={{ flex: 1, paddingVertical: spacing.sm - 1, alignItems: "center" }}>
+          <PressableScale key={o.value} accessibilityRole="tab" accessibilityLabel={o.label} accessibilityState={{ selected: on }} onPress={() => onChange(o.value)} scaleTo={0.97} style={{ flex: 1, flexDirection: "row", gap: spacing.xs + 2, paddingVertical: spacing.sm - 1, alignItems: "center", justifyContent: "center" }}>
+            {o.icon}
             <Text variant="subhead" style={{ color: on ? c.text : c.textMuted, fontFamily: on ? "Poppins_600SemiBold" : "Poppins_500Medium" }}>
               {o.label}
             </Text>

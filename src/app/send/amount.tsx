@@ -1,11 +1,12 @@
 import { router } from "expo-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Pressable, useWindowDimensions, View } from "react-native";
-import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import { AmountEntry, groupAmount } from "@/components/amount-entry";
+import { AssetChip } from "@/components/asset-chip";
 import { openAssetPicker } from "@/components/asset-picker";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
+import { Caret } from "@/components/caret";
 import { CoinIcon } from "@/components/coin-icon";
 import { CountryFlag } from "@/components/country-flag";
 import { EmptyState } from "@/components/bits";
@@ -38,32 +39,6 @@ type Side = "pay" | "receive";
 /** A number as keypad input: at most `decimals` places, no trailing zeros, "" for nothing. */
 function toInput(n: number, decimals: number) {
   return n > 0 ? String(Number(n.toFixed(Math.min(decimals, 6)))) : "";
-}
-
-/** Blinking insertion bar after the amount being typed (static with Reduce Motion). */
-function Caret() {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  const o = useSharedValue(1);
-  useEffect(() => {
-    if (reduce) return;
-    o.set(withRepeat(withSequence(withTiming(0, { duration: 450 }), withTiming(1, { duration: 450 })), -1));
-    return () => cancelAnimation(o);
-  }, [o, reduce]);
-  const blink = useAnimatedStyle(() => ({ opacity: o.get() }));
-  return <Animated.View style={[{ width: 2, height: 28, borderRadius: 1, marginLeft: 3, backgroundColor: c.brand }, blink]} />;
-}
-
-/** "(₿) BTC ⌄" — the currency on an amount card is its picker. */
-function AssetChip({ code, onPress, label }: { code: AssetCode; onPress: () => void; label: string }) {
-  const c = useColors();
-  return (
-    <PressableScale onPress={onPress} hitSlop={6} accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs + 2, backgroundColor: c.surfaceAlt, borderRadius: radius.full, paddingLeft: spacing.xs, paddingRight: spacing.smd, paddingVertical: spacing.xs }}>
-      <CoinIcon code={code} size={26} />
-      <Text variant="bodyStrong">{code}</Text>
-      <Icon name="chevronDown" size={10} color={c.textMuted} weight="bold" />
-    </PressableScale>
-  );
 }
 
 /**
