@@ -47,8 +47,12 @@ export function toTransaction(resource: TransactionResource): Transaction {
   let r = resource;
   const m = r.meta ?? {};
   const type: TxType = TYPES.includes(r.type as TxType) ? (r.type as TxType) : r.direction === "in" ? "receive" : "send";
-  const toAmount = r.to_amount != null ? num(r.to_amount) : undefined;
   const cardOp = CARD_OPS[str(m.card_op) ?? r.kind] ?? undefined;
+  // the API books a card withdrawal as USD (from the card) → the wallet asset; the app shows the
+  // wallet that was credited, with the card's dollars as the face, so swap the legs here
+  if (r.type === "card" && cardOp === "withdrawal" && r.to_asset && r.to_amount != null)
+    r = { ...r, asset: r.to_asset, amount: r.to_amount, to_asset: r.asset, to_amount: r.amount, fee_asset: r.fee_asset ?? r.asset };
+  const toAmount = r.to_amount != null ? num(r.to_amount) : undefined;
   const token = str(m.token);
   const meta: NonNullable<Transaction["meta"]> = {
     billerId: str(m.biller_id),
@@ -86,7 +90,8 @@ export function toTransaction(resource: TransactionResource): Transaction {
   if (type === "receive" && str(m.sender_name)) meta.sender = { key: `${str(m.sender_kind) ?? "tribe"}:${str(m.sender_handle) ?? m.sender_name}`, name: String(m.sender_name), detail: str(m.sender_handle), kind: (str(m.sender_kind) as "tribe" | "bank" | "wallet") ?? "tribe" };
   // what one unit paid bought (receipts show it as the rate)
   const paidNet = num(r.amount) - (r.fee_asset === r.asset ? num(r.fee) : 0);
-  if (toAmount !== undefined && paidNet > 0 && r.to_asset && r.to_asset !== r.asset) meta.rate = toAmount / paidNet;
+  const gotNet = toAmount !== undefined && r.fee_asset === r.to_asset && r.fee_asset !== r.asset ? toAmount - num(r.fee) : toAmount;
+  if (gotNet !== undefined && paidNet > 0 && r.to_asset && r.to_asset !== r.asset) meta.rate = gotNet / paidNet;
   // a send that converted on the way (BTC paid, NGN received) and swaps keep their second leg
   const keepsLeg = (type === "swap" || type === "send") && r.to_asset && r.to_asset !== r.asset;
   const fee = num(r.fee);
