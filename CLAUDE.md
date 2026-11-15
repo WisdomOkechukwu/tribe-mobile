@@ -23,6 +23,10 @@ Add packages with `npx expo install`, never `npm install` directly. `ios/` and `
 - **Referrals** pay ₦25 every time an invited friend transacts, for life (`src/data/referrals.ts`). Rewards collect in a **referral balance** (`use-referral-store`) that withdraws into **any currency**, crypto included (`referral-withdraw/`).
 - **Every receipt** has "Report an issue" → `report/[id]` (reasons per transaction type, ticket in `use-support-store`, inbox item).
 - **PHED** is the only electricity provider we have a logo for.
+- **Admins can switch any service off** (tribe-admin → Services). `GET services` says which (`utils/services.ts`: `useServiceOff(...codes)` returns the admin's message once ALL the given services are off). Entry points grey out and stop being tappable: `off` on `ListRow` / `CircleAction`, `disabled` on `PressableScale`, `ServiceRow` for rows built in a loop. The API refuses a switched-off service with 503 `SERVICE_DISABLED` either way, which also refreshes the app's copy of the switches.
+- **Admins can add currencies** (tribe-admin → Currencies). `GET assets` is registered into `ASSETS` at runtime (`registerAssets` in `data/assets.ts`, called by the catalog store), so a new one shows without an app update: a glyph coin (no bundled logo), one generic receive rail. `AssetCode` is still the built-in union, so treat codes from the API as data, never as an exhaustive switch.
+- **The Naira rail is never shown.** A conversion that went through Naira reads as one step (the API's `route` is always one leg now); don't add a "Route" row back.
+- **Sharing your tag or an invite shares a picture** (`components/share-cards.tsx`: a preview sheet with Save image / Share, like receipts; `utils/share-image.ts`). The words go with it: iOS hands both to the share sheet, Android copies the words to paste beside the picture.
 
 ## Structure
 - `src/app/`: routes only. Three guarded groups in the root `<Stack>` (see "Auth and PIN" below).

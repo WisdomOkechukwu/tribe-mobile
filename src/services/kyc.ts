@@ -32,7 +32,7 @@ export const TIER_INFO: Record<Exclude<KycTier, 0>, TierInfo> = {
     ],
   },
   3: {
-    title: "ID document + address",
+    title: "ID + address",
     unlocks: "Highest limits, and opening new wallets in any currency or coin.",
     steps: [
       { id: "docType", label: "ID type", title: "Choose your ID", body: "Driver's licence, voter's card, NIN slip or international passport." },

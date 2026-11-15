@@ -78,7 +78,7 @@ export function FlowScreen({
           gestureEnabled: cancel !== "none",
           // the ✕ lives in the native header bar, where touches always land (not in a sheet's drag zone)
           headerRight:
-            headerRight ??
+            (headerRight && Platform.OS === "web" ? () => <View style={{ marginRight: spacing.md }}>{headerRight()}</View> : headerRight) ??
             (cancel === "x"
               ? () => (
                   <PressableScale onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close" style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceAlt, alignItems: "center", justifyContent: "center", marginRight: Platform.OS === "web" ? spacing.md : 0 }}>

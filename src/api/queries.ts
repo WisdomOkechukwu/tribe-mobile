@@ -44,6 +44,12 @@ export const useBeneficiaries = () => useResource(resources.beneficiaries);
 export const useDevices = () => useResource(resources.devices);
 export const useCashpoints = () => useResource(resources.cashpoints);
 export const useBillers = () => useResource(resources.billers);
+/** Which services an admin has switched off. Checked again every minute, so a switch reaches an open app. */
+export function useServices() {
+  const signedIn = useSessionStore((s) => s.signedIn);
+  const local = resources.services.local?.();
+  return useQuery({ queryKey: resources.services.key, queryFn: ({ signal }) => resources.services.fetch(signal), enabled: signedIn, initialData: local?.data, initialDataUpdatedAt: local?.updatedAt, refetchInterval: 60_000 });
+}
 export const useGiftBrands = () => useResource(resources.giftBrands);
 export const useCardDesigns = () => useResource(resources.cardDesigns);
 export const useChannels = () => useResource(resources.channels);

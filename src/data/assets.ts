@@ -17,7 +17,8 @@ export type Asset = {
   /** fallback coin face while the logo loads */
   bg: string;
   fg: string;
-  logo: ImageSourcePropType;
+  /** bundled logo or flag; a currency added by an admin has none and shows its glyph coin */
+  logo?: ImageSourcePropType;
   networks?: Network[];
   account?: { label: string; fields: { label: string; value: string }[] };
 };
@@ -103,6 +104,45 @@ export const ASSETS_FIAT_FIRST: Asset[] = [...ASSETS.filter((a) => a.kind === "f
 
 export const assetByCode = (code: string): Asset => ASSETS.find((a) => a.code === code) ?? ASSETS[0];
 
+/** Coin faces for currencies the app has no logo for, picked by code so each keeps its colour. */
+const FACES = [
+  { bg: "#6a0dad", fg: "#fff" },
+  { bg: "#ff6220", fg: "#fff" },
+  { bg: "#1f7434", fg: "#fff" },
+  { bg: "#0088e8", fg: "#fff" },
+  { bg: "#201f1f", fg: "#ba90d9" },
+  { bg: "#b3261e", fg: "#fff" },
+];
+
+/**
+ * Adds the currencies the API has that this build doesn't know (GET /assets): an admin can add
+ * a currency or coin from the admin panel, and it must show up here without an app update. Each
+ * gets a glyph coin (its symbol on a colour) since there is no bundled logo. Both lists are
+ * updated IN PLACE, so every import sees the new entries. Called when the catalogue loads from
+ * storage and whenever GET /assets answers (stores/use-catalog-store.ts); a screen already on
+ * show picks them up the next time it renders its list.
+ */
+export function registerAssets(list: { code: string; name: string; kind: "fiat" | "crypto"; symbol: string; decimal_places: number }[]) {
+  let added = false;
+  for (const x of list) {
+    if (ASSETS.some((a) => a.code === x.code)) continue;
+    const face = FACES[[...x.code].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % FACES.length];
+    const glyph = x.symbol && x.symbol.length <= 3 ? x.symbol : x.code.slice(0, 3);
+    ASSETS.push({
+      code: x.code as AssetCode,
+      name: x.name,
+      kind: x.kind,
+      // what the app shows and lets you type: cents for money, up to six places for a coin
+      decimals: x.kind === "fiat" ? Math.min(x.decimal_places, 2) : Math.min(x.decimal_places, 6),
+      symbol: x.symbol || x.code,
+      glyph,
+      ...face,
+    });
+    added = true;
+  }
+  if (added) ASSETS_FIAT_FIRST.splice(0, ASSETS_FIAT_FIRST.length, ...ASSETS.filter((a) => a.kind === "fiat"), ...ASSETS.filter((a) => a.kind === "crypto"));
+}
+
 export const SWAP_FEE = 0.005;
 
 const ADA = { label: "Account name", value: "Ada Okafor" };
@@ -143,5 +183,7 @@ export const RAILS: Partial<Record<AssetCode, Rail[]>> = {
 /** The rails a currency can receive on; falls back to its single account. */
 export function railsFor(a: Asset): Rail[] {
   if (RAILS[a.code]) return RAILS[a.code]!;
-  return a.account ? [{ id: "main", name: a.account.label.replace(/^Your /, ""), eta: "Within minutes", fee: "Free", fields: a.account.fields }] : [];
+  if (a.account) return [{ id: "main", name: a.account.label.replace(/^Your /, ""), eta: "Within minutes", fee: "Free", fields: a.account.fields }];
+  // a fiat currency added by an admin: one plain rail; the Receive screen fills in the details from the API
+  return a.kind === "fiat" ? [{ id: "bank", name: "Bank transfer", eta: "1–2 working days", fee: "Free", fields: [] }] : [];
 }

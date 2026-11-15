@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import { Share, View } from "react-native";
+import { View } from "react-native";
 import { MeAvatar } from "@/components/avatar";
 import { copyToClipboard, Pill } from "@/components/bits";
 import { BrandSwitch } from "@/components/brand-switch";
@@ -8,6 +8,7 @@ import { Icon, type IconName } from "@/components/icon";
 import { ListRow, ListSection } from "@/components/list";
 import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
+import { openTagShare } from "@/components/share-cards";
 import { Text } from "@/components/text";
 import { REFERRAL } from "@/data/referrals";
 import { overlay } from "@/stores/use-overlay-store";
@@ -93,7 +94,7 @@ export default function Me() {
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <QuickAction icon="qrLine" label="My QR" onPress={() => router.push("/me/qr")} />
           <QuickAction icon="scanLine" label="Scan" onPress={() => router.push("/scan")} />
-          <QuickAction icon="shareLine" label="Share tag" onPress={() => Share.share({ message: `Pay me on Tribe: @${user.tag}\nhttps://tribe.africa/pay/${user.tag}` })} />
+          <QuickAction icon="shareLine" label="Share tag" onPress={openTagShare} />
         </View>
       </View>
 

@@ -50,6 +50,9 @@ export type WalletsResource = {
   referral_balance: string;
 };
 
+/** GET services: one service an admin can switch off, and the admin's message while it is off. */
+export type ServiceResource = { code: string; enabled: boolean; message: string };
+
 export type AssetResource = { code: string; name: string; kind: "fiat" | "crypto"; symbol: string; decimal_places: number };
 
 export type RateEntry = { usd: string; ngn: string; change_today_percent: string };

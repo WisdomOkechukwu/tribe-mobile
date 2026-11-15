@@ -139,7 +139,6 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         ? [["Amount", formatAsset(Number(quoted.from_amount) - Number(quoted.fee), a.asset)], ["Fee", Number(quoted.fee) ? formatAsset(Number(quoted.fee), a.asset) : "Free"], ["Rate", rateText(a.asset, toAsset, Number(quoted.rate))]]
         : [["Amount", formatAsset(a.amount, a.asset)], ["Send fee", a.fee ? formatAsset(a.fee, a.asset) : "Free"]];
       if (converted && !quoted) rows.push(["Rate", rateText(a.asset, toAsset, quote(1, a.asset, toAsset).rate)], ["Conversion fee", `${SWAP_FEE * 100}%`]);
-      if (quoted?.uses_ngn_rail) rows.push(["Route", quoted.route.map((l) => l.from_asset).concat(toAsset).join(" → ")]);
       rows.push(["Channel", a.channel], ["Arrives", a.eta ?? "Within minutes"]);
       return {
         icon: art(64),
@@ -180,7 +179,6 @@ export function actionSummary(a: PendingAction, q?: QuoteResource | null, versio
         rows: [
           ["Rate", rateText(a.from, a.to, rate)],
           [q ? "Swap fee" : `Swap fee (${SWAP_FEE * 100}%)`, formatAsset(fee, a.from)],
-          ...(q?.uses_ngn_rail ? ([["Route", q.route.map((l) => l.from_asset).concat(a.to).join(" → ")]] as [string, string][]) : []),
           ["Lands", "Instantly"],
         ],
         total: ["You get", formatAsset(receive, a.to)],

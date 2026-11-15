@@ -27,6 +27,7 @@ import { CardFaceSkeleton, Loaded, QueryError, Skeleton, SkeletonList } from "@/
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { PAY } from "@/utils/pay-platform";
 import { openCardCreation } from "@/utils/verification";
+import { PAUSED, useServiceOff } from "@/utils/services";
 
 
 // the real card face (what you get), three finishes fanned: two behind, Midnight in front
@@ -67,6 +68,7 @@ function Sticker({ label, rotate }: { label: string; rotate: string }) {
  */
 function CardsIntro() {
   const c = useColors();
+  const cardsOff = useServiceOff("virtual_cards");
   const reduce = useReducedMotion();
   const drift = useDrift();
   const { width } = useWindowDimensions();
@@ -119,7 +121,7 @@ function CardsIntro() {
       </Animated.View>
 
       <Animated.View entering={enter(3)}>
-        <Button title="Get your card" icon="card" onPress={() => openCardCreation()} />
+        <Button title={cardsOff ? PAUSED : "Get your card"} icon="card" disabled={!!cardsOff} onPress={() => openCardCreation()} />
       </Animated.View>
 
       {/* how it goes: three numbered stops */}
@@ -228,6 +230,7 @@ const money = (usd: number) => usd.toLocaleString("en-US", { minimumFractionDigi
  */
 export default function Cards() {
   const c = useColors();
+  const cardsOff = useServiceOff("virtual_cards");
   const { width } = useWindowDimensions();
   const cardsQuery = useCards();
   const history = useTransactions();
@@ -247,7 +250,7 @@ export default function Cards() {
         // no card yet: the intro's "Get your card" is the one way in, so no header shortcut
         headerRight: () =>
           cards.length ? (
-            <PressableScale onPress={() => openCardCreation()} accessibilityLabel="New card" style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.text, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.sm, marginRight: Platform.OS === "web" ? spacing.md : 0 }}>
+            <PressableScale onPress={() => openCardCreation()} disabled={!!cardsOff} accessibilityHint={cardsOff ?? undefined} accessibilityLabel="New card" style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: c.text, borderRadius: radius.full, paddingHorizontal: spacing.smd, paddingVertical: spacing.sm, marginRight: Platform.OS === "web" ? spacing.md : 0 }}>
               <Icon name="plusCircle" size={13} color={c.bg} />
               <Text variant="subhead" style={{ color: c.bg }}>
                 New card
@@ -326,12 +329,13 @@ export default function Cards() {
 
         {/* Fund · Withdraw · Details · Freeze */}
         <CircleActionRow>
-          <CircleAction icon="add" label="Fund" colors={{ bg: tint.accent, fg: tint.accentFg }} dimmed={card.frozen} onPress={() => (card.frozen ? frozenToast() : router.push({ pathname: "/card-fund", params: { id: card.id } }))} />
+          <CircleAction icon="add" label="Fund" colors={{ bg: tint.accent, fg: tint.accentFg }} dimmed={card.frozen} off={cardsOff} onPress={() => (card.frozen ? frozenToast() : router.push({ pathname: "/card-fund", params: { id: card.id } }))} />
           <CircleAction
             glyph="outgoing"
             label="Withdraw"
             colors={soft}
             dimmed={card.frozen || card.balance <= 0}
+            off={cardsOff}
             onPress={() => (card.frozen ? frozenToast() : card.balance <= 0 ? toast("Nothing on this card to withdraw yet") : router.push({ pathname: "/card-withdraw", params: { id: card.id } }))}
           />
           <CircleAction icon="eye" label="Details" colors={soft} onPress={openDetails} />

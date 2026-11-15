@@ -15,6 +15,7 @@ import { Segmented } from "@/components/segmented";
 import { Text } from "@/components/text";
 import { assetByCode, type AssetCode } from "@/data/assets";
 import { openAddMoneySheet } from "@/screens/home/sheets";
+import { openUnitsNote } from "@/screens/swap/units-note";
 import { useFlowStore } from "@/stores/use-flow-store";
 import { overlay } from "@/stores/use-overlay-store";
 import { useSwapDraft } from "@/stores/use-swap-draft";
@@ -150,6 +151,13 @@ export default function Swap() {
       setAmount(seeded);
     }
     setMode(next);
+    // the amounts re-base on the unit just picked: say why they may move, until it's acknowledged
+    if (value && priced) {
+      const payText = formatAsset(pay, from);
+      const getText = formatAsset(receive, to);
+      const usdText = formatAsset(pay * usd(from), "USD");
+      openUnitsNote(next === "to" ? { exact: getText, worked: payText } : next === "usd" ? { exact: usdText, worked: getText } : { exact: payText, worked: getText });
+    }
   };
   /** The typed amount stays with its currency: "pay 100 USDT" becomes "get 100 USDT". */
   const flipPair = () => {
@@ -192,8 +200,9 @@ export default function Swap() {
       });
       return;
     }
-    // a typed "you get" is exact: the quote prices what it costs
-    begin({ kind: "swap", from, to, amount: pay, receive: typing === "to" ? value : undefined });
+    // the API gets the amount in the unit it was typed in: a typed "you get" is exact and the quote
+    // prices what it costs; typed dollars are converted by the server (`pay` is our estimate)
+    begin({ kind: "swap", from, to, amount: pay, receive: typing === "to" ? value : undefined, usd: typing === "usd" ? value : undefined });
     router.push("/swap/review");
   };
 

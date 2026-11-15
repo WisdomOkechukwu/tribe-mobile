@@ -8,10 +8,12 @@ import { ASSETS } from "@/data/assets";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { useColors } from "@/theme";
 import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
+import { useServiceOff } from "@/utils/services";
 
 /** Open a new currency · step 1: pick one. NGN is always open, so it never appears here. */
 export default function AddCurrency() {
   const c = useColors();
+  const walletOpenOff = useServiceOff("wallet_open");
   const opened = useWalletStore((s) => s.opened);
   const available = ASSETS.filter((a) => a.code !== "NGN" && !opened.includes(a.code));
   const fiat = available.filter((a) => a.kind === "fiat");
@@ -30,14 +32,14 @@ export default function AddCurrency() {
           {fiat.length > 0 && (
             <ListSection title="Currencies" footer="Local account details, so people abroad can pay you like a local.">
               {fiat.map((a) => (
-                <ListRow key={a.code} leading={<CoinIcon code={a.code} size={40} />} title={a.name} subtitle={`${a.code} · ${a.account?.label.replace(/^Your /, "") ?? "Account"}`} trailing={trailing} onPress={() => open(a.code)} />
+                <ListRow key={a.code} off={walletOpenOff} leading={<CoinIcon code={a.code} size={40} />} title={a.name} subtitle={`${a.code} · ${a.account?.label.replace(/^Your /, "") ?? "Account"}`} trailing={trailing} onPress={() => open(a.code)} />
               ))}
             </ListSection>
           )}
           {crypto.length > 0 && (
             <ListSection title="Crypto">
               {crypto.map((a) => (
-                <ListRow key={a.code} leading={<CoinIcon code={a.code} size={40} />} title={a.name} subtitle={`${a.code} · ${a.networks?.map((n) => n.name.split(" ")[0]).join(", ")}`} trailing={trailing} onPress={() => open(a.code)} />
+                <ListRow key={a.code} off={walletOpenOff} leading={<CoinIcon code={a.code} size={40} />} title={a.name} subtitle={`${a.code} · ${a.networks?.map((n) => n.name.split(" ")[0]).join(", ")}`} trailing={trailing} onPress={() => open(a.code)} />
               ))}
             </ListSection>
           )}

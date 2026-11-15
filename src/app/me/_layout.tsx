@@ -20,8 +20,8 @@ export default function Layout() {
           title: "Me",
           headerTitle: "",
           headerLeft: () => (
-            <PressableScale onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} hitSlop={12} accessibilityLabel="Back" style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface, alignItems: "center", justifyContent: "center" }}>
-              <Icon name="back" size={16} color={c.text} />
+            <PressableScale onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} hitSlop={12} accessibilityLabel="Back" style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+              <Icon name="back" size={20} color={c.brandText} />
             </PressableScale>
           ),
         }}

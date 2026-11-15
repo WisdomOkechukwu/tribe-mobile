@@ -65,6 +65,7 @@ export function ListRow({
   destructive,
   compact,
   accessibilityLabel,
+  off,
 }: {
   leading?: ReactNode;
   icon?: IconName;
@@ -84,9 +85,11 @@ export function ListRow({
   /** key/value detail row (receipts, reviews): muted label left, value right */
   compact?: boolean;
   accessibilityLabel?: string;
+  /** an admin switched this off (`useServiceOff`): greyed out, not tappable, the reason as its subtitle */
+  off?: string | null;
 }) {
   const c = useColors();
-  const showChevron = chevron ?? (!!onPress && !trailing && !value);
+  const showChevron = chevron ?? (!!onPress && !trailing && !value && !off);
   if (compact) {
     return (
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 48 }}>
@@ -101,15 +104,15 @@ export function ListRow({
     );
   }
   const body = (pressed: boolean) => (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : "transparent" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.smd, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, minHeight: 60, backgroundColor: pressed ? c.surfaceAlt : "transparent", opacity: off ? 0.45 : 1 }}>
       {leading ?? (icon || glyph ? <RowIcon name={icon} glyph={glyph} tint={destructive ? c.danger : iconTint} bg={destructive ? c.dangerSoft : iconBg} /> : null)}
       <View style={{ flex: 1, gap: spacing.xxs }}>
         <Text variant="bodyStrong" numberOfLines={1} style={destructive ? { color: c.danger } : undefined}>
           {title}
         </Text>
-        {subtitle && (
+        {(off || subtitle) && (
           <Text variant="caption" tone="muted" numberOfLines={2}>
-            {subtitle}
+            {off || subtitle}
           </Text>
         )}
       </View>
@@ -131,6 +134,12 @@ export function ListRow({
       {showChevron && <Icon name="chevron" size={13} color={c.textSubtle} />}
     </View>
   );
+  if (off)
+    return (
+      <View accessible accessibilityRole="button" accessibilityState={{ disabled: true }} accessibilityLabel={`${accessibilityLabel ?? title}. ${off}`}>
+        {body(false)}
+      </View>
+    );
   if (!onPress) return body(false);
   return (
     <Pressable

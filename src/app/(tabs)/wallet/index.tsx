@@ -21,12 +21,14 @@ import { Loaded, Skeleton, SkeletonList } from "@/components/skeletons";
 import { spacing, useColors } from "@/theme";
 import { formatMoney } from "@/utils/format";
 import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
+import { useServiceOff } from "@/utils/services";
 
 type Kind = "fiat" | "crypto";
 const KINDS: Kind[] = ["fiat", "crypto"];
 
 export default function Wallet() {
   const c = useColors();
+  const walletOpenOff = useServiceOff("wallet_open");
   const [kind, setKind] = useState<Kind>("fiat");
   const [query, setQuery] = useState("");
   const accounts = useAccounts();
@@ -72,6 +74,7 @@ export default function Wallet() {
             {closed.map((a) => (
               <ListRow
                 key={a.code}
+                off={walletOpenOff}
                 leading={<CoinIcon code={a.code} size={40} />}
                 title={a.name}
                 subtitle={a.kind === "fiat" ? `${a.code} · ${a.account?.label.replace(/^Your /, "")}` : `${a.code} · ${a.networks?.length} networks`}

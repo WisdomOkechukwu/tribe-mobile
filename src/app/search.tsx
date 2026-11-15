@@ -15,17 +15,20 @@ import { openAddMoneySheet } from "@/screens/home/sheets";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { spacing, useColors } from "@/theme";
 import { guardWalletOpen, openCardCreation } from "@/utils/verification";
+import { ServiceRow } from "@/components/service-off";
+import { BILL_SERVICE, SEND_SERVICES, type ServiceCode } from "@/utils/services";
 
-const ACTIONS: { title: string; keywords: string; icon: IconName; href?: Href; run?: () => void }[] = [
-  { title: "Send money", keywords: "send transfer pay tag bank", icon: "send", href: "/send" },
-  { title: "Swap currencies", keywords: "swap convert exchange", icon: "swap", href: "/swap" },
+/** `services`: what the action leads to; it greys out only when an admin has switched ALL of them off. */
+const ACTIONS: { title: string; keywords: string; icon: IconName; href?: Href; run?: () => void; services?: ServiceCode[] }[] = [
+  { title: "Send money", keywords: "send transfer pay tag bank", icon: "send", href: "/send", services: SEND_SERVICES },
+  { title: "Swap currencies", keywords: "swap convert exchange", icon: "swap", href: "/swap", services: ["swap"] },
   { title: "Add money", keywords: "add deposit fund top up", icon: "add", run: openAddMoneySheet },
-  { title: "Recurring bills", keywords: "recurring auto renew schedule subscription bills", icon: "repeat", href: "/pay/recurring" },
+  { title: "Recurring bills", keywords: "recurring auto renew schedule subscription bills", icon: "repeat", href: "/pay/recurring", services: ["recurring_bills"] },
   { title: "Scan to pay", keywords: "scan qr camera pay", icon: "scan", href: "/scan" },
-  { title: "Generate a Cashpoint", keywords: "cashpoint code cash 12 digit", icon: "cashpoint", href: "/cashpoint" },
-  { title: "Redeem a Cashpoint", keywords: "cashpoint redeem code", icon: "cashpoint", href: { pathname: "/cashpoint", params: { mode: "redeem" } } },
-  { title: "Get a virtual card", keywords: "card virtual dollar new create", icon: "card", run: openCardCreation },
-  { title: "Open a new currency", keywords: "currency account open new gbp eur kes ghs cad", icon: "globe", run: () => guardWalletOpen(() => router.push("/add-currency")) },
+  { title: "Generate a Cashpoint", keywords: "cashpoint code cash 12 digit", icon: "cashpoint", href: "/cashpoint", services: ["cashpoint_create"] },
+  { title: "Redeem a Cashpoint", keywords: "cashpoint redeem code", icon: "cashpoint", href: { pathname: "/cashpoint", params: { mode: "redeem" } }, services: ["cashpoint_redeem"] },
+  { title: "Get a virtual card", keywords: "card virtual dollar new create", icon: "card", run: openCardCreation, services: ["virtual_cards"] },
+  { title: "Open a new currency", keywords: "currency account open new gbp eur kes ghs cad", icon: "globe", run: () => guardWalletOpen(() => router.push("/add-currency")), services: ["wallet_open"] },
   { title: "Token Vault", keywords: "token vault electricity light phed meter", icon: "vault", href: "/pay/vault" },
   { title: "Invite friends", keywords: "invite referral friends reward", icon: "people", href: "/me/invite" },
   { title: "Change PIN", keywords: "pin security password change", icon: "key", href: "/me/change-pin" },
@@ -71,17 +74,17 @@ export default function Search() {
           {actions.length > 0 && (
             <ListSection title={term ? "Actions" : "Quick actions"}>
               {actions.map((a) => (
-                <ListRow key={a.title} icon={a.icon} iconBg={c.brandSoft} iconTint={c.brandText} title={a.title} onPress={() => go(a.href, a.run)} />
+                <ServiceRow key={a.title} services={a.services ?? []} icon={a.icon} iconBg={c.brandSoft} iconTint={c.brandText} title={a.title} onPress={() => go(a.href, a.run)} />
               ))}
             </ListSection>
           )}
           {(billers.length > 0 || gifts.length > 0) && (
             <ListSection title="Pay">
               {billers.map((b) => (
-                <ListRow key={b.id} icon="bolt" iconBg={c.warningSoft} title={`Pay ${b.name}`} onPress={() => go({ pathname: "/bill/[id]", params: { id: b.id, category: b.category } })} />
+                <ServiceRow key={b.id} services={BILL_SERVICE[b.category] ? [BILL_SERVICE[b.category]] : []} icon="bolt" iconBg={c.warningSoft} title={`Pay ${b.name}`} onPress={() => go({ pathname: "/bill/[id]", params: { id: b.id, category: b.category } })} />
               ))}
               {gifts.map((g) => (
-                <ListRow key={g.id} icon="gift" iconBg={c.brandSoft} iconTint={c.brandText} title={`${g.name} gift card`} onPress={() => go({ pathname: "/gift/[id]", params: { id: g.id } })} />
+                <ServiceRow key={g.id} services={["gift_card_buy", "gift_card_sell"]} icon="gift" iconBg={c.brandSoft} iconTint={c.brandText} title={`${g.name} gift card`} onPress={() => go({ pathname: "/gift/[id]", params: { id: g.id } })} />
               ))}
             </ListSection>
           )}

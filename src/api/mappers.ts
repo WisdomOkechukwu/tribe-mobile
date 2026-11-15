@@ -18,8 +18,8 @@ export const num = (value: string | number | null | undefined) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const CODES = new Set<string>(ASSETS.map((a) => a.code));
-export const isAssetCode = (code: unknown): code is AssetCode => typeof code === "string" && CODES.has(code);
+// checked against the live list: a currency an admin added is registered into ASSETS at runtime
+export const isAssetCode = (code: unknown): code is AssetCode => typeof code === "string" && ASSETS.some((a) => a.code === code);
 const asset = (code: unknown, fallback: AssetCode = "NGN"): AssetCode => (isAssetCode(code) ? code : fallback);
 
 const TYPES: TxType[] = ["receive", "send", "swap", "bill", "giftcard", "card", "cashpoint", "referral"];

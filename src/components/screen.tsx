@@ -37,7 +37,7 @@ export function Screen({
         {children}
       </ScrollView>
       {footer && (
-        <View style={{ paddingHorizontal: spacing.mdl, paddingTop: spacing.smd, paddingBottom: Math.max(insets.bottom, spacing.md), backgroundColor: background ?? c.bg, gap: spacing.sm }}>
+        <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.smd, paddingBottom: Math.max(insets.bottom, spacing.md), backgroundColor: background ?? c.bg, gap: spacing.sm }}>
           {footer}
         </View>
       )}

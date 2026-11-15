@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Share, View } from "react-native";
+import { View } from "react-native";
 import { Avatar } from "@/components/avatar";
 import { copyToClipboard, Note } from "@/components/bits";
 import { Button } from "@/components/button";
@@ -9,6 +9,7 @@ import { ListRow, ListSection } from "@/components/list";
 import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
 import { Segmented } from "@/components/segmented";
+import { openInviteShare } from "@/components/share-cards";
 import { CoinIcon } from "@/components/coin-icon";
 import { Stripes } from "@/components/stripes";
 import { Text } from "@/components/text";
@@ -18,6 +19,7 @@ import { Skeleton, SkeletonList } from "@/components/skeletons";
 import { useSessionStore } from "@/stores/use-session-store";
 import { palette, radius, spacing, useColors } from "@/theme";
 import { formatAsset, relativeDate } from "@/utils/format";
+import { useServiceOff } from "@/utils/services";
 
 type Tab = "earnings" | "withdrawals" | "friends";
 
@@ -34,6 +36,7 @@ const STEPS: { icon: IconName; title: string; body: string }[] = [
  */
 export default function Invite() {
   const c = useColors();
+  const withdrawOff = useServiceOff("referral_withdraw");
   const tag = useSessionStore((s) => s.user.tag);
   const myCode = useSessionStore((s) => s.referralCode);
   const referrals = useReferrals();
@@ -51,10 +54,9 @@ export default function Invite() {
   const lifetime = earnings.reduce((sum, e) => sum + e.amount, 0);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const thisMonth = earnings.filter((e) => e.date >= monthStart).reduce((sum, e) => sum + e.amount, 0);
-  const message = `Join me on Tribe: crypto, dollars and bills in one app. Sign up with my code ${code}: https://tribe.africa/r/${code}`;
 
   return (
-    <Screen footer={<Button title="Invite friends" icon="share" onPress={() => Share.share({ message })} />}>
+    <Screen footer={<Button title="Invite friends" icon="share" onPress={() => openInviteShare(code)} />}>
       {/* lifetime earnings hero */}
       <View style={{ borderRadius: radius.card, borderCurve: "continuous", overflow: "hidden", backgroundColor: palette.purple[700], padding: spacing.mdl, gap: spacing.md }}>
         <View pointerEvents="none" style={{ position: "absolute", right: -70, top: -60, width: 220, height: 200, overflow: "hidden", opacity: 0.35 }}>
@@ -79,7 +81,7 @@ export default function Invite() {
               <Skeleton width={150} height={36} style={{ marginTop: spacing.xs, backgroundColor: "rgba(255,255,255,0.2)" }} />
             )}
           </View>
-          <Button title="Withdraw" icon="arrowDown" variant="white" size="md" inline disabled={!referrals.data || balance < REFERRAL.minWithdrawNgn} onPress={() => router.push("/referral-withdraw")} />
+          <Button title="Withdraw" icon="arrowDown" variant="white" size="md" inline disabled={!referrals.data || balance < REFERRAL.minWithdrawNgn || !!withdrawOff} onPress={() => router.push("/referral-withdraw")} />
         </View>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {[

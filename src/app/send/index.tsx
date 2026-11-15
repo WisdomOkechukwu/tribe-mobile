@@ -14,6 +14,7 @@ import { useBeneficiaries } from "@/api/queries";
 import { BeneficiariesSkeleton } from "@/components/skeletons";
 import { useSendDraft, type SendScope } from "@/stores/use-send-draft";
 import { radius, spacing, useColors } from "@/theme";
+import { useServiceOff } from "@/utils/services";
 
 /**
  * Send (Send boards' first sheet): choose the currency your recipient will receive —
@@ -21,6 +22,10 @@ import { radius, spacing, useColors } from "@/theme";
  */
 export default function SendStart() {
   const c = useColors();
+  // an admin can switch each kind of send off; Naira covers both Tribe tags and Nigerian banks
+  const nairaOff = useServiceOff("send_tribe", "send_bank");
+  const globalOff = useServiceOff("send_global");
+  const cryptoOff = useServiceOff("send_crypto");
   const params = useLocalSearchParams<{ code?: string }>();
   const start = useSendDraft((s) => s.start);
   // saved recipients from the API (the store paints the last copy first)
@@ -51,9 +56,9 @@ export default function SendStart() {
         </Text>
       </View>
       <ListSection>
-        <ListRow leading={<RowIcon glyph="naira" bg={c.brandSoft} tint={c.brandText} size={40} />} title="Naira" subtitle="To any Nigerian bank or Tribe user" onPress={() => go("local")} chevron />
-        <ListRow leading={<RowIcon glyph="globe" bg={c.brandSoft} tint={c.brandText} size={40} />} title="Global currencies" subtitle="USD, GBP, EUR and more by ACH, SWIFT, SEPA, mobile money…" onPress={() => go("global")} chevron />
-        <ListRow leading={<RowIcon glyph="crypto" bg={c.brandSoft} tint={c.brandText} size={40} />} title="Cryptocurrencies" subtitle="BTC, ETH, USDT, USDC and SOL to any wallet" onPress={() => go("crypto")} chevron />
+        <ListRow leading={<RowIcon glyph="naira" bg={c.brandSoft} tint={c.brandText} size={40} />} off={nairaOff} title="Naira" subtitle="To any Nigerian bank or Tribe user" onPress={() => go("local")} chevron />
+        <ListRow leading={<RowIcon glyph="globe" bg={c.brandSoft} tint={c.brandText} size={40} />} off={globalOff} title="Global currencies" subtitle="USD, GBP, EUR and more by ACH, SWIFT, SEPA, mobile money…" onPress={() => go("global")} chevron />
+        <ListRow leading={<RowIcon glyph="crypto" bg={c.brandSoft} tint={c.brandText} size={40} />} off={cryptoOff} title="Cryptocurrencies" subtitle="BTC, ETH, USDT, USDC and SOL to any wallet" onPress={() => go("crypto")} chevron />
       </ListSection>
 
       {!beneficiaries.data && beneficiaries.isPending && (

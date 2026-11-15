@@ -1,7 +1,7 @@
 import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
 import { AppState, Platform } from "react-native";
 import * as Network from "expo-network";
-import { ApiError } from "./http";
+import { ApiError, setServiceDisabledHandler } from "./http";
 import { useSessionStore } from "@/stores/use-session-store";
 import { resources, type Resource } from "./client";
 
@@ -32,6 +32,9 @@ for (const r of Object.values(resources) as Resource<unknown>[])
   r.sync?.((key, data) => {
     if (useSessionStore.getState().signedIn) queryClient.setQueryData(key, data);
   });
+
+// the API just refused something an admin switched off: fetch the switches again so the app greys it out
+setServiceDisabledHandler(() => void queryClient.invalidateQueries({ queryKey: resources.services.key }).catch(() => {}));
 
 /** What changes after a money movement: balances, history, inbox, and the product's own list. */
 export function refreshAfterMoney(extra: readonly (readonly unknown[])[] = []) {

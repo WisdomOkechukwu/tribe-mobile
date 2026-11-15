@@ -18,11 +18,12 @@ import { assetByCode, railsFor, type Asset } from "@/data/assets";
 import { guideSteps, type GuideKind } from "@/data/guides";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { toast } from "@/stores/use-ui-store";
-import { useAccounts, useTransactions } from "@/api/queries";
+import { useAccounts, useReceiveDetails, useTransactions } from "@/api/queries";
 import { useLiveRates } from "@/api/live-rates";
 import { Loaded, Skeleton, SkeletonList } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
 import { formatAsset, formatMoney, toDisplay } from "@/utils/format";
+import { SEND_SERVICES, useServiceOff } from "@/utils/services";
 import { guardWalletOpen, useWalletsUnlocked } from "@/utils/verification";
 
 const GUIDES: { kind: GuideKind; label: string; icon: IconName }[] = [
@@ -35,6 +36,24 @@ function open(a: Asset, kind: GuideKind) {
   if (kind === "receive") router.push({ pathname: "/receive/[code]", params: { code: a.code } });
   else if (kind === "send") router.push({ pathname: "/send", params: { code: a.code } });
   else router.push({ pathname: "/swap", params: { from: a.code } });
+}
+
+/**
+ * Your own account details for a fiat balance, from the API (GET wallets/:code/receive): the same
+ * ones the Receive screen shares. Nothing shows until they load: a made-up number here could be
+ * copied and paid into.
+ */
+function AccountDetails({ a }: { a: Asset }) {
+  const details = useReceiveDetails(a.code);
+  const fields = details.data?.fields ?? [];
+  if (!fields.length) return null;
+  return (
+    <ListSection title="Account details" action={<SectionLink label="Share" onPress={() => open(a, "receive")} />} inset={spacing.md} footer={`Get paid by ${railsFor(a).map((r) => r.name).join(", ").replace(/, ([^,]*)$/, " or $1")}.`}>
+      {fields.slice(0, 2).map((f) => (
+        <CopyField key={f.label} label={f.label} value={f.value} />
+      ))}
+    </ListSection>
+  );
 }
 
 /** Dismissal key per currency, kept with the other dismissed cards in prefs. */
@@ -149,6 +168,10 @@ const RECENT = 20;
 
 export default function AssetDetail() {
   const c = useColors();
+  // an admin can switch services off: those actions grey out and stop being tappable
+  const receiveOff = useServiceOff("receive");
+  const sendOff = useServiceOff(...SEND_SERVICES);
+  const swapOff = useServiceOff("swap");
   const { code } = useLocalSearchParams<{ code: string }>();
   const a = assetByCode(code);
   const accounts = useAccounts();
@@ -215,9 +238,9 @@ export default function AssetDetail() {
           </View>
         ) : isOpen ? (
           <CircleActionRow>
-            <CircleAction glyph="incoming" label="Receive" onPress={() => open(a, "receive")} />
-            <CircleAction glyph="outgoing" label="Send" onPress={() => open(a, "send")} />
-            <CircleAction icon="swap" label="Swap" primary onPress={() => open(a, "swap")} />
+            <CircleAction glyph="incoming" label="Receive" primary off={receiveOff} onPress={() => open(a, "receive")} />
+            <CircleAction glyph="outgoing" label="Send" off={sendOff} onPress={() => open(a, "send")} />
+            <CircleAction icon="swap" label="Swap" off={swapOff} onPress={() => open(a, "swap")} />
           </CircleActionRow>
         ) : (
           <View style={{ gap: spacing.sm }}>
@@ -232,13 +255,7 @@ export default function AssetDetail() {
           </View>
         )}
 
-        {!crypto && isOpen && a.account && (
-          <ListSection title="Account details" action={<SectionLink label="Share" onPress={() => open(a, "receive")} />} inset={spacing.md} footer={`Get paid by ${railsFor(a).map((r) => r.name).join(", ").replace(/, ([^,]*)$/, " or $1")}.`}>
-            {a.account.fields.slice(0, 2).map((f) => (
-              <CopyField key={f.label} label={f.label} value={f.value} />
-            ))}
-          </ListSection>
-        )}
+        {!crypto && isOpen && <AccountDetails a={a} />}
 
         {!guideHidden && <HowItWorks a={a} canMove={isOpen && balance > 0} />}
 

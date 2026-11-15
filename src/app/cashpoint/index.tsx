@@ -26,6 +26,7 @@ import { runWithLoader, toast } from "@/stores/use-ui-store";
 import { useWalletStore } from "@/stores/use-wallet-store";
 import { radius, spacing, useColors } from "@/theme";
 import { formatAsset, relativeDate } from "@/utils/format";
+import { PAUSED, useServiceOff } from "@/utils/services";
 
 type Mode = "generate" | "redeem";
 const fmt = (code?: string) => (code ?? "").replace(/\D/g, "").replace(/(.{4})(?=.)/g, "$1 ");
@@ -121,6 +122,9 @@ function CodeField({ code, onPaste, onClear }: { code: string; onPaste: () => vo
 /** Cashpoints: Naira packed into a 12-digit code anyone can redeem — Tribe users instantly, new users at sign-up. */
 export default function Cashpoint() {
   const c = useColors();
+  // an admin can switch generating and redeeming off separately
+  const createOff = useServiceOff("cashpoint_create");
+  const redeemOff = useServiceOff("cashpoint_redeem");
   const params = useLocalSearchParams<{ mode?: Mode }>();
   const ngn = useWalletStore((s) => s.balances.NGN);
   const ngnRaw = useWalletStore((s) => s.balancesRaw.NGN ?? "0");
@@ -160,8 +164,8 @@ export default function Cashpoint() {
       footer={
         mode === "generate" ? (
           <Button
-            title={value && !over && !tooSmall ? `Generate ${formatAsset(value, "NGN")} code` : "Generate code"}
-            disabled={!value || over || tooSmall}
+            title={createOff ? PAUSED : value && !over && !tooSmall ? `Generate ${formatAsset(value, "NGN")} code` : "Generate code"}
+            disabled={!value || over || tooSmall || !!createOff}
             onPress={() => {
               begin({ kind: "cashpoint", amount: value });
               router.push("/cashpoint/review");
@@ -169,8 +173,8 @@ export default function Cashpoint() {
           />
         ) : (
           <Button
-            title="Redeem"
-            disabled={!full}
+            title={redeemOff ? PAUSED : "Redeem"}
+            disabled={!full || !!redeemOff}
             loading={redeeming}
             onPress={async () => {
               // no PIN: redeeming only adds money. The API locks the code so only one person gets it.

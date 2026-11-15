@@ -55,7 +55,7 @@ export type PendingAction =
       beneficiaryId?: string;
       eta?: string;
     }
-  | { kind: "swap"; from: AssetCode; to: AssetCode; amount: number; /** the exact amount to land, when that's what was typed (the quote prices `amount`) */ receive?: number; /** funding a just-opened currency (add-currency/fund): worded as "Add money" */ fund?: boolean }
+  | { kind: "swap"; from: AssetCode; to: AssetCode; amount: number; /** the exact amount to land, when that's what was typed (the quote prices `amount`) */ receive?: number; /** the dollars' worth to pay, when that's what was typed (the server converts it; `amount` is the app's estimate) */ usd?: number; /** funding a just-opened currency (add-currency/fund): worded as "Add money" */ fund?: boolean }
   | {
       kind: "bill";
       billerId: string;
@@ -167,6 +167,8 @@ const dropAttempt = () => SecureStore.deleteItemAsync(ATTEMPT_KEY).catch(() => {
 /** Which actions are priced with a quote, and how. */
 function quoteRequest(a: PendingAction) {
   if (a.kind === "swap" && a.receive !== undefined) return { transaction_type: "swap", from_asset: a.from, to_asset: a.to, receive_amount: amountString(a.receive, apiDecimals(a.to)) };
+  // typed in dollars: the server turns them into the pay amount at its own rate (no client-side conversion)
+  if (a.kind === "swap" && a.usd !== undefined) return { transaction_type: "swap", from_asset: a.from, to_asset: a.to, usd_amount: amountString(a.usd, 2) };
   if (a.kind === "swap") return { transaction_type: "swap", from_asset: a.from, to_asset: a.to, amount: amountString(a.amount, apiDecimals(a.from)) };
   if (a.kind === "send" && a.toAsset && a.toAsset !== a.asset && a.typed === "pay")
     // the user typed what they pay: the server works out what the recipient gets (no client-side conversion)

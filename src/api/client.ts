@@ -34,7 +34,7 @@ import type {
   TransactionResource,
   VaultTokenResource,
   WalletsResource,
-} from "./types";
+ ServiceResource } from "./types";
 
 /**
  * The one seam between screens and the Tribe API. Screens read data through the React Query
@@ -227,6 +227,8 @@ export const resources = {
   cardDesigns: catalog<CardDesigns, CardDesignsResource>("cardDesigns", "card-designs", (designs) => useCatalogStore.getState().set({ designs }), () => useCatalogStore.getState().designs!, (s) => !!s.designs),
   channels: catalog<ChannelResource[], ChannelResource[]>("channels", "channels", (list) => useCatalogStore.getState().set({ channels: list }), () => useCatalogStore.getState().channels, (s) => s.channels.length > 0),
   assets: catalog<AssetResource[], AssetResource[]>("assets", "assets", (list) => useCatalogStore.getState().set({ assets: list }), () => useCatalogStore.getState().assets, (s) => s.assets.length > 0),
+  // which services an admin has switched off: the app greys those out (utils/services.ts)
+  services: catalog<ServiceResource[], ServiceResource[]>("services", "services", (list) => useCatalogStore.getState().set({ services: list }), () => useCatalogStore.getState().services, (s) => s.services.length > 0),
 };
 
 /** A catalogue list: saved to the catalog store, painted from it on the next launch. */

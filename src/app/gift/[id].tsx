@@ -25,6 +25,7 @@ import { useWalletStore } from "@/stores/use-wallet-store";
 import { fonts, radius, spacing, useColors } from "@/theme";
 import { formatAsset } from "@/utils/format";
 import { useLiveRates } from "@/api/live-rates";
+import { PAUSED, useServiceOff } from "@/utils/services";
 
 type Mode = "buy" | "sell";
 
@@ -90,6 +91,10 @@ export default function Gift() {
   const fee = usd * brand.markup;
   const over = mode === "buy" && exceeds(cost, balancesRaw[payWith] ?? "0");
   const payoutAmt = giftSellPayout(usd, brand, payout, rates.version);
+  // an admin can switch buying and selling off separately
+  const buyOff = useServiceOff("gift_card_buy");
+  const sellOff = useServiceOff("gift_card_sell");
+  const off = mode === "buy" ? buyOff : sellOff;
   const ok = priced && (mode === "buy" ? !over : cardCode.replace(/\W/g, "").length >= 10);
   const faceW = Math.min(width - spacing.mdl * 2 - 24, 320);
 
@@ -113,8 +118,8 @@ export default function Gift() {
       title={brand.name}
       footer={
         <Button
-          title={!priced ? "Getting the latest rate…" : mode === "buy" ? (over ? `Not enough in ${assetByCode(payWith).name}` : `Buy for ${formatAsset(cost, payWith)}`) : `Sell for ${formatAsset(payoutAmt, payout)}`}
-          disabled={!ok}
+          title={off ? PAUSED : !priced ? "Getting the latest rate…" : mode === "buy" ? (over ? `Not enough in ${assetByCode(payWith).name}` : `Buy for ${formatAsset(cost, payWith)}`) : `Sell for ${formatAsset(payoutAmt, payout)}`}
+          disabled={!ok || !!off}
           onPress={() => {
             begin(mode === "buy" ? { kind: "gift-buy", brandId: brand.id, usd, payWith } : { kind: "gift-sell", brandId: brand.id, usd, payout, code: cardCode.trim() });
             router.push("/gift/review");

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { ScrollView, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { BillerThumb, GiftMark } from "@/components/brand-tiles";
 import { BrandSwitch } from "@/components/brand-switch";
 import { CashpointMark } from "@/components/cashpoint-mark";
@@ -16,8 +16,9 @@ import { toggleSchedule } from "@/screens/recurring-actions";
 import { useCashpoints, useGiftBrands, useRecurring, useVaultTokens } from "@/api/queries";
 import { Skeleton } from "@/components/skeletons";
 import { fonts, palette, radius, spacing, useColors } from "@/theme";
+import { useServiceOff } from "@/utils/services";
 
-type Shortcut = { key: string; label: string; icon: IconName; go: () => void; badge?: number };
+type Shortcut = { key: string; label: string; icon: IconName; go: () => void; badge?: number; /** switched off by an admin (`useServiceOff`): greyed out, not tappable */ off?: string | null };
 
 /**
  * OPay-style shortcut grid: four round icons a row, label underneath. Bills open straight on the
@@ -28,7 +29,7 @@ function ShortcutGrid({ items }: { items: Shortcut[] }) {
   return (
     <View style={{ backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", paddingVertical: spacing.md, flexDirection: "row", flexWrap: "wrap", rowGap: spacing.md }}>
       {items.map((it) => (
-        <PressableScale key={it.key} onPress={it.go} accessibilityLabel={it.label} scaleTo={0.92} style={{ width: "25%", alignItems: "center", gap: spacing.sm }}>
+        <PressableScale key={it.key} onPress={it.go} disabled={!!it.off} accessibilityLabel={it.label} accessibilityHint={it.off ?? undefined} scaleTo={0.92} style={{ width: "25%", alignItems: "center", gap: spacing.sm }}>
           <View>
             <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" }}>
               <Icon name={it.icon} size={21} color={c.brandText} />
@@ -52,6 +53,8 @@ function ShortcutGrid({ items }: { items: Shortcut[] }) {
 
 const PER_MONTH: Record<Frequency, number> = { weekly: 52 / 12, biweekly: 26 / 12, monthly: 1 };
 const TILE = 164;
+/** drops a section link (18pt line) onto the centre of the title beside it (24pt line) */
+const LINK_DROP = 3;
 /** Card-sized frequency labels (the full ones wrap on a 164pt card). */
 const FREQ_SHORT: Record<Frequency, string> = { weekly: "Weekly", biweekly: "Every 2 wks", monthly: "Monthly" };
 
@@ -91,6 +94,9 @@ function RecurringRail() {
 
 function Rail({ schedules }: { schedules: Schedule[] }) {
   const c = useColors();
+  // with nothing set up yet, the "Add a bill" tile runs the full width like every other card
+  const { width } = useWindowDimensions();
+  const recurringOff = useServiceOff("recurring_bills");
   const toggle = (id: string) => {
     const s = schedules.find((x) => x.id === id);
     if (s) toggleSchedule(s);
@@ -104,14 +110,16 @@ function Rail({ schedules }: { schedules: Schedule[] }) {
 
   return (
     <View style={{ gap: spacing.smd }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: spacing.xs }}>
-        <View style={{ gap: spacing.xs }}>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingHorizontal: spacing.xs }}>
+        <View style={{ flex: 1, gap: spacing.xs }}>
           <Text variant="headline">Recurring bills</Text>
           <Text variant="caption" tone="muted">
             {monthly > 0 ? `₦${Math.round(monthly).toLocaleString()}/month on autopilot` : "Set it once, never top up late again"}
           </Text>
         </View>
-        <SectionLink label={schedules.length > RAIL_MAX ? `See all ${schedules.length}` : "Manage"} onPress={() => router.push("/pay/recurring")} />
+        <View style={{ marginTop: LINK_DROP }}>
+          <SectionLink label={schedules.length > RAIL_MAX ? `See all ${schedules.length}` : "Manage"} onPress={() => router.push("/pay/recurring")} />
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -spacing.md }} contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.smd }}>
@@ -157,9 +165,11 @@ function Rail({ schedules }: { schedules: Schedule[] }) {
 
         <PressableScale
           onPress={() => router.push("/recurring/new")}
+          disabled={!!recurringOff}
+          accessibilityHint={recurringOff ?? undefined}
           scaleTo={0.97}
           accessibilityLabel="Add a recurring bill"
-          style={{ width: list.length ? TILE : TILE * 2, minHeight: 176, borderRadius: radius.card, borderCurve: "continuous", borderWidth: 1.5, borderStyle: "dashed", borderColor: c.borderStrong, padding: spacing.md, alignItems: "center", justifyContent: "center", gap: spacing.sm }}
+          style={{ width: list.length ? TILE : width - spacing.md * 2, minHeight: 176, borderRadius: radius.card, borderCurve: "continuous", borderWidth: 1.5, borderStyle: "dashed", borderColor: c.borderStrong, padding: spacing.md, alignItems: "center", justifyContent: "center", gap: spacing.sm }}
         >
           <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.brand, alignItems: "center", justifyContent: "center" }}>
             <Icon name="plus" size={18} color={c.onBrand} weight="bold" />
@@ -179,14 +189,19 @@ function Rail({ schedules }: { schedules: Schedule[] }) {
 /** A section's title, one line of what it's for, and an optional link — every block on Pay opens with one. */
 function SectionIntro({ title, caption, action, onAction }: { title: string; caption: string; action?: string; onAction?: () => void }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: spacing.md, paddingHorizontal: spacing.xs }}>
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingHorizontal: spacing.xs }}>
       <View style={{ flex: 1, gap: spacing.xs }}>
         <Text variant="headline">{title}</Text>
         <Text variant="caption" tone="muted">
           {caption}
         </Text>
       </View>
-      {action && onAction && <SectionLink label={action} onPress={onAction} />}
+      {/* the link sits on the title's line, however long the caption runs */}
+      {action && onAction && (
+        <View style={{ marginTop: LINK_DROP }}>
+          <SectionLink label={action} onPress={onAction} />
+        </View>
+      )}
     </View>
   );
 }
@@ -202,11 +217,20 @@ export default function Pay() {
   const phone = useSessionStore((s) => s.user.phone);
   const network = detectNetwork(phone.replace(/^\+234\s?/, "0")) ?? "mtn";
   const bill = (id: string, category: string) => () => router.push({ pathname: "/bill/[id]", params: { id, category } });
+  // an admin can switch any of these off: its tile greys out and stops being tappable
+  const airtimeOff = useServiceOff("bill_airtime");
+  const dataOff = useServiceOff("bill_data");
+  const tvOff = useServiceOff("bill_tv");
+  const electricityOff = useServiceOff("bill_electricity");
+  const giftBuyOff = useServiceOff("gift_card_buy");
+  const giftSellOff = useServiceOff("gift_card_sell");
+  const cashpointCreateOff = useServiceOff("cashpoint_create");
+  const cashpointRedeemOff = useServiceOff("cashpoint_redeem");
   const shortcuts: Shortcut[] = [
-    { key: "airtime", label: "Airtime", icon: "airtime", go: bill(network, "airtime") },
-    { key: "data", label: "Data", icon: "data", go: bill(network, "data") },
-    { key: "tv", label: "TV", icon: "tv", go: bill("dstv", "tv") },
-    { key: "electricity", label: "Electricity", icon: "bolt", go: bill("phed", "electricity") },
+    { key: "airtime", label: "Airtime", icon: "airtime", go: bill(network, "airtime"), off: airtimeOff },
+    { key: "data", label: "Data", icon: "data", go: bill(network, "data"), off: dataOff },
+    { key: "tv", label: "TV", icon: "tv", go: bill("dstv", "tv"), off: tvOff },
+    { key: "electricity", label: "Electricity", icon: "bolt", go: bill("phed", "electricity"), off: electricityOff },
   ];
 
   return (
@@ -251,7 +275,7 @@ export default function Pay() {
       <View style={{ gap: spacing.smd }}>
         <SectionIntro title="Gift cards" caption="Buy codes in seconds, or turn unused cards into any currency." action="See all" onAction={() => router.push("/pay/gift-cards")} />
         <View style={{ flexDirection: "row", gap: spacing.smd }}>
-          <PressableScale onPress={() => router.push({ pathname: "/pay/gift-cards", params: { mode: "buy" } })} scaleTo={0.97} accessibilityLabel="Buy a gift card" style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
+          <PressableScale onPress={() => router.push({ pathname: "/pay/gift-cards", params: { mode: "buy" } })} disabled={!!giftBuyOff} accessibilityHint={giftBuyOff ?? undefined} scaleTo={0.97} accessibilityLabel="Buy a gift card" style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
             <View style={{ flexDirection: "row" }}>
               {GIFT_BRANDS.slice(0, 3).map((b, i) => (
                 <View key={b.id} style={{ marginLeft: i ? -12 : 0, borderRadius: 20, borderWidth: 2, borderColor: c.surface, zIndex: 3 - i }}>
@@ -266,7 +290,7 @@ export default function Pay() {
               </Text>
             </View>
           </PressableScale>
-          <PressableScale onPress={() => router.push({ pathname: "/pay/gift-cards", params: { mode: "sell" } })} scaleTo={0.97} accessibilityLabel="Sell a gift card" style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
+          <PressableScale onPress={() => router.push({ pathname: "/pay/gift-cards", params: { mode: "sell" } })} disabled={!!giftSellOff} accessibilityHint={giftSellOff ?? undefined} scaleTo={0.97} accessibilityLabel="Sell a gift card" style={{ flex: 1, backgroundColor: c.surface, borderRadius: radius.card, borderCurve: "continuous", padding: spacing.md, gap: spacing.md }}>
             <View style={{ flexDirection: "row" }}>
               {GIFT_BRANDS.slice(3, 6).map((b, i) => (
                 <View key={b.id} style={{ marginLeft: i ? -12 : 0, borderRadius: 20, borderWidth: 2, borderColor: c.surface, zIndex: 3 - i }}>
@@ -325,13 +349,13 @@ export default function Pay() {
             ))}
           </View>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <PressableScale onPress={() => router.push("/cashpoint")} accessibilityLabel="Generate a Cashpoint" style={{ flex: 1, height: 46, borderRadius: radius.full, backgroundColor: "#fff", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
+            <PressableScale onPress={() => router.push("/cashpoint")} disabled={!!cashpointCreateOff} accessibilityHint={cashpointCreateOff ?? undefined} accessibilityLabel="Generate a Cashpoint" style={{ flex: 1, height: 46, borderRadius: radius.full, backgroundColor: "#fff", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
               <Icon name="add" size={16} color={palette.orange[700]} weight="bold" />
               <Text variant="bodyStrong" style={{ color: palette.orange[700] }}>
                 Generate
               </Text>
             </PressableScale>
-            <PressableScale onPress={() => router.push({ pathname: "/cashpoint", params: { mode: "redeem" } })} accessibilityLabel="Redeem a Cashpoint" style={{ flex: 1, height: 46, borderRadius: radius.full, backgroundColor: palette.orange[700], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
+            <PressableScale onPress={() => router.push({ pathname: "/cashpoint", params: { mode: "redeem" } })} disabled={!!cashpointRedeemOff} accessibilityHint={cashpointRedeemOff ?? undefined} accessibilityLabel="Redeem a Cashpoint" style={{ flex: 1, height: 46, borderRadius: radius.full, backgroundColor: palette.orange[700], flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs }}>
               <Icon name="receive" size={16} color="#fff" weight="bold" />
               <Text variant="bodyStrong" style={{ color: "#fff" }}>
                 Redeem

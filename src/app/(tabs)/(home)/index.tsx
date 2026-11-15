@@ -19,6 +19,7 @@ import { TransactionList } from "@/components/transaction-row";
 import { ASSETS } from "@/data/assets";
 import { REFERRAL } from "@/data/referrals";
 import { useUnreadCount } from "@/stores/use-inbox-store";
+import { SEND_SERVICES, useServiceOff } from "@/utils/services";
 import { useSessionStore } from "@/stores/use-session-store";
 import { portfolioUsd } from "@/stores/use-wallet-store";
 import { useRatesVersion } from "@/api/live-rates";
@@ -119,6 +120,9 @@ function PromoArt({ icon, bg }: { icon: IconName; bg: string }) {
 
 export default function Home() {
   const c = useColors();
+  // an admin can switch services off: those actions grey out and stop being tappable
+  const sendOff = useServiceOff(...SEND_SERVICES);
+  const swapOff = useServiceOff("swap");
   const insets = useSafeAreaInsets();
   const user = useSessionStore((s) => s.user);
   const kycTier = useSessionStore((s) => s.kycTier);
@@ -292,11 +296,13 @@ export default function Home() {
           <CircleAction
             glyph="outgoing"
             label="Send"
+            off={sendOff}
             onPress={() => router.push("/send")}
           />
           <CircleAction
             icon="swap"
             label="Swap"
+            off={swapOff}
             onPress={() => router.push("/swap")}
           />
           <CircleAction icon="more" label="More" onPress={openMoreSheet} />

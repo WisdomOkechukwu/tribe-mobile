@@ -80,6 +80,12 @@ export const setSessionEndedHandler = (handler: SessionEndedHandler) => {
   onSessionEnded = handler;
 };
 
+/** Called when the API refuses a request with SERVICE_DISABLED: the app's copy of the switches is out of date. */
+let onServiceDisabled: () => void = () => {};
+export const setServiceDisabledHandler = (handler: () => void) => {
+  onServiceDisabled = handler;
+};
+
 let refreshing: Promise<Tokens | null> | null = null;
 
 const expiresSoon = (tokens: Tokens) => new Date(tokens.access_token_expires_at).getTime() - EXPIRY_SLACK_MS <= Date.now();
@@ -161,6 +167,7 @@ async function send<T>(path: string, options: RequestOptions, token?: string | n
   if (!response.ok || json.success === false) {
     const status = response.status;
     const fallback = status >= 500 ? "Something went wrong on our side. Please try again." : "That didn't work. Please try again.";
+    if (json.code === "SERVICE_DISABLED") onServiceDisabled();
     throw new ApiError(status, json.code ?? (status === 401 ? "UNAUTHENTICATED" : `HTTP_${status}`), json.message || fallback, json.errors ?? {}, json.data);
   }
   return { data: json.data as T, message: json.message ?? "", meta: json.meta, status: response.status, replay: response.headers.get("Idempotent-Replay") === "true" };
