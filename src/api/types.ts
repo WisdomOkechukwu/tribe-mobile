@@ -104,6 +104,8 @@ export type RecurringResource = {
 export type ReferralsResource = {
   code: string;
   balance: string;
+  /** the inviter's share of what Tribe earns on a friend's transaction, in percent, e.g. "2" */
+  share_percent: string;
   earnings: { id: string; friend: string; what: string; amount: string; date: string }[];
   withdrawals: { id: string; amount_ngn: string; to: string; tx_id: string; date: string }[];
   invited: number;

@@ -194,9 +194,10 @@ export const toSchedule = (r: RecurringResource, planName?: string): Schedule =>
   version: r.version,
 });
 
-export const toReferrals = (r: ReferralsResource): { balance: number; earnings: Earning[]; withdrawals: Withdrawal[]; code: string; invited: number } => ({
+export const toReferrals = (r: ReferralsResource): { balance: number; earnings: Earning[]; withdrawals: Withdrawal[]; code: string; invited: number; sharePercent: number } => ({
   code: r.code,
   invited: r.invited,
+  sharePercent: num(r.share_percent),
   balance: num(r.balance),
   earnings: r.earnings.map((e) => ({ id: e.id, friend: e.friend, what: e.what, amount: num(e.amount), date: e.date })),
   withdrawals: r.withdrawals.map((w) => ({ id: w.id, amountNgn: num(w.amount_ngn), to: asset(w.to), received: num(w.amount_ngn), txId: w.tx_id, date: w.date })),

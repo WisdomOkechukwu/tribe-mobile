@@ -24,15 +24,21 @@ import { useServiceOff } from "@/utils/services";
 type Tab = "earnings" | "withdrawals" | "friends";
 
 const naira = (n: number) => `₦${n.toLocaleString()}`;
-const STEPS: { icon: IconName; title: string; body: string }[] = [
+/** How it works. The share comes from the server; until it loads, the step says "a share". */
+const steps = (sharePercent: number): { icon: IconName; title: string; body: string }[] => [
   { icon: "share", title: "Share your code", body: "Send it on WhatsApp, X or anywhere else." },
   { icon: "personAdd", title: "Your friend joins Tribe", body: "They sign up with your code." },
-  { icon: "repeat", title: "You earn on every transaction", body: `${naira(REFERRAL.perTransactionNgn)} each time they send, swap, pay a bill or buy a card. For life.` },
+  {
+    icon: "repeat",
+    title: "You earn on every transaction",
+    body: `${sharePercent > 0 ? `${sharePercent}%` : "A share"} of what Tribe earns each time they send, swap, pay a bill or buy a card. For life.`,
+  },
 ];
 
 /**
- * Invite friends — earn for life: ₦25 every time a friend transacts. Rewards collect in a
- * referral balance you can withdraw into any currency; Earnings and Withdrawals list both.
+ * Invite friends — earn for life: a share (set by Tribe, e.g. 2%) of what Tribe earns every time a
+ * friend transacts. Rewards collect in a referral balance you can withdraw into any currency;
+ * Earnings and Withdrawals list both.
  */
 export default function Invite() {
   const c = useColors();
@@ -40,7 +46,7 @@ export default function Invite() {
   const tag = useSessionStore((s) => s.user.tag);
   const myCode = useSessionStore((s) => s.referralCode);
   const referrals = useReferrals();
-  const { balance = 0, earnings = [], withdrawals = [], code: serverCode, invited = 0 } = referrals.data ?? {};
+  const { balance = 0, earnings = [], withdrawals = [], code: serverCode, invited = 0, sharePercent = 0 } = referrals.data ?? {};
   const [tab, setTab] = useState<Tab>("earnings");
   const code = serverCode || myCode || tag.toUpperCase();
   // friends, from the rewards they earned you (GET referrals has the list of earnings, not of invitees)
@@ -123,7 +129,7 @@ export default function Invite() {
       </PressableScale>
 
       <ListSection title="How it works">
-        {STEPS.map((s) => (
+        {steps(sharePercent).map((s) => (
           <ListRow key={s.title} icon={s.icon} title={s.title} subtitle={s.body} />
         ))}
       </ListSection>
@@ -141,7 +147,7 @@ export default function Invite() {
       {!referrals.data && tab !== "friends" && <SkeletonList rows={4} />}
 
       {referrals.data && tab === "earnings" && (
-        <ListSection footer={`${naira(REFERRAL.perTransactionNgn)} for every transaction a friend makes, paid ${REFERRAL.payout}. No cap, no expiry.`}>
+        <ListSection footer={`${sharePercent > 0 ? `${sharePercent}% of what Tribe earns on` : "A share of"} every transaction a friend makes, paid ${REFERRAL.payout}. No cap, no expiry.`}>
           {earnings.slice(0, 12).map((e) => (
             <ListRow key={e.id} leading={<Avatar size={38} name={e.friend} ring={false} />} title={e.friend} subtitle={`${e.what} · ${relativeDate(e.date)}`} trailing={<Text variant="amount" tone="success">+{naira(e.amount)}</Text>} />
           ))}

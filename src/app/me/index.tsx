@@ -10,7 +10,6 @@ import { PressableScale } from "@/components/pressable-scale";
 import { Screen } from "@/components/screen";
 import { openTagShare } from "@/components/share-cards";
 import { Text } from "@/components/text";
-import { REFERRAL } from "@/data/referrals";
 import { overlay } from "@/stores/use-overlay-store";
 import { usePrefsStore } from "@/stores/use-prefs-store";
 import { useSessionStore } from "@/stores/use-session-store";
@@ -108,7 +107,7 @@ export default function Me() {
             Earn from friends, for life
           </Text>
           <Text variant="caption" style={{ color: palette.purple[100] }}>
-            ₦{REFERRAL.perTransactionNgn} every time someone you invite makes a transaction.
+            A share of every transaction someone you invite makes.
           </Text>
         </View>
         <Icon name="chevron" size={13} color={palette.purple[100]} />

@@ -88,7 +88,7 @@ function remote<T, R>(key: readonly unknown[], path: string, map: (raw: R) => T,
 }
 
 export type Accounts = { balances: Record<AssetCode, number>; balancesRaw: Partial<Record<AssetCode, string>>; opened: AssetCode[] };
-export type Referrals = { balance: number; balanceRaw: string; earnings: Earning[]; withdrawals: Withdrawal[]; code: string | null; invited: number };
+export type Referrals = { balance: number; balanceRaw: string; earnings: Earning[]; withdrawals: Withdrawal[]; code: string | null; invited: number; sharePercent: number };
 export type TransactionDetail = { tx: Transaction; route: SwapLegResource[] };
 export type CardDesigns = CardDesignsResource;
 export type Cashpoint = { id: string; code: string; amount: number; status: string; txId: string; createdAt: string; redeemedAt: string | null };
@@ -203,7 +203,7 @@ export const resources = {
     path: "referrals",
     map: (r) => ({ ...toReferrals(r), balanceRaw: r.balance }),
     save: (r) => useReferralStore.getState().setReferrals({ ...r, code: r.code ?? "" }),
-    select: (s) => ({ balance: s.balance, balanceRaw: s.balanceRaw, earnings: s.earnings, withdrawals: s.withdrawals, code: s.code, invited: s.invited }),
+    select: (s) => ({ balance: s.balance, balanceRaw: s.balanceRaw, earnings: s.earnings, withdrawals: s.withdrawals, code: s.code, invited: s.invited, sharePercent: s.sharePercent }),
     parts: (s) => [s.balance, s.earnings, s.withdrawals],
   }),
 

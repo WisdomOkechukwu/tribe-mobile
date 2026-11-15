@@ -17,7 +17,6 @@ import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { TransactionList } from "@/components/transaction-row";
 import { ASSETS } from "@/data/assets";
-import { REFERRAL } from "@/data/referrals";
 import { useUnreadCount } from "@/stores/use-inbox-store";
 import { SEND_SERVICES, useServiceOff } from "@/utils/services";
 import { useSessionStore } from "@/stores/use-session-store";
@@ -183,7 +182,7 @@ export default function Home() {
     {
       id: "invite",
       title: "Earn from friends, for life",
-      body: `Get ₦${REFERRAL.perTransactionNgn} every time a friend you invite makes a transaction.`,
+      body: "Earn a share of every transaction a friend you invite makes.",
       art: <PromoArt icon="people" bg={c.accent} />,
       tone: "neutral" as const,
       onPress: () => router.push("/me/invite", { withAnchor: true }),

@@ -13,13 +13,15 @@ type ReferralState = {
   balanceRaw: string;
   code: string | null;
   invited: number;
+  /** the inviter's share of what Tribe earns on each of a friend's transactions, in percent */
+  sharePercent: number;
   earnings: Earning[];
   withdrawals: Withdrawal[];
-  setReferrals: (r: { balance: number; balanceRaw: string; code: string; invited: number; earnings: Earning[]; withdrawals: Withdrawal[] }) => void;
+  setReferrals: (r: { balance: number; balanceRaw: string; code: string; invited: number; sharePercent: number; earnings: Earning[]; withdrawals: Withdrawal[] }) => void;
   reset: () => void;
 };
 
-const initial = { balance: 0, balanceRaw: "0.00", code: null as string | null, invited: 0, earnings: [] as Earning[], withdrawals: [] as Withdrawal[] };
+const initial = { balance: 0, balanceRaw: "0.00", code: null as string | null, invited: 0, sharePercent: 0, earnings: [] as Earning[], withdrawals: [] as Withdrawal[] };
 
 /** Referral earnings (Me › Invite friends), as last loaded from GET /referrals. Memory only: the balance is never kept on the device. */
 export const useReferralStore = create<ReferralState>()((set) => ({
